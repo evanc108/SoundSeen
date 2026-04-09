@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+librosa
+supabase
+python-dotenv
+pydantic
+pydantic-settings
+numpy
+soundfile
