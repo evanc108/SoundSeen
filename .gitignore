@@ -16,8 +16,9 @@ env/
 # Environment variables
 .env
 
-# Test files
+# Audio — ignore stray MP3s, but allow bundled app resources
 *.mp3
+!SoundSeen/SoundSeen/Resources/*.mp3
 
 # IDE
 .idea/
