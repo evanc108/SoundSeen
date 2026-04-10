@@ -1,0 +1,7 @@
+{
+  "name": "SoundSeen",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SoundSeen — iOS (Swift) + Python backend; root package for optional Node tooling",
+  "license": "UNLICENSED"
+}
