@@ -8,9 +8,15 @@
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject private var library: LibraryStore
+    @EnvironmentObject private var audioPlayer: AudioReactivePlayer
+
     var body: some View {
         MainTabView()
             .preferredColorScheme(.dark)
+            .onAppear {
+                audioPlayer.attachLibrary(library)
+            }
     }
 }
 

@@ -142,6 +142,10 @@ struct LibraryView: View {
 
                             Spacer(minLength: 0)
 
+                            Text(track.formattedDuration ?? "—")
+                                .font(.subheadline.monospacedDigit().weight(.medium))
+                                .foregroundStyle(.secondary)
+
                             Image(systemName: "play.circle.fill")
                                 .font(.title2)
                                 .foregroundStyle(SoundSeenTheme.purpleAccent.opacity(0.9))
