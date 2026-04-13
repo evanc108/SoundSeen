@@ -8,7 +8,11 @@ import SwiftUI
 struct VisualizerView: View {
     let onBack: () -> Void
 
+    @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var player: AudioReactivePlayer
+    @State private var scrubProgress: Double = 0
+    @State private var isScrubbing = false
+    @State private var showQueueSheet = false
 
     var body: some View {
         ZStack {
@@ -24,6 +28,28 @@ struct VisualizerView: View {
                 playbackControls
             }
             .padding(.horizontal, 20)
+        }
+        .sheet(isPresented: $showQueueSheet) {
+            QueueSheet(player: player, onPickIndex: { index in
+                player.jumpToQueueIndex(index, libraryTracks: library.tracks)
+                showQueueSheet = false
+            })
+        }
+        .onAppear {
+            scrubProgress = player.progress
+        }
+        .onChange(of: player.activeTrackId) { _, _ in
+            scrubProgress = player.progress
+        }
+        .onChange(of: player.progress) { _, newVal in
+            if !isScrubbing {
+                scrubProgress = newVal
+            }
+        }
+        .onChange(of: player.isPlaying) { _, _ in
+            if !isScrubbing {
+                scrubProgress = player.progress
+            }
         }
     }
 
@@ -79,7 +105,7 @@ struct VisualizerView: View {
             .ignoresSafeArea()
 
             // Floating orbs (depth)
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 ZStack {
                     ForEach(0..<6, id: \.self) { i in
@@ -122,8 +148,14 @@ struct VisualizerView: View {
 
     private var visualizerCore: some View {
         ZStack {
-            RadialGlow(beatPulse: player.beatPulse, bass: player.bassEnergy)
-                .frame(maxWidth: 440, maxHeight: 440)
+            RadialGlow(
+                beatPulse: player.beatPulse,
+                bass: player.bassEnergy,
+                timbreAir: player.timbreAir,
+                sheen: player.timbreSheen
+            )
+            .frame(maxWidth: 440, maxHeight: 440)
+            .opacity(0.22)
 
             if let err = player.loadError {
                 Text(err)
@@ -132,60 +164,115 @@ struct VisualizerView: View {
                     .foregroundStyle(.orange.opacity(0.9))
                     .padding()
             } else {
-                AudioSpectrumBarsView(
-                    levels: player.barLevels,
-                    beatPulse: player.beatPulse,
-                    isPaused: !player.isPlaying
-                )
-                .frame(height: 212)
-                .accessibilityLabel("Music spectrum visualizer driven by audio")
+                TimbreSpaceVisualizer(isPaused: !player.isPlaying)
+                    .frame(minHeight: 320, maxHeight: 380)
+                    .accessibilityLabel("3D spectrum around the sound field")
             }
         }
     }
 
     private var nowPlayingSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(player.trackTitle.isEmpty ? "—" : player.trackTitle)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(.white)
-                .lineLimit(2)
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(player.trackTitle.isEmpty ? "—" : player.trackTitle)
+                    .font(.title3.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
 
-            if !player.artistName.isEmpty {
-                Text(player.artistName)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.white.opacity(0.55))
+                if !player.artistName.isEmpty {
+                    Text(player.artistName)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
             }
 
-            ProgressView(value: player.progress)
-                .tint(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.3, green: 0.75, blue: 1.0),
-                            SoundSeenTheme.purpleAccent,
-                            Color(red: 1.0, green: 0.45, blue: 0.55),
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .padding(.top, 4)
+            progressTimeline
         }
         .padding(.bottom, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var progressTimeline: some View {
+        VStack(spacing: 6) {
+            TimelineView(.animation(minimumInterval: 1.0 / 24.0, paused: !player.isPlaying && !isScrubbing)) { _ in
+                Slider(
+                    value: Binding(
+                        get: { isScrubbing ? scrubProgress : player.progress },
+                        set: { scrubProgress = $0 }
+                    ),
+                    in: 0...1,
+                    onEditingChanged: { editing in
+                        isScrubbing = editing
+                        player.setScrubbing(editing)
+                        if editing {
+                            scrubProgress = player.progress
+                        } else {
+                            player.seek(toProgress: scrubProgress)
+                            player.endScrubSession()
+                        }
+                    }
+                )
+                .tint(.white)
+            }
+
+            HStack {
+                Text(player.formattedCurrentTime)
+                    .font(.caption.monospacedDigit().weight(.medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                Spacer()
+                Text(player.formattedDuration)
+                    .font(.caption.monospacedDigit().weight(.medium))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+            .padding(.top, 2)
+        }
+    }
+
     private var playbackControls: some View {
-        HStack(spacing: 0) {
+        let sideInactive = Color(white: 0.45)
+        let sideActive = Color.white.opacity(0.92)
+
+        return HStack(spacing: 0) {
             Button {
-                player.restartFromBeginning()
+                guard !library.tracks.isEmpty else { return }
+                player.toggleShuffle(allTracks: library.tracks)
             } label: {
-                Image(systemName: "backward.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white.opacity(0.88))
-                    .frame(width: 56, height: 56)
+                VStack(spacing: 5) {
+                    Image(systemName: "shuffle")
+                        .font(.system(size: 22, weight: .regular))
+                        .foregroundStyle(player.isShuffleEnabled ? SoundSeenTheme.purpleAccent : sideInactive)
+                        .shadow(
+                            color: player.isShuffleEnabled ? SoundSeenTheme.purpleAccent.opacity(0.9) : .clear,
+                            radius: player.isShuffleEnabled ? 12 : 0
+                        )
+                    if player.isShuffleEnabled {
+                        Circle()
+                            .fill(SoundSeenTheme.purpleAccent)
+                            .frame(width: 4, height: 4)
+                            .shadow(color: SoundSeenTheme.purpleAccent.opacity(0.85), radius: 4)
+                    } else {
+                        Color.clear.frame(width: 4, height: 4)
+                    }
+                }
+                .frame(width: 52, height: 58)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Start over")
+            .disabled(library.tracks.isEmpty)
+            .accessibilityLabel(player.isShuffleEnabled ? "Shuffle on" : "Shuffle off")
+
+            Spacer()
+
+            Button {
+                player.playPreviousFromLibrary()
+            } label: {
+                Image(systemName: "backward.end.fill")
+                    .font(.system(size: 26, weight: .regular))
+                    .foregroundStyle(player.hasPreviousTrack ? sideActive : sideInactive)
+                    .frame(width: 48, height: 56)
+            }
+            .buttonStyle(.plain)
+            .disabled(!player.hasPreviousTrack)
+            .accessibilityLabel("Previous track")
 
             Spacer()
 
@@ -194,27 +281,14 @@ struct VisualizerView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    SoundSeenTheme.purpleAccent,
-                                    Color(red: 0.38, green: 0.20, blue: 0.85),
-                                    Color(red: 0.25, green: 0.55, blue: 1.0),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 76, height: 76)
-                        .shadow(
-                            color: SoundSeenTheme.purpleAccent.opacity(0.45 + Double(player.beatPulse) * 0.35),
-                            radius: 14 + CGFloat(player.beatPulse * 10),
-                            y: 5
-                        )
+                        .fill(Color.white)
+                        .frame(width: 72, height: 72)
+                        .shadow(color: .black.opacity(0.28), radius: 10, y: 4)
 
                     Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 30, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.black)
+                        .offset(x: player.isPlaying ? 0 : 2)
                 }
             }
             .buttonStyle(.plain)
@@ -223,20 +297,122 @@ struct VisualizerView: View {
             Spacer()
 
             Button {
-                // Single bundled track — no next item yet
+                player.playNextFromLibrary()
             } label: {
-                Image(systemName: "forward.fill")
-                    .font(.title2)
-                    .foregroundStyle(.white.opacity(0.35))
-                    .frame(width: 56, height: 56)
+                Image(systemName: "forward.end.fill")
+                    .font(.system(size: 26, weight: .regular))
+                    .foregroundStyle(player.hasNextTrack ? sideActive : sideInactive)
+                    .frame(width: 48, height: 56)
             }
             .buttonStyle(.plain)
-            .disabled(true)
-            .accessibilityLabel("Next track unavailable")
+            .disabled(!player.hasNextTrack)
+            .accessibilityLabel(player.hasNextTrack ? "Next track" : "Next track unavailable")
+
+            Spacer()
+
+            Button {
+                showQueueSheet = true
+            } label: {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 22, weight: .regular))
+                    .foregroundStyle(sideActive)
+                    .frame(width: 52, height: 56)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Upcoming songs")
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 12)
         .padding(.top, 4)
         .padding(.bottom, 8)
+    }
+}
+
+// MARK: - Queue sheet
+
+private struct QueueSheet: View {
+    @ObservedObject var player: AudioReactivePlayer
+    var onPickIndex: (Int) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if player.orderedQueueTracks.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 40, weight: .light))
+                            .foregroundStyle(.secondary)
+                        Text("Queue is empty")
+                            .font(.headline)
+                        Text("Play a song from your library to build a queue.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        Section {
+                            ForEach(Array(player.orderedQueueTracks.enumerated()), id: \.offset) { index, track in
+                                queueRow(
+                                    index: index,
+                                    track: track,
+                                    isCurrent: index == player.currentQueueIndex
+                                )
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    onPickIndex(index)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Queue")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func queueRow(index: Int, track: LibraryTrack, isCurrent: Bool) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            Text("\(index + 1)")
+                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(track.title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                if !track.artist.isEmpty {
+                    Text(track.artist)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if isCurrent {
+                Text("Playing")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(SoundSeenTheme.purpleAccent)
+            }
+
+            Text(track.formattedDuration ?? "—")
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
+        .contentShape(Rectangle())
     }
 }
 
@@ -245,21 +421,28 @@ struct VisualizerView: View {
 private struct RadialGlow: View {
     let beatPulse: CGFloat
     let bass: CGFloat
+    /// High-frequency timbre share — shifts cool ↔ warm in the wash.
+    var timbreAir: CGFloat = 0.5
+    /// Spectral “shimmer” — widens the glow when the spectrum moves quickly.
+    var sheen: CGFloat = 0
 
     var body: some View {
+        let air = Double(timbreAir)
+        let sh = Double(sheen)
         ZStack {
             Circle()
                 .fill(
                     RadialGradient(
                         colors: [
                             Color.white.opacity(0.55 + Double(bass) * 0.25),
-                            SoundSeenTheme.purpleAccent.opacity(0.45 + Double(beatPulse) * 0.25),
-                            Color(red: 0.2, green: 0.75, blue: 0.95).opacity(0.25),
+                            Color(hue: 0.72 + air * 0.12, saturation: 0.55 + sh * 0.2, brightness: 0.92)
+                                .opacity(0.45 + Double(beatPulse) * 0.25),
+                            Color(red: 0.2 + air * 0.15, green: 0.75 - air * 0.2, blue: 0.95).opacity(0.25 + sh * 0.15),
                             Color.clear,
                         ],
                         center: .center,
                         startRadius: 8,
-                        endRadius: 200 + CGFloat(beatPulse * 40)
+                        endRadius: 200 + CGFloat(beatPulse * 40) + CGFloat(sh * 35)
                     )
                 )
                 .blur(radius: 35)
@@ -270,7 +453,7 @@ private struct RadialGlow: View {
                         colors: [
                             Color(red: 0.3, green: 0.9, blue: 1.0),
                             SoundSeenTheme.purpleAccent,
-                            Color(red: 1.0, green: 0.4, blue: 0.55),
+                            Color(hue: 0.95 - air * 0.08, saturation: 0.75, brightness: 1),
                             Color(red: 0.95, green: 0.7, blue: 0.2),
                             Color(red: 0.3, green: 0.9, blue: 1.0),
                         ],
@@ -279,7 +462,7 @@ private struct RadialGlow: View {
                     ),
                     lineWidth: 2
                 )
-                .opacity(0.35 + Double(beatPulse) * 0.4)
+                .opacity(0.35 + Double(beatPulse) * 0.4 + sh * 0.2)
                 .frame(width: 260 + CGFloat(beatPulse * 30), height: 260 + CGFloat(beatPulse * 30))
                 .blur(radius: 1)
         }
@@ -287,88 +470,8 @@ private struct RadialGlow: View {
     }
 }
 
-// MARK: - Bars (audio-driven)
-
-private struct AudioSpectrumBarsView: View {
-    let levels: [CGFloat]
-    let beatPulse: CGFloat
-    let isPaused: Bool
-
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: isPaused)) { timeline in
-            GeometryReader { geo in
-                let barCount = max(1, levels.count)
-                let spacing: CGFloat = 2
-                let totalSpacing = spacing * CGFloat(max(0, barCount - 1))
-                let barW = max(2, (geo.size.width - totalSpacing) / CGFloat(barCount))
-                let t = timeline.date.timeIntervalSinceReferenceDate
-
-                HStack(alignment: .bottom, spacing: spacing) {
-                    ForEach(0..<barCount, id: \.self) { i in
-                        let base = i < levels.count ? levels[i] : 0.1
-                        let wobble = isPaused ? 0.04 : sin(t * 3 + Double(i) * 0.2) * 0.04
-                        let boosted = min(1, max(0.05, base + CGFloat(wobble) * (0.15 + beatPulse * 0.25)))
-                        SpectrumBar(
-                            intensity: boosted,
-                            width: barW,
-                            maxHeight: geo.size.height,
-                            index: i,
-                            barCount: barCount,
-                            beatPulse: beatPulse
-                        )
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            }
-        }
-    }
-}
-
-private struct SpectrumBar: View {
-    let intensity: CGFloat
-    let width: CGFloat
-    let maxHeight: CGFloat
-    let index: Int
-    let barCount: Int
-    let beatPulse: CGFloat
-
-    var body: some View {
-        let t = CGFloat(index) / CGFloat(max(1, barCount - 1))
-        let hueShift = t * 0.35 + Double(beatPulse) * 0.08
-        let bottom = Color(
-            hue: 0.72 + hueShift * 0.08,
-            saturation: 0.85,
-            brightness: 0.95 + Double(intensity) * 0.05
-        )
-        let mid = Color(
-            hue: 0.88 + hueShift * 0.06,
-            saturation: 0.75,
-            brightness: 1.0
-        )
-        let top = Color(
-            hue: 0.08 + hueShift * 0.1,
-            saturation: 0.65,
-            brightness: 1.0
-        )
-
-        RoundedRectangle(cornerRadius: width / 2, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [bottom, mid, top],
-                    startPoint: .bottom,
-                    endPoint: .top
-                )
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: width / 2, style: .continuous)
-                    .stroke(Color.white.opacity(0.25 + Double(intensity) * 0.35), lineWidth: 0.5)
-            }
-            .frame(width: width, height: max(5, intensity * maxHeight))
-            .shadow(color: bottom.opacity(0.55 + Double(beatPulse) * 0.25), radius: 6 + CGFloat(beatPulse * 6), y: -2)
-    }
-}
-
 #Preview {
     VisualizerView(onBack: {})
+        .environmentObject(LibraryStore())
         .environmentObject(AudioReactivePlayer())
 }

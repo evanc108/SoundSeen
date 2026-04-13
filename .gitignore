@@ -1,6 +1,10 @@
 # macOS
 .DS_Store
 
+# Local Xcode build output (repo-root)
+.derivedData/
+.derivedDataAgent/
+
 # Xcode user-specific files
 *.xcuserstate
 xcuserdata/

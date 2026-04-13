@@ -3,6 +3,7 @@
 //  SoundSeen
 //
 
+import AVFoundation
 import Combine
 import Foundation
 
@@ -15,24 +16,70 @@ struct LibraryTrack: Identifiable, Equatable {
     /// `Bundle.main.url(forResource:withExtension: "mp3")` base name, no extension.
     var bundledResourceBaseName: String?
     var importedFileURL: URL?
+    /// Length in seconds; filled when file is available.
+    var durationSeconds: TimeInterval?
 
-    var playbackURL: URL? {
-        if let base = bundledResourceBaseName {
-            return Bundle.main.url(forResource: base, withExtension: "mp3")
-        }
-        return importedFileURL
+    /// Imported tracks only — bundled files are resolved by `LibraryStore.playbackURL(for:)`.
+    var importedPlaybackURL: URL? {
+        importedFileURL
+    }
+
+    var formattedDuration: String? {
+        guard let d = durationSeconds, d > 0, d.isFinite else { return nil }
+        let s = Int(d.rounded(.down))
+        let m = s / 60
+        let r = s % 60
+        return String(format: "%d:%02d", m, r)
     }
 }
 
 final class LibraryStore: ObservableObject {
     @Published private(set) var tracks: [LibraryTrack] = []
 
+    /// Each bundled track id → file URL, matched by **exact** mp3 filename (no ambiguous `Bundle.url` lookups).
+    private let bundledURLByTrackId: [UUID: URL]
+
     private var documentsDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
 
     init() {
-        tracks = Self.seedBundledTracks()
+        let seeded = Self.seedBundledTracks()
+        let urlMap = Self.makeBundledURLMap(bundledTracks: seeded)
+        self.bundledURLByTrackId = urlMap
+        var withDuration = seeded
+        for i in withDuration.indices {
+            if let url = urlMap[withDuration[i].id] {
+                withDuration[i].durationSeconds = Self.durationForURL(url)
+            }
+        }
+        tracks = withDuration
+    }
+
+    /// Resolves the on-disk URL for a library row. Bundled tracks use the id → URL map built from actual bundle filenames.
+    func playbackURL(for track: LibraryTrack) -> URL? {
+        if let imported = track.importedFileURL {
+            return imported
+        }
+        return bundledURLByTrackId[track.id]
+    }
+
+    private static func makeBundledURLMap(bundledTracks: [LibraryTrack]) -> [UUID: URL] {
+        let mp3s = Bundle.main.urls(forResourcesWithExtension: "mp3", subdirectory: nil) ?? []
+        var map: [UUID: URL] = [:]
+        for t in bundledTracks {
+            guard let base = t.bundledResourceBaseName?.trimmingCharacters(in: .whitespacesAndNewlines), !base.isEmpty else { continue }
+            if let hit = mp3s.first(where: { $0.deletingPathExtension().lastPathComponent == base }) {
+                map[t.id] = hit
+                continue
+            }
+            if let hit = mp3s.first(where: {
+                $0.deletingPathExtension().lastPathComponent.compare(base, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            }) {
+                map[t.id] = hit
+            }
+        }
+        return map
     }
 
     private static func seedBundledTracks() -> [LibraryTrack] {
@@ -53,7 +100,8 @@ final class LibraryStore: ObservableObject {
                 addedAt: Date(timeIntervalSince1970: TimeInterval(index)),
                 isBundled: true,
                 bundledResourceBaseName: base,
-                importedFileURL: nil
+                importedFileURL: nil,
+                durationSeconds: nil
             )
         }
     }
@@ -66,6 +114,13 @@ final class LibraryStore: ObservableObject {
         UUID(uuidString: "10000000-0000-4000-8000-000000000005")!,
         UUID(uuidString: "10000000-0000-4000-8000-000000000006")!,
     ]
+
+    private static func durationForURL(_ url: URL) -> TimeInterval? {
+        guard let file = try? AVAudioFile(forReading: url) else { return nil }
+        let len = file.length
+        guard len > 0 else { return nil }
+        return Double(len) / file.processingFormat.sampleRate
+    }
 
     /// Copies the user-selected file into Documents and appends to the library.
     func importAudioFile(from sourceURL: URL) throws {
@@ -88,15 +143,17 @@ final class LibraryStore: ObservableObject {
         try FileManager.default.copyItem(at: sourceURL, to: destination)
 
         let (title, artist) = Self.parseArtistTitle(fromFilenameBase: base)
-        let track = LibraryTrack(
+        var track = LibraryTrack(
             id: UUID(),
             title: title,
             artist: artist,
             addedAt: Date(),
             isBundled: false,
             bundledResourceBaseName: nil,
-            importedFileURL: destination
+            importedFileURL: destination,
+            durationSeconds: nil
         )
+        track.durationSeconds = Self.durationForURL(destination)
         tracks.insert(track, at: 0)
     }
 

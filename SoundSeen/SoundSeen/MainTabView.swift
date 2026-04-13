@@ -21,7 +21,9 @@ struct MainTabView: View {
             switch selectedTab {
             case .library:
                 LibraryView { track in
-                    audioPlayer.load(track: track)
+                    if let fresh = library.tracks.first(where: { $0.id == track.id }) {
+                        audioPlayer.loadFromLibrary(fresh, allTracks: library.tracks, shuffled: false)
+                    }
                     selectedTab = .listen
                 }
             case .listen:
@@ -33,11 +35,6 @@ struct MainTabView: View {
                 SoundSeenTabBar(selectedTab: $selectedTab) {
                     showUploadSheet = true
                 }
-            }
-        }
-        .onChange(of: selectedTab) { _, newValue in
-            if newValue == .listen, audioPlayer.activeTrackId == nil, let first = library.tracks.first {
-                audioPlayer.load(track: first)
             }
         }
         .sheet(isPresented: $showUploadSheet) {

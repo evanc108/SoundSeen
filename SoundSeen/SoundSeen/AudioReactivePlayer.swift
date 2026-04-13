@@ -7,6 +7,7 @@ import Accelerate
 import AVFoundation
 import Combine
 import Foundation
+import QuartzCore
 
 /// Plays tracks from URLs (bundled or imported) and publishes spectrum / beat data for visuals.
 final class AudioReactivePlayer: ObservableObject {
@@ -14,12 +15,32 @@ final class AudioReactivePlayer: ObservableObject {
     @Published private(set) var trackTitle = ""
     @Published private(set) var artistName = ""
     @Published private(set) var progress: Double = 0
+    @Published private(set) var totalDurationSeconds: Double = 1
     @Published private(set) var barLevels: [CGFloat]
     @Published private(set) var beatPulse: CGFloat = 0
     @Published private(set) var bassEnergy: CGFloat = 0
+    /// Spectral centroid → “brightness” of timbre (0…1).
+    @Published private(set) var timbreBrightness: CGFloat = 0.5
+    /// High-frequency energy share — air / hiss vs body (0…1).
+    @Published private(set) var timbreAir: CGFloat = 0.5
+    /// Zero-crossing density — grain / edge (0…1).
+    @Published private(set) var timbreGrain: CGFloat = 0.2
+    /// Very slow moving average of brightness — “memory” for delayed visuals (0…1).
+    @Published private(set) var timbreMemory: CGFloat = 0.5
+    /// How fast the spectrum centroid moves — shimmer / instability (0…1).
+    @Published private(set) var timbreSheen: CGFloat = 0
     @Published private(set) var loadError: String?
+    @Published private(set) var structureMarkers: [SongStructureMarker] = []
     /// Set when loading from a library row; used to avoid auto-loading another track when switching tabs.
     @Published private(set) var activeTrackId: UUID?
+    /// Whether there is another track after the current one in the playback queue.
+    @Published private(set) var hasNextTrack: Bool = false
+    /// Whether there is a track before the current one in the playback queue.
+    @Published private(set) var hasPreviousTrack: Bool = false
+    /// Shuffle is enabled for queue order (toggle in the UI).
+    @Published private(set) var isShuffleEnabled: Bool = false
+    /// Time × frequency grid for wireframe spectrum (row 0 = newest). Updated from the analyzer thread.
+    @Published private(set) var spectrumHistoryGrid: [[Float]] = []
 
     private let barCount: Int
     private let analysisSamples = 1024
@@ -28,20 +49,55 @@ final class AudioReactivePlayer: ObservableObject {
     private let playerNode = AVAudioPlayerNode()
 
     private var audioFile: AVAudioFile?
-    private var durationSeconds: Double = 1
     private var sampleRate: Float = 44100
+    /// Frame index in the file where the current playback segment began (updated on each schedule).
+    private var playbackAnchorFrame: AVAudioFramePosition = 0
+    /// Media timeline origin for `playbackAnchorFrame` while audio is running (nil when paused).
+    private var playbackAnchorMediaTime: CFTimeInterval?
+    /// True after the scheduled segment finishes or a seek lands past the last frame — center button replays from the start.
+    private var stoppedAtEnd = false
+    /// Monotonic token for scheduled segments; ignores stale completion callbacks after stop/reschedule.
+    private var scheduleGeneration: UInt64 = 0
 
     private var targetFrequencies: [Float] = []
 
     private var smoothedLevels: [Float]
     private var smoothedBass: Float = 0
     private var beatDecay: Float = 0
+    private var timbreCentroidSmooth: Float = 0.5
+    private var timbreMemoryState: Float = 0.5
+    private var timbreSheenState: Float = 0
+
+    private var spectrumHistoryRows: [[Float]] = []
+    private let spectrumHistoryMaxRows = 48
+    private var lastSpectrumHistoryTime: CFTimeInterval = 0
+    private let spectrumHistoryInterval: CFTimeInterval = 1.0 / 32.0
 
     private var progressTimer: Timer?
     private var tapInstalled = false
     private var sessionConfigured = false
+    /// Skips timer-driven progress updates while the user scrubs the slider.
+    private var isScrubbing = false
 
     private let processingQueue = DispatchQueue(label: "soundseen.audio.analysis", qos: .userInteractive)
+
+    private var libraryQueue: [LibraryTrack] = []
+    private var queueIndex: Int = 0
+    /// Latest `allTracks` from `loadFromLibrary` / shuffle — used to resolve fresh `LibraryTrack` + URLs when skipping in the queue.
+    private var lastKnownLibraryTracks: [LibraryTrack] = []
+    /// Resolves bundled file URLs by track id (set from `ContentView.onAppear`).
+    private weak var libraryStore: LibraryStore?
+
+    func attachLibrary(_ store: LibraryStore) {
+        libraryStore = store
+    }
+
+    private func urlForPlayback(_ track: LibraryTrack) -> URL? {
+        if let store = libraryStore {
+            return store.playbackURL(for: track)
+        }
+        return track.importedPlaybackURL
+    }
 
     init(barCount: Int = 44) {
         self.barCount = barCount
@@ -58,17 +114,173 @@ final class AudioReactivePlayer: ObservableObject {
         engine.stop()
     }
 
+    var currentTimeSeconds: Double {
+        progress * max(0.001, totalDurationSeconds)
+    }
+
+    static func formatClock(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
+        let s = Int(seconds.rounded(.down))
+        let m = s / 60
+        let r = s % 60
+        return String(format: "%d:%02d", m, r)
+    }
+
+    var formattedCurrentTime: String { Self.formatClock(currentTimeSeconds) }
+    var formattedDuration: String { Self.formatClock(totalDurationSeconds) }
+
+    func setScrubbing(_ active: Bool) {
+        isScrubbing = active
+    }
+
     /// Load and play a library track (bundled or imported).
     func load(track: LibraryTrack) {
-        guard let url = track.playbackURL else {
-            loadError = "Missing file for this track."
+        guard let url = urlForPlayback(track) else {
+            loadError = "Missing audio file for “\(track.title)”."
             return
         }
         load(url: url, title: track.title, artist: track.artist, trackId: track.id)
     }
 
+    /// Sets up in-order or shuffled queue from the library, then loads the track.
+    func loadFromLibrary(_ track: LibraryTrack, allTracks: [LibraryTrack], shuffled: Bool = false) {
+        let ordered: [LibraryTrack]
+        if shuffled {
+            ordered = allTracks.shuffled()
+        } else if isShuffleEnabled {
+            let others = allTracks.filter { $0.id != track.id }.shuffled()
+            ordered = [track] + others
+        } else {
+            ordered = allTracks
+        }
+        // `?? 0` was wrong: if the index lookup failed, index 0 pointed at a different song than `track`, breaking skip and queue.
+        if let idx = ordered.firstIndex(where: { $0.id == track.id }) {
+            libraryQueue = ordered
+            queueIndex = idx
+        } else {
+            libraryQueue = [track] + ordered.filter { $0.id != track.id }
+            queueIndex = 0
+        }
+        lastKnownLibraryTracks = allTracks
+        updateQueueNavigationState()
+        load(track: track)
+    }
+
+    /// Full ordered playback queue (for the queue sheet).
+    var orderedQueueTracks: [LibraryTrack] { libraryQueue }
+
+    /// Index of the currently playing track within `orderedQueueTracks`.
+    var currentQueueIndex: Int { queueIndex }
+
+    /// Tracks after the current item in the playback queue (for “Up Next”).
+    var upcomingTracks: [LibraryTrack] {
+        guard queueIndex + 1 < libraryQueue.count else { return [] }
+        return Array(libraryQueue[(queueIndex + 1)...])
+    }
+
+    /// Jump to any position in the current queue (uses the latest library snapshot when available).
+    func jumpToQueueIndex(_ index: Int, libraryTracks: [LibraryTrack]? = nil) {
+        guard libraryQueue.indices.contains(index) else { return }
+        queueIndex = index
+        updateQueueNavigationState()
+        let track = resolvedTrackAtQueueIndex(libraryTracks: libraryTracks)
+        load(track: track)
+    }
+
+    private func resolvedTrackAtQueueIndex(libraryTracks: [LibraryTrack]?) -> LibraryTrack {
+        let id = libraryQueue[queueIndex].id
+        let pool = libraryTracks ?? libraryStore?.tracks ?? lastKnownLibraryTracks
+        return pool.first(where: { $0.id == id }) ?? libraryQueue[queueIndex]
+    }
+
+    private func libraryPool() -> [LibraryTrack] {
+        libraryStore?.tracks ?? lastKnownLibraryTracks
+    }
+
+    /// Play the next track in the current queue only (stays in sync with `libraryQueue` / `queueIndex`).
+    func playNextFromLibrary() {
+        guard queueIndex + 1 < libraryQueue.count else { return }
+        queueIndex += 1
+        lastKnownLibraryTracks = libraryPool()
+        updateQueueNavigationState()
+        load(track: resolvedTrackAtQueueIndex(libraryTracks: libraryStore?.tracks))
+    }
+
+    /// Play the previous track in the current queue only.
+    func playPreviousFromLibrary() {
+        guard queueIndex > 0 else { return }
+        queueIndex -= 1
+        lastKnownLibraryTracks = libraryPool()
+        updateQueueNavigationState()
+        load(track: resolvedTrackAtQueueIndex(libraryTracks: libraryStore?.tracks))
+    }
+
+    /// Jump to an upcoming track: `offset` 0 is the next track, 1 is the one after that, etc.
+    func skipToUpcoming(offset: Int) {
+        let target = queueIndex + 1 + offset
+        guard offset >= 0, target < libraryQueue.count else { return }
+        jumpToQueueIndex(target, libraryTracks: nil)
+    }
+
+    /// Shuffle all library tracks and start playback from the first shuffled item (enables shuffle mode).
+    func shuffleLibraryAndPlay(allTracks: [LibraryTrack]) {
+        guard !allTracks.isEmpty else { return }
+        isShuffleEnabled = true
+        let s = allTracks.shuffled()
+        libraryQueue = s
+        queueIndex = 0
+        lastKnownLibraryTracks = allTracks
+        updateQueueNavigationState()
+        load(track: resolvedTrackAtQueueIndex(libraryTracks: allTracks))
+    }
+
+    /// Toggles shuffle; when enabling, reorders the queue (current track first when already playing).
+    func toggleShuffle(allTracks: [LibraryTrack]) {
+        guard !allTracks.isEmpty else { return }
+        lastKnownLibraryTracks = allTracks
+        if isShuffleEnabled {
+            isShuffleEnabled = false
+            guard !libraryQueue.isEmpty else { return }
+            let currentId = libraryQueue[queueIndex].id
+            libraryQueue = allTracks
+            queueIndex = libraryQueue.firstIndex { $0.id == currentId } ?? 0
+            updateQueueNavigationState()
+        } else {
+            isShuffleEnabled = true
+            if libraryQueue.isEmpty {
+                libraryQueue = allTracks.shuffled()
+                queueIndex = 0
+                updateQueueNavigationState()
+                load(track: resolvedTrackAtQueueIndex(libraryTracks: allTracks))
+            } else {
+                let current = libraryQueue[queueIndex]
+                let others = allTracks.filter { $0.id != current.id }.shuffled()
+                libraryQueue = [current] + others
+                queueIndex = 0
+                updateQueueNavigationState()
+            }
+        }
+    }
+
+    private func updateQueueNavigationState() {
+        let n = libraryQueue.count
+        guard n > 0 else {
+            hasNextTrack = false
+            hasPreviousTrack = false
+            return
+        }
+        hasNextTrack = queueIndex + 1 < n
+        hasPreviousTrack = queueIndex > 0
+    }
+
+    /// Call after the user finishes scrubbing so play/pause state cannot get stuck in “ended / restart only” mode.
+    func endScrubSession() {
+        stoppedAtEnd = false
+    }
+
     func load(url: URL, title: String, artist: String, trackId: UUID? = nil) {
         loadError = nil
+        structureMarkers = []
         trackTitle = title
         artistName = artist
 
@@ -76,8 +288,25 @@ final class AudioReactivePlayer: ObservableObject {
             try configureSessionIfNeeded()
             try rebuildEngineAndPlay(url: url)
             activeTrackId = trackId
+            scheduleStructureScan(url: url)
         } catch {
             loadError = error.localizedDescription
+            activeTrackId = nil
+        }
+    }
+
+    private func scheduleStructureScan(url: URL) {
+        Task.detached(priority: .utility) { [weak self, url] in
+            do {
+                let markers = try SongStructureScanner.scan(url: url)
+                await MainActor.run { [weak self] in
+                    self?.structureMarkers = markers
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.structureMarkers = []
+                }
+            }
         }
     }
 
@@ -90,6 +319,13 @@ final class AudioReactivePlayer: ObservableObject {
 
     private func rebuildEngineAndPlay(url: URL) throws {
         progressTimer?.invalidate()
+        progress = 0
+        playbackAnchorMediaTime = nil
+        stoppedAtEnd = false
+        timbreCentroidSmooth = 0.5
+        timbreMemoryState = 0.5
+        timbreSheenState = 0
+        spectrumHistoryRows.removeAll()
 
         if tapInstalled {
             engine.mainMixerNode.removeTap(onBus: 0)
@@ -105,7 +341,7 @@ final class AudioReactivePlayer: ObservableObject {
         let file = try AVAudioFile(forReading: url)
         audioFile = file
         sampleRate = Float(file.processingFormat.sampleRate)
-        durationSeconds = Double(file.length) / file.processingFormat.sampleRate
+        totalDurationSeconds = Double(file.length) / file.processingFormat.sampleRate
 
         targetFrequencies = Self.logSpacedFrequencies(
             count: barCount,
@@ -125,58 +361,151 @@ final class AudioReactivePlayer: ObservableObject {
         tapInstalled = true
 
         try engine.start()
-        scheduleFileAndPlay(file: file)
+        scheduleFileAndPlay(file: file, startingFrame: 0, shouldPlay: true)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.spectrumHistoryGrid = []
+            self?.updateQueueNavigationState()
+        }
+    }
+
+    func seek(toProgress: Double) {
+        guard let file = audioFile, loadError == nil else { return }
+        let p = min(1, max(0, toProgress))
+        let frame = AVAudioFramePosition(p * Double(file.length))
+        let wasPlaying = isPlaying
+        progress = p
+        // Any seek into playable audio is not “stopped at end”.
+        stoppedAtEnd = false
+        scheduleFileAndPlay(file: file, startingFrame: frame, shouldPlay: wasPlaying)
     }
 
     func togglePlayPause() {
-        guard audioFile != nil, loadError == nil else { return }
+        guard let file = audioFile, loadError == nil else { return }
 
-        if progress >= 0.995, !isPlaying {
-            if let file = audioFile {
-                scheduleFileAndPlay(file: file)
+        if isPlaying {
+            syncPlaybackProgressIfNeeded()
+            playerNode.pause()
+            isPlaying = false
+            playbackAnchorMediaTime = nil
+            // Never leave a stale “ended” flag after a manual pause mid-track.
+            if progress < 0.97 {
+                stoppedAtEnd = false
             }
             return
         }
 
-        if isPlaying {
-            playerNode.pause()
-            isPlaying = false
-        } else {
-            playerNode.play()
-            isPlaying = true
+        // Only replay from the top when the segment actually finished (or seek landed past EOF).
+        if stoppedAtEnd {
+            stoppedAtEnd = false
+            progress = 0
+            scheduleFileAndPlay(file: file, startingFrame: 0, shouldPlay: true)
+            return
         }
+
+        playbackAnchorFrame = AVAudioFramePosition(progress * Double(file.length))
+        playbackAnchorMediaTime = CACurrentMediaTime()
+        playerNode.play()
+        isPlaying = true
     }
 
     func restartFromBeginning() {
         guard let file = audioFile, loadError == nil else { return }
         progress = 0
-        scheduleFileAndPlay(file: file)
+        stoppedAtEnd = false
+        scheduleFileAndPlay(file: file, startingFrame: 0, shouldPlay: true)
     }
 
-    private func scheduleFileAndPlay(file: AVAudioFile) {
+    private func handleSegmentFinished() {
+        isPlaying = false
+        progress = 1
+        playbackAnchorMediaTime = nil
+
+        guard !libraryQueue.isEmpty else {
+            stoppedAtEnd = true
+            return
+        }
+        if queueIndex + 1 < libraryQueue.count {
+            playNextFromLibrary()
+        } else {
+            stoppedAtEnd = true
+        }
+    }
+
+    private func scheduleFileAndPlay(file: AVAudioFile, startingFrame: AVAudioFramePosition, shouldPlay: Bool) {
         playerNode.stop()
-        playerNode.scheduleFile(file, at: nil) { [weak self] in
+        scheduleGeneration &+= 1
+        let generationAtSchedule = scheduleGeneration
+        let remaining = file.length - startingFrame
+        guard remaining > 0 else {
+            progress = 1
+            isPlaying = false
+            playbackAnchorMediaTime = nil
+            stoppedAtEnd = true
+            return
+        }
+        stoppedAtEnd = false
+        playbackAnchorFrame = startingFrame
+        playerNode.scheduleSegment(
+            file,
+            startingFrame: startingFrame,
+            frameCount: AVAudioFrameCount(remaining),
+            at: nil
+        ) { [weak self] in
             DispatchQueue.main.async {
-                self?.isPlaying = false
-                self?.progress = 1
+                guard let self else { return }
+                guard self.scheduleGeneration == generationAtSchedule else { return }
+                self.handleSegmentFinished()
             }
         }
         playerNode.play()
-        isPlaying = true
+        if shouldPlay {
+            isPlaying = true
+            playbackAnchorMediaTime = CACurrentMediaTime()
+        } else {
+            playerNode.pause()
+            isPlaying = false
+            playbackAnchorMediaTime = nil
+        }
         startProgressTimerIfNeeded()
+    }
+
+    /// Uses the node's playhead when available (`sampleTime` is the file position); falls back to wall-clock anchor.
+    private func syncPlaybackProgressIfNeeded() {
+        guard let file = audioFile else { return }
+        guard isPlaying else { return }
+
+        if let nodeTime = playerNode.lastRenderTime,
+           let pt = playerNode.playerTime(forNodeTime: nodeTime),
+           pt.isSampleTimeValid {
+            // `sampleTime` is relative to the currently scheduled segment.
+            // Add the segment's starting frame so progress stays aligned after seeks.
+            let segmentFrame = playbackAnchorFrame + pt.sampleTime
+            let absFrame = min(max(0, segmentFrame), file.length)
+            progress = Double(absFrame) / Double(max(1, file.length))
+            stoppedAtEnd = false
+            return
+        }
+
+        guard let t0 = playbackAnchorMediaTime else { return }
+        let rate = file.processingFormat.sampleRate
+        guard rate > 0 else { return }
+
+        let elapsed = CACurrentMediaTime() - t0
+        let framesPlayed = AVAudioFramePosition(elapsed * rate)
+        var absFrame = playbackAnchorFrame + framesPlayed
+        absFrame = min(max(0, absFrame), file.length)
+        progress = Double(absFrame) / Double(max(1, file.length))
+        stoppedAtEnd = false
     }
 
     private func startProgressTimerIfNeeded() {
         progressTimer?.invalidate()
         progressTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self else { return }
-            guard let nodeTime = self.playerNode.lastRenderTime,
-                  let playerTime = self.playerNode.playerTime(forNodeTime: nodeTime)
-            else { return }
-            let elapsed = Double(playerTime.sampleTime) / playerTime.sampleRate
-            DispatchQueue.main.async {
-                self.progress = min(1, max(0, elapsed / max(0.001, self.durationSeconds)))
-            }
+            guard !self.isScrubbing else { return }
+            guard self.isPlaying else { return }
+            self.syncPlaybackProgressIfNeeded()
         }
         RunLoop.main.add(progressTimer!, forMode: .common)
     }
@@ -240,12 +569,73 @@ final class AudioReactivePlayer: ObservableObject {
         }
         beatDecay = min(1, beatDecay * 0.86 + pulse * 0.55)
 
+        // —— Timbre features (same Goertzel bins; no 1:1 bar mapping) ——
+        var sumWeightedFreq: Float = 0
+        var sumMag: Float = 1e-8
+        for i in 0..<barCount {
+            sumWeightedFreq += targetFrequencies[i] * mags[i]
+            sumMag += mags[i]
+        }
+        let centroidHz = sumWeightedFreq / sumMag
+        let logCentroid = log10(max(80, centroidHz))
+        // ~80 Hz → 0, ~12 kHz → 1
+        let brightnessRaw = (logCentroid - 1.9) / (4.08 - 1.9)
+        let brightness = min(1, max(0, brightnessRaw))
+
+        let third = max(1, barCount / 3)
+        var lowE: Float = 0, midE: Float = 0, highE: Float = 0
+        for i in 0..<barCount {
+            if i < third {
+                lowE += mags[i]
+            } else if i < third * 2 {
+                midE += mags[i]
+            } else {
+                highE += mags[i]
+            }
+        }
+        let totalBand = lowE + midE + highE + 1e-8
+        let air = highE / totalBand
+
+        var crossings = 0
+        for i in 1..<analysisSamples {
+            if mono[i - 1] * mono[i] < 0 { crossings += 1 }
+        }
+        let zcrRaw = Float(crossings) / Float(analysisSamples)
+        let grain = min(1, zcrRaw * 10)
+
+        timbreMemoryState = timbreMemoryState * 0.992 + brightness * 0.008
+
+        let prevSmooth = timbreCentroidSmooth
+        timbreCentroidSmooth = timbreCentroidSmooth * 0.88 + brightness * 0.12
+        let centroidJump = abs(timbreCentroidSmooth - prevSmooth)
+        timbreSheenState = timbreSheenState * 0.82 + centroidJump * 2.8
+        let sheen = min(1, timbreSheenState)
+
+        let nowMono = CACurrentMediaTime()
+        var historySnapshot: [[Float]]?
+        if nowMono - lastSpectrumHistoryTime >= spectrumHistoryInterval {
+            lastSpectrumHistoryTime = nowMono
+            spectrumHistoryRows.insert(Array(smoothedLevels), at: 0)
+            if spectrumHistoryRows.count > spectrumHistoryMaxRows {
+                spectrumHistoryRows.removeLast()
+            }
+            historySnapshot = spectrumHistoryRows
+        }
+
         let levelsOut = smoothedLevels.map { CGFloat($0) }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.bassEnergy = CGFloat(bassNorm)
             self.beatPulse = CGFloat(self.beatDecay)
             self.barLevels = levelsOut
+            self.timbreBrightness = CGFloat(brightness)
+            self.timbreAir = CGFloat(air)
+            self.timbreGrain = CGFloat(grain)
+            self.timbreMemory = CGFloat(self.timbreMemoryState)
+            self.timbreSheen = CGFloat(sheen)
+            if let h = historySnapshot {
+                self.spectrumHistoryGrid = h
+            }
         }
     }
 
