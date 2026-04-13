@@ -105,7 +105,7 @@ struct VisualizerView: View {
             .ignoresSafeArea()
 
             // Floating orbs (depth)
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { timeline in
                 let t = timeline.date.timeIntervalSinceReferenceDate
                 ZStack {
                     ForEach(0..<6, id: \.self) { i in

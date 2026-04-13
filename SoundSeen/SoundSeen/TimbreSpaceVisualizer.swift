@@ -15,7 +15,7 @@ struct TimbreSpaceVisualizer: View {
     private let ringSegments = 36
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 45.0, paused: isPaused)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: isPaused)) { timeline in
             let t = timeline.date.timeIntervalSinceReferenceDate
             let levels = player.barLevels
             let n = max(1, levels.count)

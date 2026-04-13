@@ -56,6 +56,8 @@ final class AudioReactivePlayer: ObservableObject {
     private var playbackAnchorMediaTime: CFTimeInterval?
     /// True after the scheduled segment finishes or a seek lands past the last frame — center button replays from the start.
     private var stoppedAtEnd = false
+    /// Monotonic token for scheduled segments; ignores stale completion callbacks after stop/reschedule.
+    private var scheduleGeneration: UInt64 = 0
 
     private var targetFrequencies: [Float] = []
 
@@ -432,6 +434,8 @@ final class AudioReactivePlayer: ObservableObject {
 
     private func scheduleFileAndPlay(file: AVAudioFile, startingFrame: AVAudioFramePosition, shouldPlay: Bool) {
         playerNode.stop()
+        scheduleGeneration &+= 1
+        let generationAtSchedule = scheduleGeneration
         let remaining = file.length - startingFrame
         guard remaining > 0 else {
             progress = 1
@@ -449,7 +453,9 @@ final class AudioReactivePlayer: ObservableObject {
             at: nil
         ) { [weak self] in
             DispatchQueue.main.async {
-                self?.handleSegmentFinished()
+                guard let self else { return }
+                guard self.scheduleGeneration == generationAtSchedule else { return }
+                self.handleSegmentFinished()
             }
         }
         playerNode.play()
@@ -472,7 +478,10 @@ final class AudioReactivePlayer: ObservableObject {
         if let nodeTime = playerNode.lastRenderTime,
            let pt = playerNode.playerTime(forNodeTime: nodeTime),
            pt.isSampleTimeValid {
-            let absFrame = min(max(0, pt.sampleTime), file.length)
+            // `sampleTime` is relative to the currently scheduled segment.
+            // Add the segment's starting frame so progress stays aligned after seeks.
+            let segmentFrame = playbackAnchorFrame + pt.sampleTime
+            let absFrame = min(max(0, segmentFrame), file.length)
             progress = Double(absFrame) / Double(max(1, file.length))
             stoppedAtEnd = false
             return
