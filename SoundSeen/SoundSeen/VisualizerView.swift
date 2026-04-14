@@ -157,6 +157,16 @@ struct VisualizerView: View {
             .frame(maxWidth: 440, maxHeight: 440)
             .opacity(0.22)
 
+            DropCinematicOverlay(
+                section: currentSection,
+                beatPulse: player.beatPulse,
+                bass: player.bassEnergy,
+                isPlaying: player.isPlaying,
+                countdownToDrop: nextDropCountdown
+            )
+            .frame(maxWidth: 460, maxHeight: 460)
+            .allowsHitTesting(false)
+
             if let err = player.loadError {
                 Text(err)
                     .font(.caption)
@@ -186,10 +196,84 @@ struct VisualizerView: View {
                 }
             }
 
+            semanticOverlay
             progressTimeline
         }
         .padding(.bottom, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var semanticOverlay: some View {
+        HStack(spacing: 10) {
+            Label(currentSection.rawValue, systemImage: sectionSymbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(sectionAccent.opacity(0.98))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(sectionAccent.opacity(0.18))
+                .overlay(
+                    Capsule()
+                        .stroke(sectionAccent.opacity(0.45), lineWidth: 1)
+                )
+                .clipShape(Capsule())
+
+            Text(sectionSubtitle)
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.64))
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var currentSection: SongStructureKind {
+        SongStructureScanner.currentSection(
+            timeSeconds: player.currentTimeSeconds,
+            duration: player.totalDurationSeconds,
+            markers: player.structureMarkers
+        )
+    }
+
+    private var nextDropCountdown: TimeInterval? {
+        let now = player.currentTimeSeconds
+        guard let nextDrop = player.structureMarkers
+            .filter({ $0.kind == .drop && $0.timeSeconds >= now })
+            .map(\.timeSeconds)
+            .min()
+        else {
+            return nil
+        }
+        return nextDrop - now
+    }
+
+    private var sectionSymbol: String {
+        switch currentSection {
+        case .verse: return "music.note"
+        case .buildup: return "arrow.up.right.circle.fill"
+        case .drop: return "bolt.fill"
+        }
+    }
+
+    private var sectionAccent: Color {
+        switch currentSection {
+        case .verse: return Color(red: 0.45, green: 0.8, blue: 1.0)
+        case .buildup: return Color(red: 1.0, green: 0.72, blue: 0.26)
+        case .drop: return Color(red: 1.0, green: 0.35, blue: 0.55)
+        }
+    }
+
+    private var sectionSubtitle: String {
+        switch currentSection {
+        case .verse:
+            return "Steady groove"
+        case .buildup:
+            if let t = nextDropCountdown, t > 0, t < 16 {
+                return String(format: "Drop in %.1fs", t)
+            }
+            return "Energy rising"
+        case .drop:
+            return "Impact moment"
+        }
     }
 
     private var progressTimeline: some View {
@@ -467,6 +551,65 @@ private struct RadialGlow: View {
                 .blur(radius: 1)
         }
         .allowsHitTesting(false)
+    }
+}
+
+private struct DropCinematicOverlay: View {
+    let section: SongStructureKind
+    let beatPulse: CGFloat
+    let bass: CGFloat
+    let isPlaying: Bool
+    let countdownToDrop: TimeInterval?
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: !isPlaying)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            let pulse = Double(beatPulse)
+            let low = Double(bass)
+            let preDropTension: Double = {
+                guard section == .buildup else { return 0 }
+                guard let cd = countdownToDrop else { return 0.25 }
+                let clamped = min(1, max(0, (8 - cd) / 8))
+                return clamped
+            }()
+
+            ZStack {
+                if section == .buildup {
+                    Circle()
+                        .stroke(
+                            Color.white.opacity(0.16 + preDropTension * 0.24 + pulse * 0.18),
+                            lineWidth: 2 + preDropTension * 4
+                        )
+                        .frame(width: 190 + preDropTension * 120, height: 190 + preDropTension * 120)
+                        .scaleEffect(0.92 + preDropTension * 0.08 + sin(t * 6) * 0.01)
+                        .blur(radius: 0.6)
+
+                    Circle()
+                        .fill(Color.black.opacity(0.08 + preDropTension * 0.12))
+                        .frame(width: 220 + preDropTension * 130, height: 220 + preDropTension * 130)
+                        .blendMode(.multiply)
+                }
+
+                if section == .drop {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    Color.white.opacity(0.15 + pulse * 0.38 + low * 0.18),
+                                    Color(red: 1.0, green: 0.35, blue: 0.6).opacity(0.09 + pulse * 0.16),
+                                    Color.clear,
+                                ],
+                                center: .center,
+                                startRadius: 8,
+                                endRadius: 170 + CGFloat(pulse * 90)
+                            )
+                        )
+                        .frame(width: 300 + CGFloat(low * 120), height: 300 + CGFloat(low * 120))
+                        .scaleEffect(1.0 + CGFloat(pulse * 0.08))
+                        .blendMode(.screen)
+                }
+            }
+        }
     }
 }
 
