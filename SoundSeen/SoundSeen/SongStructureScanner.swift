@@ -67,30 +67,57 @@ enum SongStructureScanner {
         }
 
         let smoothed = smooth(energies, window: 5)
-        guard let dropIdx = smoothed.indices.max(by: { smoothed[$0] < smoothed[$1] }) else {
+        let dropCandidates = detectDropIndices(in: smoothed, hopSeconds: hopSeconds)
+        guard !dropCandidates.isEmpty else {
             return defaultMarkers(duration: duration)
-        }
-
-        let n = smoothed.count
-        let verseIdx = min(max(1, n / 6), max(1, dropIdx - 3))
-        var buildupIdx = verseIdx + max(1, (dropIdx - verseIdx) / 2)
-        if buildupIdx >= dropIdx {
-            buildupIdx = max(verseIdx + 1, dropIdx - 1)
         }
 
         let idxToTime: (Int) -> TimeInterval = { i in
             min(duration, max(0, Double(i) * hopSeconds))
         }
 
-        let vProg = idxToTime(verseIdx) / duration
-        let bProg = idxToTime(buildupIdx) / duration
-        let dProg = idxToTime(dropIdx) / duration
+        var out: [SongStructureMarker] = []
+        var previousDropIdx = 0
 
-        return [
-            SongStructureMarker(kind: .verse, progress: vProg, timeSeconds: idxToTime(verseIdx)),
-            SongStructureMarker(kind: .buildup, progress: bProg, timeSeconds: idxToTime(buildupIdx)),
-            SongStructureMarker(kind: .drop, progress: dProg, timeSeconds: idxToTime(dropIdx)),
-        ]
+        for (order, dropIdx) in dropCandidates.enumerated() {
+            let buildupIdx = max(previousDropIdx + 1, detectBuildupStartIndex(in: smoothed, endingAt: dropIdx, hopSeconds: hopSeconds))
+
+            let verseIdx: Int
+            if order == 0 {
+                verseIdx = max(1, min(buildupIdx - 1, max(1, Int(Double(dropIdx) * 0.35))))
+            } else {
+                verseIdx = max(previousDropIdx + 1, min(buildupIdx - 1, previousDropIdx + 2))
+            }
+
+            if verseIdx < buildupIdx {
+                out.append(
+                    SongStructureMarker(
+                        kind: .verse,
+                        progress: idxToTime(verseIdx) / duration,
+                        timeSeconds: idxToTime(verseIdx)
+                    )
+                )
+            }
+            if buildupIdx < dropIdx {
+                out.append(
+                    SongStructureMarker(
+                        kind: .buildup,
+                        progress: idxToTime(buildupIdx) / duration,
+                        timeSeconds: idxToTime(buildupIdx)
+                    )
+                )
+            }
+            out.append(
+                SongStructureMarker(
+                    kind: .drop,
+                    progress: idxToTime(dropIdx) / duration,
+                    timeSeconds: idxToTime(dropIdx)
+                )
+            )
+            previousDropIdx = dropIdx
+        }
+
+        return out.sorted { $0.timeSeconds < $1.timeSeconds }
     }
 
     nonisolated private static func defaultMarkers(duration: TimeInterval) -> [SongStructureMarker] {
@@ -151,14 +178,95 @@ enum SongStructureScanner {
     ) -> SongStructureKind {
         guard duration > 0.1 else { return .verse }
         let sorted = markers.sorted { $0.timeSeconds < $1.timeSeconds }
-        guard sorted.count >= 3 else { return .verse }
-        let v = sorted[0].timeSeconds
-        let b = sorted[1].timeSeconds
-        let d = sorted[2].timeSeconds
-        let t = timeSeconds
-        if t < v { return .verse }
-        if t < b { return .verse }
-        if t < d { return .buildup }
-        return .drop
+        guard !sorted.isEmpty else { return .verse }
+
+        let t = max(0, timeSeconds)
+        let dropHoldSeconds: TimeInterval = 7.5
+        var activeKind: SongStructureKind = .verse
+        var activeTime: TimeInterval = 0
+
+        for marker in sorted {
+            if marker.timeSeconds <= t {
+                activeKind = marker.kind
+                activeTime = marker.timeSeconds
+            } else {
+                break
+            }
+        }
+
+        if activeKind == .drop, t - activeTime > dropHoldSeconds {
+            return .verse
+        }
+        return activeKind
+    }
+
+    nonisolated private static func detectDropIndices(in smoothed: [Float], hopSeconds: Double) -> [Int] {
+        guard smoothed.count >= 8 else { return [] }
+        let n = smoothed.count
+
+        // Use energy *increase* (onset) rather than peak energy.
+        var diff = [Float](repeating: 0, count: n)
+        for i in 1..<n {
+            diff[i] = smoothed[i] - smoothed[i - 1]
+        }
+
+        let sortedE = smoothed.sorted()
+        let medianE = sortedE[n / 2]
+        let energyGate = max(medianE * 1.05, 0.008)
+
+        let sortedD = diff.sorted()
+        let medianD = sortedD[n / 2]
+        let jumpGate = max(medianD * 4.0, 0.002)
+
+        var candidates: [Int] = []
+        for i in 2..<(n - 2) {
+            // local maximum in diff = impact onset; require energy not too low.
+            if diff[i] > jumpGate,
+               diff[i] >= diff[i - 1],
+               diff[i] >= diff[i + 1],
+               smoothed[i] > energyGate {
+                candidates.append(i)
+            }
+        }
+
+        if candidates.isEmpty, let strongest = smoothed.indices.max(by: { smoothed[$0] < smoothed[$1] }) {
+            return [strongest]
+        }
+
+        let minGap = max(4, Int(10.0 / hopSeconds))
+        let ranked = candidates.sorted { diff[$0] > diff[$1] }
+        var selected: [Int] = []
+        for idx in ranked {
+            if selected.allSatisfy({ abs($0 - idx) >= minGap }) {
+                selected.append(idx)
+            }
+            if selected.count >= 5 { break }
+        }
+        return selected.sorted()
+    }
+
+    nonisolated private static func detectBuildupStartIndex(in smoothed: [Float], endingAt dropIdx: Int, hopSeconds: Double) -> Int {
+        guard dropIdx > 3 else { return max(1, dropIdx - 1) }
+        // Walk backward until the slope stops rising for a bit.
+        let lookbackMax = max(6, Int(26.0 / hopSeconds))
+        let startBound = max(1, dropIdx - lookbackMax)
+        let flatGate: Float = 0.0015
+
+        var i = dropIdx - 1
+        var flatCount = 0
+        while i > startBound {
+            let d = smoothed[i] - smoothed[i - 1]
+            if d < flatGate {
+                flatCount += 1
+            } else {
+                flatCount = 0
+            }
+            // If we’ve been “not rising” for ~1 second, consider that the start of the buildup.
+            if flatCount >= max(3, Int(1.0 / hopSeconds)) {
+                return min(dropIdx - 1, i)
+            }
+            i -= 1
+        }
+        return startBound
     }
 }

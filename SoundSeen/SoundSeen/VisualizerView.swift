@@ -13,6 +13,7 @@ struct VisualizerView: View {
     @State private var scrubProgress: Double = 0
     @State private var isScrubbing = false
     @State private var showQueueSheet = false
+    @State private var selectedThemeMode: VisualThemeMode = .adaptive
 
     var body: some View {
         ZStack {
@@ -70,9 +71,29 @@ struct VisualizerView: View {
 
             Spacer()
 
-            Text("Now Playing")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.45))
+            HStack(spacing: 10) {
+                Text("Now Playing")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.45))
+
+                Menu {
+                    ForEach(VisualThemeMode.allCases, id: \.self) { mode in
+                        Button {
+                            selectedThemeMode = mode
+                        } label: {
+                            Label(mode.label, systemImage: selectedThemeMode == mode ? "checkmark.circle.fill" : "circle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "paintpalette.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(themeAccent.opacity(0.95))
+                        .padding(8)
+                        .background(themeAccent.opacity(0.18))
+                        .clipShape(Circle())
+                }
+                .accessibilityLabel("Theme mode")
+            }
         }
         .padding(.top, 4)
     }
@@ -84,7 +105,7 @@ struct VisualizerView: View {
             // Deep cyan / magenta wash
             RadialGradient(
                 colors: [
-                    Color(red: 0.1, green: 0.45, blue: 0.55).opacity(0.35 + Double(player.beatPulse) * 0.15),
+                    themePrimary.opacity(0.28 + Double(player.beatPulse) * 0.16 + Double(player.perceptualLoudness) * 0.18),
                     Color.clear,
                 ],
                 center: .topLeading,
@@ -95,7 +116,7 @@ struct VisualizerView: View {
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.95, green: 0.35, blue: 0.45).opacity(0.22 + Double(player.beatPulse) * 0.2),
+                    themeSecondary.opacity(0.2 + Double(player.beatPulse) * 0.2 + Double(player.perceptualLoudness) * 0.14),
                     Color.clear,
                 ],
                 center: .bottomTrailing,
@@ -136,12 +157,12 @@ struct VisualizerView: View {
 
     private func orbColor(index: Int) -> Color {
         let palette: [Color] = [
-            Color(red: 0.55, green: 0.35, blue: 1.0),
-            Color(red: 0.2, green: 0.85, blue: 0.95),
-            Color(red: 1.0, green: 0.45, blue: 0.55),
-            Color(red: 0.95, green: 0.65, blue: 0.25),
-            Color(red: 0.45, green: 0.55, blue: 1.0),
-            SoundSeenTheme.purpleAccent,
+            themePrimary,
+            themeSecondary,
+            themeAccent,
+            themePrimary.opacity(0.9),
+            themeSecondary.opacity(0.9),
+            SoundSeenTheme.purpleAccent.opacity(0.92),
         ]
         return palette[index % palette.count]
     }
@@ -176,6 +197,9 @@ struct VisualizerView: View {
             } else {
                 TimbreSpaceVisualizer(isPaused: !player.isPlaying)
                     .frame(minHeight: 320, maxHeight: 380)
+                    .hueRotation(.degrees(themeHueRotation))
+                    .saturation(1 + themeSaturationBoost + Double(player.perceptualLoudness) * 0.22)
+                    .contrast(1 + themeContrastBoost)
                     .accessibilityLabel("3D spectrum around the sound field")
             }
         }
@@ -205,17 +229,33 @@ struct VisualizerView: View {
 
     private var semanticOverlay: some View {
         HStack(spacing: 10) {
-            Label(currentSection.rawValue, systemImage: sectionSymbol)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(sectionAccent.opacity(0.98))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(sectionAccent.opacity(0.18))
-                .overlay(
-                    Capsule()
-                        .stroke(sectionAccent.opacity(0.45), lineWidth: 1)
-                )
-                .clipShape(Capsule())
+            ForEach(activeSemanticKinds, id: \.rawValue) { kind in
+                Label(kind.rawValue, systemImage: symbol(for: kind))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(accent(for: kind).opacity(0.98))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(accent(for: kind).opacity(0.18))
+                    .overlay(
+                        Capsule()
+                            .stroke(accent(for: kind).opacity(0.45), lineWidth: 1)
+                    )
+                    .clipShape(Capsule())
+            }
+
+            if isEnergyFalling {
+                Label("Energy Falling", systemImage: "arrow.down.right.circle.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.72, green: 0.86, blue: 1.0).opacity(0.98))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(red: 0.34, green: 0.52, blue: 0.92).opacity(0.16))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color(red: 0.62, green: 0.8, blue: 1.0).opacity(0.42), lineWidth: 1)
+                    )
+                    .clipShape(Capsule())
+            }
 
             Text(sectionSubtitle)
                 .font(.caption)
@@ -227,11 +267,24 @@ struct VisualizerView: View {
     }
 
     private var currentSection: SongStructureKind {
-        SongStructureScanner.currentSection(
-            timeSeconds: player.currentTimeSeconds,
-            duration: player.totalDurationSeconds,
-            markers: player.structureMarkers
-        )
+        if isDropActive {
+            return .drop
+        }
+        if isBuildupActive {
+            return .buildup
+        }
+        return .verse
+    }
+
+    private var activeSemanticKinds: [SongStructureKind] {
+        var kinds: [SongStructureKind] = [.verse]
+        if isBuildupActive {
+            kinds.append(.buildup)
+        }
+        if isDropActive {
+            kinds = [.drop]
+        }
+        return kinds
     }
 
     private var nextDropCountdown: TimeInterval? {
@@ -243,19 +296,65 @@ struct VisualizerView: View {
         else {
             return nil
         }
-        return nextDrop - now
+        let cd = nextDrop - now
+        // Only show a countdown when the drop is truly imminent.
+        guard cd > 0, cd <= 16 else { return nil }
+        return cd
     }
 
-    private var sectionSymbol: String {
-        switch currentSection {
+    private var isDropActive: Bool {
+        let now = player.currentTimeSeconds
+        let dropHold: TimeInterval = 6.0
+        let markerDrop = player.structureMarkers.contains {
+            $0.kind == .drop && now >= $0.timeSeconds && now <= $0.timeSeconds + dropHold
+        }
+        let realtimeDrop = player.dropLikelihood > 0.56 && player.bassEnergy > 0.22 && player.beatPulse > 0.3
+        return markerDrop || realtimeDrop
+    }
+
+    private var isBuildupActive: Bool {
+        if isDropActive { return false }
+        let now = player.currentTimeSeconds
+        let buildupStarts = player.structureMarkers
+            .filter { $0.kind == .buildup && $0.timeSeconds <= now }
+            .map(\.timeSeconds)
+            .max()
+        let nextDrop = player.structureMarkers
+            .filter { $0.kind == .drop && $0.timeSeconds >= now }
+            .map(\.timeSeconds)
+            .min()
+
+        if let start = buildupStarts, let drop = nextDrop {
+            // If energy is clearly falling and the drop is not imminent, prefer "Energy Falling".
+            if player.loudnessFall > 0.25, drop - now > 3.0 {
+                return false
+            }
+            return now >= start && now < drop
+        }
+
+        // Fallback 1: if scanner missed explicit buildup boundaries, treat pre-drop as buildup.
+        if let drop = nextDrop,
+           drop - now <= 12, drop - now > 0,
+           player.loudnessRise > 0.16 || drop - now <= 3.0 {
+            return true
+        }
+        // Fallback 2: rising loudness trend (lets Verse + Buildup happen early in the track).
+        if player.loudnessFall > 0.24 {
+            return false
+        }
+        return player.loudnessRise > 0.26 && player.perceptualLoudness > 0.12
+    }
+
+    private func symbol(for kind: SongStructureKind) -> String {
+        switch kind {
         case .verse: return "music.note"
         case .buildup: return "arrow.up.right.circle.fill"
         case .drop: return "bolt.fill"
         }
     }
 
-    private var sectionAccent: Color {
-        switch currentSection {
+    private func accent(for kind: SongStructureKind) -> Color {
+        switch kind {
         case .verse: return Color(red: 0.45, green: 0.8, blue: 1.0)
         case .buildup: return Color(red: 1.0, green: 0.72, blue: 0.26)
         case .drop: return Color(red: 1.0, green: 0.35, blue: 0.55)
@@ -265,6 +364,9 @@ struct VisualizerView: View {
     private var sectionSubtitle: String {
         switch currentSection {
         case .verse:
+            if isEnergyFalling {
+                return "Energy falling"
+            }
             return "Steady groove"
         case .buildup:
             if let t = nextDropCountdown, t > 0, t < 16 {
@@ -275,6 +377,33 @@ struct VisualizerView: View {
             return "Impact moment"
         }
     }
+
+    private var isEnergyFalling: Bool {
+        !isDropActive && !isBuildupActive && player.loudnessFall > 0.22 && player.loudnessRise < 0.28
+    }
+
+    private var effectiveTheme: VisualTheme {
+        switch selectedThemeMode {
+        case .adaptive:
+            if currentSection == .drop { return .pulsefire }
+            if currentSection == .buildup { return .pulsefire }
+            if player.timbreAir > 0.62 { return .aurora }
+            return .nocturne
+        case .aurora:
+            return .aurora
+        case .pulsefire:
+            return .pulsefire
+        case .nocturne:
+            return .nocturne
+        }
+    }
+
+    private var themePrimary: Color { effectiveTheme.primary }
+    private var themeSecondary: Color { effectiveTheme.secondary }
+    private var themeAccent: Color { effectiveTheme.accent }
+    private var themeHueRotation: Double { effectiveTheme.hueRotation }
+    private var themeSaturationBoost: Double { effectiveTheme.saturationBoost }
+    private var themeContrastBoost: Double { effectiveTheme.contrastBoost }
 
     private var progressTimeline: some View {
         VStack(spacing: 6) {
@@ -609,6 +738,76 @@ private struct DropCinematicOverlay: View {
                         .blendMode(.screen)
                 }
             }
+        }
+    }
+}
+
+private enum VisualThemeMode: CaseIterable {
+    case adaptive
+    case aurora
+    case pulsefire
+    case nocturne
+
+    var label: String {
+        switch self {
+        case .adaptive: return "Adaptive"
+        case .aurora: return "Aurora"
+        case .pulsefire: return "Pulsefire"
+        case .nocturne: return "Nocturne"
+        }
+    }
+}
+
+private enum VisualTheme {
+    case aurora
+    case pulsefire
+    case nocturne
+
+    var primary: Color {
+        switch self {
+        case .aurora: return Color(red: 0.12, green: 0.78, blue: 0.88)
+        case .pulsefire: return Color(red: 0.98, green: 0.33, blue: 0.45)
+        case .nocturne: return Color(red: 0.35, green: 0.42, blue: 0.92)
+        }
+    }
+
+    var secondary: Color {
+        switch self {
+        case .aurora: return Color(red: 0.55, green: 0.45, blue: 1.0)
+        case .pulsefire: return Color(red: 1.0, green: 0.72, blue: 0.24)
+        case .nocturne: return Color(red: 0.26, green: 0.8, blue: 0.98)
+        }
+    }
+
+    var accent: Color {
+        switch self {
+        case .aurora: return Color(red: 0.56, green: 0.92, blue: 0.84)
+        case .pulsefire: return Color(red: 1.0, green: 0.44, blue: 0.65)
+        case .nocturne: return Color(red: 0.72, green: 0.58, blue: 1.0)
+        }
+    }
+
+    var hueRotation: Double {
+        switch self {
+        case .aurora: return -8
+        case .pulsefire: return 16
+        case .nocturne: return 0
+        }
+    }
+
+    var saturationBoost: Double {
+        switch self {
+        case .aurora: return 0.12
+        case .pulsefire: return 0.2
+        case .nocturne: return 0.08
+        }
+    }
+
+    var contrastBoost: Double {
+        switch self {
+        case .aurora: return 0.04
+        case .pulsefire: return 0.08
+        case .nocturne: return 0.03
         }
     }
 }

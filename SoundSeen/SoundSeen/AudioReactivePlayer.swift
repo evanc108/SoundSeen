@@ -41,6 +41,14 @@ final class AudioReactivePlayer: ObservableObject {
     @Published private(set) var isShuffleEnabled: Bool = false
     /// Time × frequency grid for wireframe spectrum (row 0 = newest). Updated from the analyzer thread.
     @Published private(set) var spectrumHistoryGrid: [[Float]] = []
+    /// Smoothed perceptual loudness estimate normalized to 0...1.
+    @Published private(set) var perceptualLoudness: CGFloat = 0
+    /// Positive when loudness is rising above its slow baseline (0...1-ish).
+    @Published private(set) var loudnessRise: CGFloat = 0
+    /// Positive when loudness is falling below its slow baseline (0...1-ish).
+    @Published private(set) var loudnessFall: CGFloat = 0
+    /// Realtime drop-impact confidence from transient + low-end energy (0...1).
+    @Published private(set) var dropLikelihood: CGFloat = 0
 
     private let barCount: Int
     private let analysisSamples = 1024
@@ -67,6 +75,11 @@ final class AudioReactivePlayer: ObservableObject {
     private var timbreCentroidSmooth: Float = 0.5
     private var timbreMemoryState: Float = 0.5
     private var timbreSheenState: Float = 0
+    private var loudnessNormState: Float = 0
+    private var loudnessSlowState: Float = 0
+    private var dropLikelihoodState: Float = 0
+    private var loudnessFloorDb: Float = -48
+    private var loudnessCeilDb: Float = -8
 
     private var spectrumHistoryRows: [[Float]] = []
     private let spectrumHistoryMaxRows = 48
@@ -87,9 +100,16 @@ final class AudioReactivePlayer: ObservableObject {
     private var lastKnownLibraryTracks: [LibraryTrack] = []
     /// Resolves bundled file URLs by track id (set from `ContentView.onAppear`).
     private weak var libraryStore: LibraryStore?
+    private var hapticConductor: HapticConductor = NullHapticConductor()
+    private var lastBeatHapticTime: CFTimeInterval = 0
+    private var lastSectionHapticKind: SongStructureKind?
 
     func attachLibrary(_ store: LibraryStore) {
         libraryStore = store
+    }
+
+    func attachHapticConductor(_ conductor: HapticConductor) {
+        hapticConductor = conductor
     }
 
     private func urlForPlayback(_ track: LibraryTrack) -> URL? {
@@ -325,6 +345,13 @@ final class AudioReactivePlayer: ObservableObject {
         timbreCentroidSmooth = 0.5
         timbreMemoryState = 0.5
         timbreSheenState = 0
+        loudnessNormState = 0
+        loudnessSlowState = 0
+        dropLikelihoodState = 0
+        loudnessFloorDb = -48
+        loudnessCeilDb = -8
+        lastBeatHapticTime = 0
+        lastSectionHapticKind = nil
         spectrumHistoryRows.removeAll()
 
         if tapInstalled {
@@ -506,8 +533,24 @@ final class AudioReactivePlayer: ObservableObject {
             guard !self.isScrubbing else { return }
             guard self.isPlaying else { return }
             self.syncPlaybackProgressIfNeeded()
+            self.emitSectionHapticIfNeeded()
         }
         RunLoop.main.add(progressTimer!, forMode: .common)
+    }
+
+    private func emitSectionHapticIfNeeded() {
+        guard !structureMarkers.isEmpty else { return }
+        let kind = SongStructureScanner.currentSection(
+            timeSeconds: currentTimeSeconds,
+            duration: totalDurationSeconds,
+            markers: structureMarkers
+        )
+        guard kind != lastSectionHapticKind else { return }
+        lastSectionHapticKind = kind
+        hapticConductor.handle(event: .sectionChange(kind))
+        if kind == .drop {
+            hapticConductor.handle(event: .dropImpact)
+        }
     }
 
     private func process(buffer: AVAudioPCMBuffer) {
@@ -603,6 +646,19 @@ final class AudioReactivePlayer: ObservableObject {
         let zcrRaw = Float(crossings) / Float(analysisSamples)
         let grain = min(1, zcrRaw * 10)
 
+        let rmsValue = sqrt(mono.reduce(Float(0)) { $0 + $1 * $1 } / Float(max(1, analysisSamples)))
+        let loudnessDb = 20 * log10(max(1e-6, rmsValue))
+        loudnessFloorDb = min(loudnessFloorDb * 0.997 + loudnessDb * 0.003, loudnessDb)
+        loudnessCeilDb = max(loudnessCeilDb * 0.996 + loudnessDb * 0.004, loudnessDb + 6)
+        let loudnessRange = max(10, loudnessCeilDb - loudnessFloorDb)
+        let loudnessNormRaw = (loudnessDb - loudnessFloorDb) / loudnessRange
+        let loudnessNorm = min(1, max(0, loudnessNormRaw))
+        loudnessNormState = loudnessNormState * 0.86 + loudnessNorm * 0.14
+        loudnessSlowState = loudnessSlowState * 0.985 + loudnessNormState * 0.015
+        let rise = max(0, loudnessNormState - loudnessSlowState)
+        let dropRaw = max(0, flux * 10 + bassNorm * 1.05 + rise * 1.6 - 0.62)
+        dropLikelihoodState = min(1, dropLikelihoodState * 0.78 + dropRaw * 0.36)
+
         timbreMemoryState = timbreMemoryState * 0.992 + brightness * 0.008
 
         let prevSmooth = timbreCentroidSmooth
@@ -612,6 +668,7 @@ final class AudioReactivePlayer: ObservableObject {
         let sheen = min(1, timbreSheenState)
 
         let nowMono = CACurrentMediaTime()
+        let shouldEmitBeat = pulse > 0.65
         var historySnapshot: [[Float]]?
         if nowMono - lastSpectrumHistoryTime >= spectrumHistoryInterval {
             lastSpectrumHistoryTime = nowMono
@@ -633,8 +690,16 @@ final class AudioReactivePlayer: ObservableObject {
             self.timbreGrain = CGFloat(grain)
             self.timbreMemory = CGFloat(self.timbreMemoryState)
             self.timbreSheen = CGFloat(sheen)
+            self.perceptualLoudness = CGFloat(self.loudnessNormState)
+            self.loudnessRise = CGFloat(min(1, rise * 3.2))
+            self.loudnessFall = CGFloat(min(1, max(0, self.loudnessSlowState - self.loudnessNormState) * 3.2))
+            self.dropLikelihood = CGFloat(self.dropLikelihoodState)
             if let h = historySnapshot {
                 self.spectrumHistoryGrid = h
+            }
+            if shouldEmitBeat, nowMono - self.lastBeatHapticTime > 0.18 {
+                self.lastBeatHapticTime = nowMono
+                self.hapticConductor.handle(event: .beat(strength: CGFloat(min(1, pulse))))
             }
         }
     }

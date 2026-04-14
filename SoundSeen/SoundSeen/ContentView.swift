@@ -16,6 +16,11 @@ struct ContentView: View {
             .preferredColorScheme(.dark)
             .onAppear {
                 audioPlayer.attachLibrary(library)
+#if canImport(UIKit)
+                audioPlayer.attachHapticConductor(UIKitHapticConductor())
+#else
+                audioPlayer.attachHapticConductor(NullHapticConductor())
+#endif
             }
     }
 }
