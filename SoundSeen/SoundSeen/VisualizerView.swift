@@ -315,6 +315,9 @@ struct VisualizerView: View {
     private var isBuildupActive: Bool {
         if isDropActive { return false }
         let now = player.currentTimeSeconds
+        // Avoid labeling the very start of a track as "Buildup" just because loudness is rising.
+        // Real buildups are typically contextual and appear after an intro/verse has established.
+        if now < 8.0 { return false }
         let buildupStarts = player.structureMarkers
             .filter { $0.kind == .buildup && $0.timeSeconds <= now }
             .map(\.timeSeconds)
