@@ -489,6 +489,10 @@ struct VisualizerView: View {
         guard let id = player.activeTrackId?.uuidString else { return [] }
         return journalMarkersByTrack[id, default: []].sorted()
     }
+    private var displayedTimelineProgress: Double {
+        let value = isScrubbing ? scrubProgress : player.progress
+        return min(1, max(0, value))
+    }
 
     private var emotionMiniMap: some View {
         GeometryReader { geo in
@@ -509,7 +513,7 @@ struct VisualizerView: View {
                 Capsule()
                     .fill(themeAccent.opacity(0.82))
                     .frame(width: 3, height: 18)
-                    .offset(x: width * CGFloat(min(1, max(0, player.progress))))
+                    .offset(x: width * CGFloat(displayedTimelineProgress))
 
                 ForEach(Array(currentTrackJournalMarkers.enumerated()), id: \.offset) { _, mark in
                     Circle()
@@ -546,6 +550,13 @@ struct VisualizerView: View {
                                 .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    removeEmotionJournalMarker(at: idx)
+                                } label: {
+                                    Label("Delete marker", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }
@@ -590,6 +601,15 @@ struct VisualizerView: View {
         if marks.count > 24 {
             marks.removeFirst(marks.count - 24)
         }
+        journalMarkersByTrack[id] = marks
+        saveEmotionJournal()
+    }
+
+    private func removeEmotionJournalMarker(at sortedIndex: Int) {
+        guard let id = player.activeTrackId?.uuidString else { return }
+        var marks = journalMarkersByTrack[id, default: []].sorted()
+        guard marks.indices.contains(sortedIndex) else { return }
+        marks.remove(at: sortedIndex)
         journalMarkersByTrack[id] = marks
         saveEmotionJournal()
     }
