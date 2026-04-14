@@ -49,6 +49,9 @@ final class AudioReactivePlayer: ObservableObject {
     @Published private(set) var loudnessFall: CGFloat = 0
     /// Realtime drop-impact confidence from transient + low-end energy (0...1).
     @Published private(set) var dropLikelihood: CGFloat = 0
+    /// Decays after impact moments so visuals/haptics can render emotional recovery.
+    @Published private(set) var afterglowAmount: CGFloat = 0
+    @Published private(set) var hapticIntensityMode: HapticIntensityMode = .balanced
 
     private let barCount: Int
     private let analysisSamples = 1024
@@ -80,6 +83,7 @@ final class AudioReactivePlayer: ObservableObject {
     private var dropLikelihoodState: Float = 0
     private var loudnessFloorDb: Float = -48
     private var loudnessCeilDb: Float = -8
+    private var afterglowState: Float = 0
 
     private var spectrumHistoryRows: [[Float]] = []
     private let spectrumHistoryMaxRows = 48
@@ -110,6 +114,12 @@ final class AudioReactivePlayer: ObservableObject {
 
     func attachHapticConductor(_ conductor: HapticConductor) {
         hapticConductor = conductor
+        hapticConductor.setIntensityMode(hapticIntensityMode)
+    }
+
+    func setHapticIntensityMode(_ mode: HapticIntensityMode) {
+        hapticIntensityMode = mode
+        hapticConductor.setIntensityMode(mode)
     }
 
     private func urlForPlayback(_ track: LibraryTrack) -> URL? {
@@ -348,6 +358,7 @@ final class AudioReactivePlayer: ObservableObject {
         loudnessNormState = 0
         loudnessSlowState = 0
         dropLikelihoodState = 0
+        afterglowState = 0
         loudnessFloorDb = -48
         loudnessCeilDb = -8
         lastBeatHapticTime = 0
@@ -549,6 +560,7 @@ final class AudioReactivePlayer: ObservableObject {
         lastSectionHapticKind = kind
         hapticConductor.handle(event: .sectionChange(kind))
         if kind == .drop {
+            afterglowState = 1
             hapticConductor.handle(event: .dropImpact)
         }
     }
@@ -658,6 +670,10 @@ final class AudioReactivePlayer: ObservableObject {
         let rise = max(0, loudnessNormState - loudnessSlowState)
         let dropRaw = max(0, flux * 10 + bassNorm * 1.05 + rise * 1.6 - 0.62)
         dropLikelihoodState = min(1, dropLikelihoodState * 0.78 + dropRaw * 0.36)
+        if dropLikelihoodState > 0.72 {
+            afterglowState = max(afterglowState, min(1, dropLikelihoodState))
+        }
+        afterglowState *= 0.982
 
         timbreMemoryState = timbreMemoryState * 0.992 + brightness * 0.008
 
@@ -694,6 +710,7 @@ final class AudioReactivePlayer: ObservableObject {
             self.loudnessRise = CGFloat(min(1, rise * 3.2))
             self.loudnessFall = CGFloat(min(1, max(0, self.loudnessSlowState - self.loudnessNormState) * 3.2))
             self.dropLikelihood = CGFloat(self.dropLikelihoodState)
+            self.afterglowAmount = CGFloat(min(1, max(0, self.afterglowState)))
             if let h = historySnapshot {
                 self.spectrumHistoryGrid = h
             }

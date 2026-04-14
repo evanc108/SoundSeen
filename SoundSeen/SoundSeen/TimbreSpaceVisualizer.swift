@@ -43,14 +43,14 @@ struct TimbreSpaceVisualizer: View {
                     n: n,
                     t: t,
                     confuse: confuse + 13,
-                    opacity: 0.38 + mem * 0.18,
+                    opacity: 0.44 + mem * 0.2,
                     strokeScale: 0.8,
                     air: air,
                     grain: grain,
                     sheen: sheen,
                     brightness: br,
                     radiusScale: 0.72,
-                    barLengthScale: 0.55
+                    barLengthScale: 0.68
                 )
                 .rotation3DEffect(
                     .degrees(-rotX * 0.55),
@@ -74,7 +74,7 @@ struct TimbreSpaceVisualizer: View {
                     sheen: sheen,
                     brightness: br,
                     radiusScale: 1,
-                    barLengthScale: 1
+                    barLengthScale: 1.18
                 )
                 .rotation3DEffect(
                     .degrees(rotX),
@@ -151,7 +151,7 @@ struct TimbreSpaceVisualizer: View {
             let cy = geo.size.height / 2
             let R = min(geo.size.width, geo.size.height) / 2 * radiusScale
             let innerR = R * 0.52
-            let maxBar = R * 0.48 * barLengthScale
+            let maxBar = R * 0.56 * barLengthScale
             let step = max(3, n / ringSegments)
             let coprime = 7 + Int(confuse.truncatingRemainder(dividingBy: 5))
             let barW = max(2.2, CGFloat.pi * 2 * innerR / CGFloat(ringSegments * 2))
@@ -167,7 +167,7 @@ struct TimbreSpaceVisualizer: View {
                     let mix = CGFloat(brainMix(i: i, t: t, grain: grain))
                     let intensity = aLevels * mix + bLevels * (1 - mix)
                     let hue = Double(i) / Double(ringSegments) * 0.62 + air * 0.28 + sin(t + Double(i) * 0.18) * sheen * 0.1
-                    let barLen = max(7, CGFloat(intensity) * maxBar * (0.52 + CGFloat(brightness) * 0.42))
+                    let barLen = max(10, CGFloat(intensity) * maxBar * (0.58 + CGFloat(brightness) * 0.5))
 
                     RoundedRectangle(cornerRadius: barW / 2, style: .continuous)
                         .fill(
@@ -194,8 +194,8 @@ struct TimbreSpaceVisualizer: View {
                         }
                         .shadow(
                             color: Color(hue: hue.truncatingRemainder(dividingBy: 1), saturation: 0.55, brightness: 0.55)
-                                .opacity(0.45 + Double(intensity) * 0.35),
-                            radius: 4 + CGFloat(intensity) * 6,
+                                .opacity(0.52 + Double(intensity) * 0.4),
+                            radius: 5 + CGFloat(intensity) * 7.5,
                             x: CGFloat(cos(aD)) * 2,
                             y: CGFloat(sin(aD)) * 2 + 3
                         )
@@ -232,9 +232,9 @@ struct TimbreSpaceVisualizer: View {
                 ),
                 lineWidth: 2 + sheen * 4
             )
-            .frame(width: 168 + CGFloat(sheen) * 70, height: 168 + CGFloat(sheen) * 70)
-            .opacity(0.2 + sheen * 0.45 + beat * 0.12)
-            .blur(radius: 1 + CGFloat(sheen) * 2)
+            .frame(width: 182 + CGFloat(sheen) * 84, height: 182 + CGFloat(sheen) * 84)
+            .opacity(0.24 + sheen * 0.5 + beat * 0.16)
+            .blur(radius: 1.4 + CGFloat(sheen) * 2.4)
             .rotation3DEffect(.degrees(sin(t * 1.2) * sheen * 18), axis: (x: 1, y: 1, z: 0), anchor: .center, anchorZ: 35, perspective: 0.55)
             .allowsHitTesting(false)
     }

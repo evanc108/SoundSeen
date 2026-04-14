@@ -10,10 +10,13 @@ struct VisualizerView: View {
 
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var player: AudioReactivePlayer
+    @AppStorage("soundseen.hapticIntensityMode") private var hapticIntensityModeRaw = HapticIntensityMode.balanced.rawValue
     @State private var scrubProgress: Double = 0
     @State private var isScrubbing = false
     @State private var showQueueSheet = false
     @State private var selectedThemeMode: VisualThemeMode = .adaptive
+    @State private var journalMarkersByTrack: [String: [Double]] = [:]
+    private let emotionJournalDefaultsKey = "soundseen.emotionJournalMarkersByTrack"
 
     var body: some View {
         ZStack {
@@ -38,9 +41,14 @@ struct VisualizerView: View {
         }
         .onAppear {
             scrubProgress = player.progress
+            loadEmotionJournal()
+            applyStoredHapticMode()
         }
         .onChange(of: player.activeTrackId) { _, _ in
             scrubProgress = player.progress
+        }
+        .onChange(of: hapticIntensityModeRaw) { _, _ in
+            applyStoredHapticMode()
         }
         .onChange(of: player.progress) { _, newVal in
             if !isScrubbing {
@@ -75,6 +83,24 @@ struct VisualizerView: View {
                 Text("Now Playing")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.45))
+
+                Menu {
+                    ForEach(HapticIntensityMode.allCases, id: \.rawValue) { mode in
+                        Button {
+                            hapticIntensityModeRaw = mode.rawValue
+                        } label: {
+                            Label(mode.label, systemImage: currentHapticMode == mode ? "checkmark.circle.fill" : "circle")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "iphone.radiowaves.left.and.right")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(themeAccent.opacity(0.95))
+                        .padding(8)
+                        .background(themeAccent.opacity(0.18))
+                        .clipShape(Circle())
+                }
+                .accessibilityLabel("Haptic intensity")
 
                 Menu {
                     ForEach(VisualThemeMode.allCases, id: \.self) { mode in
@@ -198,8 +224,24 @@ struct VisualizerView: View {
                 TimbreSpaceVisualizer(isPaused: !player.isPlaying)
                     .frame(minHeight: 320, maxHeight: 380)
                     .hueRotation(.degrees(themeHueRotation))
-                    .saturation(1 + themeSaturationBoost + Double(player.perceptualLoudness) * 0.22)
-                    .contrast(1 + themeContrastBoost)
+                    .saturation(1 + themeSaturationBoost + Double(player.perceptualLoudness) * 0.22 + Double(player.afterglowAmount) * 0.18)
+                    .contrast(1 + themeContrastBoost + Double(player.afterglowAmount) * 0.08)
+                    .overlay {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        themeAccent.opacity(0.12 + Double(player.afterglowAmount) * 0.16),
+                                        Color.clear,
+                                    ],
+                                    center: .center,
+                                    startRadius: 14,
+                                    endRadius: 210
+                                )
+                            )
+                            .blendMode(.screen)
+                            .allowsHitTesting(false)
+                    }
                     .accessibilityLabel("3D spectrum around the sound field")
             }
         }
@@ -221,6 +263,8 @@ struct VisualizerView: View {
             }
 
             semanticOverlay
+            emotionMiniMap
+            emotionJournalStrip
             progressTimeline
         }
         .padding(.bottom, 4)
@@ -257,10 +301,34 @@ struct VisualizerView: View {
                     .clipShape(Capsule())
             }
 
+            if isAfterglowActive {
+                Label("Afterglow", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.86, green: 0.82, blue: 1.0).opacity(0.98))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color(red: 0.52, green: 0.4, blue: 0.95).opacity(0.16))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color(red: 0.77, green: 0.68, blue: 1.0).opacity(0.42), lineWidth: 1)
+                    )
+                    .clipShape(Capsule())
+            }
+
             Text(sectionSubtitle)
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.64))
                 .lineLimit(1)
+
+            Button {
+                addEmotionJournalMarker()
+            } label: {
+                Image(systemName: "bookmark.circle.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(themeAccent.opacity(0.95))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Save emotion marker")
 
             Spacer(minLength: 0)
         }
@@ -367,6 +435,9 @@ struct VisualizerView: View {
     private var sectionSubtitle: String {
         switch currentSection {
         case .verse:
+            if isAfterglowActive {
+                return "Recovery glow"
+            }
             if isEnergyFalling {
                 return "Energy falling"
             }
@@ -383,6 +454,10 @@ struct VisualizerView: View {
 
     private var isEnergyFalling: Bool {
         !isDropActive && !isBuildupActive && player.loudnessFall > 0.22 && player.loudnessRise < 0.28
+    }
+
+    private var isAfterglowActive: Bool {
+        !isDropActive && player.afterglowAmount > 0.18
     }
 
     private var effectiveTheme: VisualTheme {
@@ -407,6 +482,134 @@ struct VisualizerView: View {
     private var themeHueRotation: Double { effectiveTheme.hueRotation }
     private var themeSaturationBoost: Double { effectiveTheme.saturationBoost }
     private var themeContrastBoost: Double { effectiveTheme.contrastBoost }
+    private var currentHapticMode: HapticIntensityMode {
+        HapticIntensityMode(rawValue: hapticIntensityModeRaw) ?? .balanced
+    }
+    private var currentTrackJournalMarkers: [Double] {
+        guard let id = player.activeTrackId?.uuidString else { return [] }
+        return journalMarkersByTrack[id, default: []].sorted()
+    }
+
+    private var emotionMiniMap: some View {
+        GeometryReader { geo in
+            let width = max(1, geo.size.width)
+            let timelineHeight: CGFloat = 12
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: timelineHeight)
+
+                ForEach(timelineSegments(), id: \.id) { segment in
+                    Capsule()
+                        .fill(accent(for: segment.kind).opacity(0.45))
+                        .frame(width: max(2, width * CGFloat(segment.end - segment.start)), height: timelineHeight)
+                        .offset(x: width * CGFloat(segment.start))
+                }
+
+                Capsule()
+                    .fill(themeAccent.opacity(0.82))
+                    .frame(width: 3, height: 18)
+                    .offset(x: width * CGFloat(min(1, max(0, player.progress))))
+
+                ForEach(Array(currentTrackJournalMarkers.enumerated()), id: \.offset) { _, mark in
+                    Circle()
+                        .fill(Color.white.opacity(0.95))
+                        .frame(width: 6, height: 6)
+                        .offset(x: width * CGFloat(min(1, max(0, mark))) - 3, y: 3)
+                }
+            }
+        }
+        .frame(height: 20)
+    }
+
+    private var emotionJournalStrip: some View {
+        let marks = currentTrackJournalMarkers
+        return Group {
+            if marks.isEmpty {
+                EmptyView()
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(marks.enumerated()), id: \.offset) { idx, marker in
+                            Button {
+                                player.seek(toProgress: marker)
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "bookmark.fill")
+                                    Text("M\(idx + 1) • \(AudioReactivePlayer.formatClock(marker * player.totalDurationSeconds))")
+                                }
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.9))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(themeAccent.opacity(0.22))
+                                .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(height: 32)
+            }
+        }
+    }
+
+    private func timelineSegments() -> [EmotionTimelineSegment] {
+        let sorted = player.structureMarkers.sorted { $0.timeSeconds < $1.timeSeconds }
+        guard player.totalDurationSeconds > 0.1 else {
+            return [EmotionTimelineSegment(start: 0, end: 1, kind: .verse)]
+        }
+        guard !sorted.isEmpty else {
+            return [EmotionTimelineSegment(start: 0, end: 1, kind: .verse)]
+        }
+
+        var segments: [EmotionTimelineSegment] = []
+        var lastStart: Double = 0
+        var activeKind: SongStructureKind = .verse
+        for marker in sorted {
+            let p = min(1, max(0, marker.timeSeconds / player.totalDurationSeconds))
+            if p > lastStart {
+                segments.append(EmotionTimelineSegment(start: lastStart, end: p, kind: activeKind))
+            }
+            activeKind = marker.kind
+            lastStart = p
+        }
+        if lastStart < 1 {
+            segments.append(EmotionTimelineSegment(start: lastStart, end: 1, kind: activeKind))
+        }
+        return segments
+    }
+
+    private func addEmotionJournalMarker() {
+        guard let id = player.activeTrackId?.uuidString else { return }
+        let p = min(1, max(0, player.progress))
+        var marks = journalMarkersByTrack[id, default: []]
+        if marks.contains(where: { abs($0 - p) < 0.01 }) { return }
+        marks.append(p)
+        marks.sort()
+        if marks.count > 24 {
+            marks.removeFirst(marks.count - 24)
+        }
+        journalMarkersByTrack[id] = marks
+        saveEmotionJournal()
+    }
+
+    private func applyStoredHapticMode() {
+        player.setHapticIntensityMode(currentHapticMode)
+    }
+
+    private func loadEmotionJournal() {
+        guard
+            let data = UserDefaults.standard.data(forKey: emotionJournalDefaultsKey),
+            let decoded = try? JSONDecoder().decode([String: [Double]].self, from: data)
+        else { return }
+        journalMarkersByTrack = decoded
+    }
+
+    private func saveEmotionJournal() {
+        guard let data = try? JSONEncoder().encode(journalMarkersByTrack) else { return }
+        UserDefaults.standard.set(data, forKey: emotionJournalDefaultsKey)
+    }
 
     private var progressTimeline: some View {
         VStack(spacing: 6) {
@@ -743,6 +946,13 @@ private struct DropCinematicOverlay: View {
             }
         }
     }
+}
+
+private struct EmotionTimelineSegment: Identifiable {
+    let id = UUID()
+    let start: Double
+    let end: Double
+    let kind: SongStructureKind
 }
 
 private enum VisualThemeMode: CaseIterable {
