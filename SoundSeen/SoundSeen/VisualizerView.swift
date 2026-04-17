@@ -22,6 +22,8 @@ struct VisualizerView: View {
         ZStack {
             layeredBackground
 
+            ExpressiveBackgroundLayers(player: player, tint: themeAccent)
+
             VStack(spacing: 0) {
                 topBar
                 Spacer(minLength: 4)
@@ -32,6 +34,8 @@ struct VisualizerView: View {
                 playbackControls
             }
             .padding(.horizontal, 20)
+
+            ExpressiveOverlayLayers(player: player, tint: themeAccent)
         }
         .sheet(isPresented: $showQueueSheet) {
             QueueSheet(player: player, onPickIndex: { index in

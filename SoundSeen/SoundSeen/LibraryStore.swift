@@ -123,7 +123,10 @@ final class LibraryStore: ObservableObject {
     }
 
     /// Copies the user-selected file into Documents and appends to the library.
-    func importAudioFile(from sourceURL: URL) throws {
+    /// Returns the newly inserted track so callers can chain follow-up work
+    /// (e.g. kick off an AnalyzeTask) without looking it up by index.
+    @discardableResult
+    func importAudioFile(from sourceURL: URL) throws -> LibraryTrack {
         let didAccess = sourceURL.startAccessingSecurityScopedResource()
         defer {
             if didAccess {
@@ -155,6 +158,7 @@ final class LibraryStore: ObservableObject {
         )
         track.durationSeconds = Self.durationForURL(destination)
         tracks.insert(track, at: 0)
+        return track
     }
 
     static func parseArtistTitle(fromFilenameBase base: String) -> (String, String) {

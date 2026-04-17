@@ -11,12 +11,14 @@ import SwiftUI
 struct SoundSeenApp: App {
     @StateObject private var library = LibraryStore()
     @StateObject private var audioPlayer = AudioReactivePlayer()
+    @StateObject private var analysisStore = AnalysisStore()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(library)
                 .environmentObject(audioPlayer)
+                .environmentObject(analysisStore)
         }
     }
 }
