@@ -51,6 +51,15 @@ final class VisualizerState {
     /// 1.0 at the moment of a beat, decays exponentially toward 0.
     private(set) var beatPulse: Double = 0
 
+    // MARK: - God-rays derived signals
+    /// EMA-smoothed bass energy for god-rays shader (low + sub-bass bands).
+    /// Smoothing kills per-frame jitter while keeping tight coupling to kicks.
+    private(set) var bassEnergySmoothed: Double = 0
+    /// Section-based build envelope (0-1) for cinematic slow ramps.
+    /// Ramps up over ~2s on "building" sections, holds on "high"/"intense",
+    /// ramps down on "fading"/"minimal". Drives god-rays brightness.
+    private(set) var sectionBuildEnvelope: Double = 0
+
     /// Per-quadrant opacity weights computed from smoothed (V, A). Always sums
     /// to 1.0. Drives additive composition of the four biomes so transits
     /// across quadrant boundaries are a smooth blend, not a swap.
@@ -88,6 +97,13 @@ final class VisualizerState {
     @ObservationIgnored private var prevFlux: Double = 0
     @ObservationIgnored private var lastFluxSpikeTime: Double = -Double.infinity
     @ObservationIgnored private var lastFrameIdx: Int = -1
+
+    // MARK: - God-rays smoothing state
+    @ObservationIgnored private var didSeedBassSmoothing: Bool = false
+    /// Target value for section build envelope (set by energyProfile).
+    @ObservationIgnored private var sectionBuildTarget: Double = 0
+    /// Last time the section build envelope was updated (for delta-based ramping).
+    @ObservationIgnored private var lastBuildUpdateTime: Double = 0
 
     init(analysis: SongAnalysis) {
         self.analysis = analysis
@@ -160,6 +176,18 @@ final class VisualizerState {
         }
         if idx < frames.chromaStrength.count {
             currentChromaStrength = frames.chromaStrength[idx]
+        }
+
+        // Update bass energy with EMA smoothing for god-rays.
+        // Bands 0-1 are sub-bass + bass. α≈0.15 gives τ≈80ms at 60Hz —
+        // tight enough to track kicks, smooth enough to avoid strobing.
+        let rawBass = (currentBands[0] + currentBands[1]) * 0.5
+        let bassAlpha = 0.15
+        if !didSeedBassSmoothing {
+            bassEnergySmoothed = rawBass
+            didSeedBassSmoothing = true
+        } else {
+            bassEnergySmoothed = bassAlpha * rawBass + (1 - bassAlpha) * bassEnergySmoothed
         }
 
         detectFluxSpike(newFlux: currentFlux, frameIdx: idx, time: time)
@@ -286,6 +314,32 @@ final class VisualizerState {
         if let s = found {
             currentSectionLabel = s.label
             currentSectionEnergyProfile = s.energyProfile
+
+            // Map energyProfile to build envelope target.
+            // These values are tuned so "building" sections ramp up over time
+            // and drops land with full intensity.
+            let target: Double
+            switch s.energyProfile.lowercased() {
+            case "minimal", "quiet":
+                target = 0.1
+            case "fading", "falling":
+                target = 0.3
+            case "building", "rising":
+                target = 0.8
+            case "high", "drop", "intense", "peak":
+                target = 1.0
+            default:
+                target = 0.5
+            }
+            sectionBuildTarget = target
+
+            // Ramp toward target with slow attack/release for cinematic effect.
+            // Attack ~2s (α≈0.03 at 60Hz), release ~3s (α≈0.02).
+            // Principle 2: "Slowness earns the drop"
+            let attackAlpha = 0.03
+            let releaseAlpha = 0.02
+            let alpha = (target > sectionBuildEnvelope) ? attackAlpha : releaseAlpha
+            sectionBuildEnvelope = alpha * target + (1 - alpha) * sectionBuildEnvelope
         }
     }
 

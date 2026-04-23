@@ -36,6 +36,10 @@ struct AnalyzedPlayerView: View {
     @State private var didStart: Bool = false
     @State private var showReanalyzeConfirmation: Bool = false
 
+    // God-rays layer state
+    @State private var godRayEnabled: Bool = true
+    @State private var godRayIntensity: Double = 0.7
+
     var body: some View {
         ZStack {
             BiomePaletteBackground(
@@ -89,6 +93,17 @@ struct AnalyzedPlayerView: View {
 
                 FluxHaloLayer(visualizer: viz, paletteColor: paletteSecondary)
                     .ignoresSafeArea()
+
+                if godRayEnabled {
+                    GodRayVisualizer(
+                        visualizer: viz,
+                        scheduler: beats,
+                        paletteColor: palette,
+                        paletteSecondary: paletteSecondary,
+                        intensity: godRayIntensity
+                    )
+                    .ignoresSafeArea()
+                }
 
                 CentroidSparkleLayer(visualizer: viz, paletteColor: palette)
                     .ignoresSafeArea()
@@ -194,7 +209,38 @@ struct AnalyzedPlayerView: View {
 
             Spacer(minLength: 0)
 
+            // God rays toggle button
+            Button {
+                godRayEnabled.toggle()
+            } label: {
+                Image(systemName: godRayEnabled ? "sun.max.fill" : "sun.max")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(godRayEnabled ? SoundSeenTheme.purpleAccent : .white.opacity(0.6))
+                    .frame(width: 38, height: 38)
+                    .background(Color.white.opacity(0.12), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(godRayEnabled ? "God rays on" : "God rays off")
+
             Menu {
+                // God rays intensity control
+                Section("God Rays") {
+                    Toggle(isOn: $godRayEnabled) {
+                        Label("Enable God Rays", systemImage: "sun.max.fill")
+                    }
+                    // Intensity presets (Menu doesn't support Slider)
+                    Picker("Intensity", selection: Binding(
+                        get: { intensityPreset(from: godRayIntensity) },
+                        set: { godRayIntensity = intensityValue(from: $0) }
+                    )) {
+                        Text("Subtle").tag(0)
+                        Text("Medium").tag(1)
+                        Text("Intense").tag(2)
+                    }
+                }
+
+                Divider()
+
                 Button(role: .destructive) {
                     showReanalyzeConfirmation = true
                 } label: {
@@ -350,6 +396,23 @@ struct AnalyzedPlayerView: View {
     }
 
     // MARK: - Helpers
+
+    /// Convert god-ray intensity to preset index for picker.
+    private func intensityPreset(from intensity: Double) -> Int {
+        if intensity < 0.4 { return 0 }      // Subtle
+        if intensity < 0.8 { return 1 }      // Medium
+        return 2                              // Intense
+    }
+
+    /// Convert preset index back to intensity value.
+    private func intensityValue(from preset: Int) -> Double {
+        switch preset {
+        case 0: return 0.35   // Subtle
+        case 1: return 0.7    // Medium
+        case 2: return 1.0    // Intense
+        default: return 0.7
+        }
+    }
 
     private var currentSectionLabelText: String? {
         guard let label = visualizer?.currentSectionLabel, !label.isEmpty else {
