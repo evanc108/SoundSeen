@@ -41,6 +41,7 @@ enum TextureID: String, CaseIterable, Sendable {
     case valenceGradient
     case fluxShatter
     case subBassRipple
+    case godRays
 }
 
 /// Named coordinate zones shared by every texture. `u` is horizontal

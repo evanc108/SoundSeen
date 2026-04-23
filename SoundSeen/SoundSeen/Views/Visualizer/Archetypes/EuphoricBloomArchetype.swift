@@ -40,7 +40,7 @@ struct EuphoricBloomArchetype: View {
         // Petal count — tonal passages bloom full, noisy ones show fewer
         // petals so the form dissolves toward shards instead of a flower.
         let hr = state.currentHarmonicRatio
-        let petalCount = max(6, min(12, 6 + Int((hr * 6).rounded())))
+        let petalCount = max(5, min(8, 5 + Int((hr * 3).rounded())))
 
         // Bloom center drifts in a small Lissajous so the flower feels
         // rooted but alive. Stays inside the central viewing zone.
@@ -61,7 +61,7 @@ struct EuphoricBloomArchetype: View {
         // Color: primary body, accent-hot tip, pulled slightly toward
         // key color on tonal passages so the bloom reads musical.
         let cs = state.currentChromaStrength
-        let keyHSB = HSB(h: state.currentHue, s: 0.85, b: 1.0)
+        let keyHSB = HSB(h: state.currentHue, s: 0.60, b: 0.80)
         let body: HSB = cs > 0.4
             ? archetypeBlend(scheme.primary, keyHSB, 0.25)
             : scheme.primary
@@ -71,7 +71,7 @@ struct EuphoricBloomArchetype: View {
 
         // Alpha: weight-scaled with a gentle boost from energy so louder
         // passages bloom brighter than quiet ones within the same biome.
-        let energyBoost = 0.55 + 0.45 * state.currentEnergy
+        let energyBoost = 0.40 + 0.35 * state.currentEnergy
         let baseAlpha = weight * energyBoost
 
         // Petal width rides MFCC[1] — a proxy for spectral brightness.

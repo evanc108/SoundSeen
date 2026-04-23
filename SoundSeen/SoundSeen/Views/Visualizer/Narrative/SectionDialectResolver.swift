@@ -71,7 +71,7 @@ enum SectionDialectResolver {
         mirrorX: false,
         enabledTextures: [
             .smoke, .inkBleed, .aurora, .ember, .glowPulse, .filmGrain,
-            .chromaSlick, .keyRail, .valenceGradient, .subBassRipple
+            .chromaSlick, .keyRail, .valenceGradient, .subBassRipple, .godRays
         ],
         saturationScale: 1.0,
         brightnessScale: 1.0,
@@ -81,7 +81,7 @@ enum SectionDialectResolver {
         outroFadeProgress: 0
     )
 
-    /// chorus — kaleidoscopic, hyper-saturated. Every texture on.
+    /// chorus — elevated, full palette. Every texture on but restrained.
     static let chorus = SectionDialect(
         activeUBounds: 0...1,
         activeVBounds: 0.05...0.95,
@@ -91,8 +91,8 @@ enum SectionDialectResolver {
         translateOffset: .zero,
         mirrorX: true,
         enabledTextures: Set(TextureID.allCases),
-        saturationScale: 1.20,
-        brightnessScale: 1.10,
+        saturationScale: 1.05,
+        brightnessScale: 1.05,
         hueShift: 0,
         grainOpacity: 0,
         allowOffscreen: false,
@@ -111,7 +111,7 @@ enum SectionDialectResolver {
         mirrorX: false,
         enabledTextures: [
             .smoke, .inkBleed, .aurora, .thermalShimmer, .glowPulse, .filmGrain,
-            .chromaSlick, .fluxShatter, .valenceGradient
+            .chromaSlick, .fluxShatter, .valenceGradient, .godRays
         ],
         saturationScale: 0.95,
         brightnessScale: 0.95,
@@ -142,7 +142,7 @@ enum SectionDialectResolver {
         outroFadeProgress: 0
     )
 
-    /// drop — off-grid, material release. All textures unlocked.
+    /// drop — release, expanded bounds. All textures unlocked.
     static let drop = SectionDialect(
         activeUBounds: -0.15...1.15,
         activeVBounds: -0.10...1.10,
@@ -152,8 +152,8 @@ enum SectionDialectResolver {
         translateOffset: .zero,
         mirrorX: false,
         enabledTextures: Set(TextureID.allCases),
-        saturationScale: 1.35,
-        brightnessScale: 1.15,
+        saturationScale: 1.08,
+        brightnessScale: 1.08,
         hueShift: 0,
         grainOpacity: 0.05,
         allowOffscreen: true,
@@ -171,9 +171,9 @@ enum SectionDialectResolver {
         var active: Set<TextureID> = [
             .smoke, .inkBleed, .aurora, .ember, .frost,
             .filmGrain, .glowPulse, .velvetDarkness,
-            .chromaSlick, .keyRail, .valenceGradient, .subBassRipple
+            .chromaSlick, .keyRail, .valenceGradient, .subBassRipple, .godRays
         ]
-        if pClamped > 0.25 { active.remove(.frost) }
+        if pClamped > 0.25 { active.remove(.frost); active.remove(.godRays) }
         if pClamped > 0.40 { active.remove(.filmGrain); active.remove(.aurora); active.remove(.chromaSlick) }
         if pClamped > 0.55 { active.remove(.ember); active.remove(.glowPulse) }
         if pClamped > 0.70 { active.remove(.inkBleed); active.remove(.keyRail) }

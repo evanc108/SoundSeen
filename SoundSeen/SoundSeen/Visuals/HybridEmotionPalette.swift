@@ -42,35 +42,35 @@ enum HybridEmotionPalette {
     // dark background and to blend cleanly through intermediate quadrants.
 
     static let euphoric = EmotionScheme(
-        // High-V, high-A: hot magenta / gold — carnival, sunset, rave.
-        primary:    HSB(h: 0.92, s: 0.85, b: 0.98),  // hot pink
-        secondary:  HSB(h: 0.08, s: 0.90, b: 1.00),  // tangerine
-        accent:     HSB(h: 0.14, s: 0.95, b: 1.00),  // gold flash
-        atmosphere: HSB(h: 0.97, s: 0.70, b: 0.45)   // wine deep
+        // High-V, high-A: rich magenta / warm gold — vivid but not neon.
+        primary:    HSB(h: 0.92, s: 0.75, b: 0.90),  // rich pink
+        secondary:  HSB(h: 0.08, s: 0.78, b: 0.92),  // warm orange
+        accent:     HSB(h: 0.14, s: 0.80, b: 0.92),  // gold
+        atmosphere: HSB(h: 0.97, s: 0.65, b: 0.38)   // wine deep
     )
 
     static let serene = EmotionScheme(
-        // High-V, low-A: warm pastels — morning, beach, drift.
-        primary:    HSB(h: 0.52, s: 0.45, b: 0.92),  // soft teal
-        secondary:  HSB(h: 0.10, s: 0.35, b: 0.95),  // peach
-        accent:     HSB(h: 0.15, s: 0.55, b: 1.00),  // buttercream
-        atmosphere: HSB(h: 0.58, s: 0.35, b: 0.35)   // deep teal
+        // High-V, low-A: luminous pastels — morning light, drift.
+        primary:    HSB(h: 0.52, s: 0.42, b: 0.88),  // soft teal
+        secondary:  HSB(h: 0.10, s: 0.35, b: 0.90),  // peach
+        accent:     HSB(h: 0.15, s: 0.50, b: 0.92),  // warm cream
+        atmosphere: HSB(h: 0.58, s: 0.35, b: 0.30)   // deep teal
     )
 
     static let intense = EmotionScheme(
-        // Low-V, high-A: electric red-black — storm, fight, danger.
-        primary:    HSB(h: 0.99, s: 0.88, b: 0.92),  // hot red
-        secondary:  HSB(h: 0.66, s: 0.80, b: 0.92),  // electric blue
-        accent:     HSB(h: 0.00, s: 0.00, b: 1.00),  // white strike
-        atmosphere: HSB(h: 0.00, s: 0.75, b: 0.22)   // oxblood
+        // Low-V, high-A: electric red-blue — storm, danger, adrenaline.
+        primary:    HSB(h: 0.99, s: 0.78, b: 0.85),  // crimson
+        secondary:  HSB(h: 0.66, s: 0.70, b: 0.85),  // electric blue
+        accent:     HSB(h: 0.00, s: 0.00, b: 0.95),  // white strike
+        atmosphere: HSB(h: 0.00, s: 0.70, b: 0.20)   // oxblood
     )
 
     static let melancholic = EmotionScheme(
-        // Low-V, low-A: cool desaturated indigo — rain, night, grief.
-        primary:    HSB(h: 0.67, s: 0.55, b: 0.65),  // indigo
-        secondary:  HSB(h: 0.58, s: 0.40, b: 0.55),  // slate blue
-        accent:     HSB(h: 0.75, s: 0.50, b: 0.80),  // lavender highlight
-        atmosphere: HSB(h: 0.68, s: 0.60, b: 0.18)   // deep midnight
+        // Low-V, low-A: cool indigo — rain, night, longing.
+        primary:    HSB(h: 0.67, s: 0.50, b: 0.62),  // indigo
+        secondary:  HSB(h: 0.58, s: 0.38, b: 0.52),  // slate blue
+        accent:     HSB(h: 0.75, s: 0.45, b: 0.75),  // lavender
+        atmosphere: HSB(h: 0.68, s: 0.55, b: 0.16)   // deep midnight
     )
 
     /// Blend the four anchors by BiomeWeights, then optionally pull hue

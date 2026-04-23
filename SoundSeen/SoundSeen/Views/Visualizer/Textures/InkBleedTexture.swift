@@ -21,7 +21,7 @@
 import SwiftUI
 
 private let bleedLifetime: Double = 2.8
-private let bleedPoolCap: Int = 20
+private let bleedPoolCap: Int = 10
 
 struct InkBleedTexture: View {
     @Bindable var state: VisualizerState

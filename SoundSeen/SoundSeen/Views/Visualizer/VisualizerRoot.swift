@@ -155,6 +155,7 @@ private struct TextureBundle: View {
             FrostTexture(state: state, scheme: scheme, dialect: dialect, now: now)
             EmberTexture(state: state, choreography: choreography, scheme: scheme, dialect: dialect, now: now)
             GlowPulseTexture(state: state, scheme: scheme, dialect: dialect, now: now)
+            GodRaysTexture(state: state, scheme: scheme, dialect: dialect, now: now)
             if fluxShatterEnabled {
                 FluxShatterTexture(state: state, scheme: scheme, dialect: dialect, now: now)
             }
@@ -287,7 +288,7 @@ private extension View {
                 .overlay {
                     self
                         .scaleEffect(x: -1, y: 1, anchor: .center)
-                        .opacity(0.55)
+                        .opacity(0.22)
                         .blendMode(.plusLighter)
                         .allowsHitTesting(false)
                 }

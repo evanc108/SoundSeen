@@ -33,13 +33,8 @@ struct BiomeArchetypeLayer: View {
 
     var body: some View {
         ZStack {
-            EuphoricBloomArchetype(
-                state: state,
-                weight: state.biomeWeights.euphoric,
-                scheme: scheme,
-                dialect: dialect,
-                now: now
-            )
+            // EuphoricBloom removed — god rays are the scene protagonist.
+            // The bloom's geometric petals competed with atmospheric light.
             SereneOrbArchetype(
                 state: state,
                 weight: state.biomeWeights.serene,

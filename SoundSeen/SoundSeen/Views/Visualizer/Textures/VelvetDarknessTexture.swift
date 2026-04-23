@@ -68,7 +68,7 @@ struct VelvetDarknessTexture: View {
             .fill(
                 RadialGradient(
                     gradient: Gradient(colors: [
-                        glow.color(opacity: 0.6 * intensity),
+                        glow.color(opacity: 0.30 * intensity),
                         glow.color(opacity: 0)
                     ]),
                     center: .center,

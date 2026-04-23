@@ -101,6 +101,17 @@ final class VisualizerState {
     }
     /// 1.0 at the moment of a beat, decays exponentially toward 0.
     private(set) var beatPulse: Double = 0
+    /// EMA-smoothed bass energy (bands[0]+bands[1])/2, α=0.25 at 60Hz (~80ms
+    /// tau). Klsr coupling: smooth bass drives god-ray brightness so the
+    /// visual doesn't strobe on per-frame noise.
+    private(set) var bassEnergySmoothed: Double = 0
+    /// Slow cinematic ramp driven by section energy profile. Attack ~2.5s,
+    /// release ~0.8s. "building" profiles ramp with section progress;
+    /// "intense" targets 1.0. Klsr principle: slowness earns the drops.
+    private(set) var sectionBuildEnvelope: Double = 0
+    /// Snare/transient bloom envelope. Set to 1.0 on flux spikes, linearly
+    /// decays over 300ms. Drives brief radial bloom flashes.
+    private(set) var snareBloomEnvelope: Double = 0
 
     /// Per-quadrant opacity weights computed from smoothed (V, A). Always sums
     /// to 1.0. Drives additive composition of the four biomes so transits
@@ -131,6 +142,7 @@ final class VisualizerState {
     /// not the noise.
     @ObservationIgnored private var smoothedCentroidNormalized: Double = 0.5
     @ObservationIgnored private var didSeedCentroidSmoothing: Bool = false
+    @ObservationIgnored private var didSeedBassSmoothing: Bool = false
     @ObservationIgnored private var prevSmoothedCentroidNormalized: Double = 0.5
 
     // MARK: - Smoothing / hysteresis state
@@ -191,6 +203,12 @@ final class VisualizerState {
         updateSection(at: currentTime)
         updateBeatPulse(prevTime: prevTime, currentTime: currentTime)
         updateOnsetCursor(prevTime: prevTime, currentTime: currentTime)
+
+        // Snare bloom linear decay: 300ms from 1.0 → 0.0.
+        let dt = max(0, currentTime - prevTime)
+        if dt > 0 && snareBloomEnvelope > 0 {
+            snareBloomEnvelope = max(0, snareBloomEnvelope - dt / 0.3)
+        }
     }
 
     // MARK: - Per-frame lookups
@@ -289,6 +307,17 @@ final class VisualizerState {
         currentPitchDirection = max(-1, min(1, rawDir))
 
         detectFluxSpike(newFlux: currentFlux, frameIdx: idx, time: time)
+
+        // EMA-smooth bass for god-ray brightness coupling. α=0.25 at 60Hz
+        // gives τ≈80ms — tight enough to feel the kick, smooth enough to
+        // kill per-frame jitter.
+        let rawBass = (currentBands[0] + currentBands[1]) * 0.5
+        if !didSeedBassSmoothing {
+            bassEnergySmoothed = rawBass
+            didSeedBassSmoothing = true
+        } else {
+            bassEnergySmoothed = 0.25 * rawBass + 0.75 * bassEnergySmoothed
+        }
     }
 
     // MARK: - Flux spike detection
@@ -328,6 +357,7 @@ final class VisualizerState {
             if newFlux > threshold && rising && cooldownOk {
                 lastFluxSpikeTime = time
                 fluxSpikeGeneration &+= 1
+                snareBloomEnvelope = 1.0
             }
         }
 
@@ -415,6 +445,21 @@ final class VisualizerState {
             currentSectionStart = s.start
             currentSectionEnd = s.end
         }
+
+        // Section build envelope: slow attack (~2.5s), faster release (~0.8s).
+        // "building" profiles ramp with section progress so tension accumulates
+        // across a bridge/buildup. The slow attack is what makes drops feel earned.
+        let buildTarget: Double
+        switch currentSectionEnergyProfile.lowercased() {
+        case "building":  buildTarget = 0.3 + 0.7 * currentSectionProgress
+        case "intense":   buildTarget = 1.0
+        case "high":      buildTarget = 0.7
+        case "moderate":  buildTarget = 0.3
+        case "fading":    buildTarget = max(0, 0.3 * (1.0 - currentSectionProgress))
+        default:          buildTarget = 0.15
+        }
+        let buildAlpha = buildTarget > sectionBuildEnvelope ? 0.02 : 0.06
+        sectionBuildEnvelope = buildAlpha * buildTarget + (1 - buildAlpha) * sectionBuildEnvelope
     }
 
     // MARK: - Onset cursor

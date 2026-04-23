@@ -19,7 +19,7 @@
 
 import SwiftUI
 
-private let frostSeedCount: Int = 36
+private let frostSeedCount: Int = 14
 private let frostLifetimeBase: Double = 4.0
 
 struct FrostTexture: View {
