@@ -2,6 +2,12 @@
 //  LibraryView.swift
 //  SoundSeen
 //
+//  The app's home. Premium dark aesthetic — the visualizer is meant to
+//  be the loudest thing in the app, so this screen restrains itself to
+//  deep surfaces, one accent, and clean typography. Cards present
+//  tracks as objects a user can reach into; taps go straight to the
+//  analyzed player (no "Listen" tab).
+//
 
 import SwiftUI
 
@@ -11,12 +17,8 @@ struct LibraryView: View {
     @State private var query = ""
     @State private var analyzeTask = AnalyzeTask()
     @State private var analyzingTrackId: UUID? = nil
-    /// Set when the user taps "Re-analyze" from a row's context menu. Drives
-    /// the confirmation dialog; nil otherwise.
     @State private var trackPendingReanalysis: LibraryTrack? = nil
-
-    /// Play track and switch to the listener (handled by parent).
-    var onPlayTrack: (LibraryTrack) -> Void
+    @State private var showUploadSheet = false
 
     private var filtered: [LibraryTrack] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -29,274 +31,270 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                SoundSeenBackground()
+                AppBackground()
 
-                Group {
-                    if library.tracks.isEmpty {
-                        emptyState
-                    } else if filtered.isEmpty {
-                        noSearchResults
-                    } else {
-                        trackList
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: SSDesign.Space.xl) {
+                        header
+                            .padding(.top, SSDesign.Space.m)
+                        searchField
+                        if library.tracks.isEmpty {
+                            emptyState
+                        } else if filtered.isEmpty {
+                            noSearchResults
+                        } else {
+                            tracksList
+                        }
                     }
+                    .padding(.horizontal, SSDesign.Space.xl)
+                    .padding(.bottom, 60)
                 }
             }
-            .navigationTitle("Your Library")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Text("\(library.tracks.count) track\(library.tracks.count == 1 ? "" : "s")")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(SoundSeenTheme.purpleAccent.opacity(0.42))
-                        .clipShape(Capsule())
-                }
-            }
-            .searchable(text: $query, prompt: "Search tracks or artists")
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: UUID.self) { trackId in
                 analyzedPlayerDestination(for: trackId)
             }
-            .modifier(LibraryDialogs(
-                analyzeTask: analyzeTask,
-                trackPendingReanalysis: $trackPendingReanalysis,
-                onReanalyzeConfirmed: { track in
-                    Task { @MainActor in
-                        await reanalyze(track: track)
-                    }
+            .sheet(isPresented: $showUploadSheet) {
+                UploadView()
+                    .environmentObject(library)
+                    .environmentObject(analysisStore)
+                    .presentationBackground(SSDesign.Palette.base)
+            }
+            .alert(
+                "Analysis failed",
+                isPresented: Binding(
+                    get: { analyzeTask.errorMessage != nil },
+                    set: { if !$0 { analyzeTask.reset() } }
+                ),
+                presenting: analyzeTask.errorMessage
+            ) { _ in
+                Button("OK", role: .cancel) { analyzeTask.reset() }
+            } message: { msg in
+                Text(msg)
+            }
+            .confirmationDialog(
+                "Re-analyze this track?",
+                isPresented: Binding(
+                    get: { trackPendingReanalysis != nil },
+                    set: { if !$0 { trackPendingReanalysis = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: trackPendingReanalysis
+            ) { track in
+                Button("Re-analyze", role: .destructive) {
+                    let target = track
+                    trackPendingReanalysis = nil
+                    Task { await reanalyze(track: target) }
                 }
-            ))
+                Button("Cancel", role: .cancel) { trackPendingReanalysis = nil }
+            } message: { track in
+                Text("Discard the current analysis for \u{201C}\(track.title)\u{201D} and upload again. Takes ~5\u{2013}15 seconds.")
+            }
+        }
+        .tint(SSDesign.Palette.accent)
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: SSDesign.Space.l) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("SoundSeen")
+                    .font(SSDesign.Typography.display(36))
+                    .foregroundStyle(SSDesign.Palette.textPrimary)
+                Text("see music   ·   feel music")
+                    .font(SSDesign.Typography.caption(11))
+                    .kerning(2)
+                    .textCase(.uppercase)
+                    .foregroundStyle(SSDesign.Palette.textMuted)
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                showUploadSheet = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 18, weight: .bold))
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle().fill(SSDesign.Palette.accent)
+                    )
+                    .foregroundStyle(SSDesign.Palette.base)
+            }
+            .buttonStyle(.plain)
+            .ssShadow(SSDesign.Shadow.card)
+            .accessibilityLabel("Upload a song")
         }
     }
 
+    // MARK: - Search
+
+    private var searchField: some View {
+        HStack(spacing: SSDesign.Space.s) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(SSDesign.Palette.textMuted)
+            TextField(
+                "",
+                text: $query,
+                prompt: Text("Search tracks or artists")
+                    .foregroundStyle(SSDesign.Palette.textMuted)
+            )
+            .font(SSDesign.Typography.body(15))
+            .foregroundStyle(SSDesign.Palette.textPrimary)
+            .tint(SSDesign.Palette.accent)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(SSDesign.Palette.textMuted)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, SSDesign.Space.l)
+        .padding(.vertical, SSDesign.Space.m)
+        .background(
+            Capsule().fill(SSDesign.Palette.surfaceRaised)
+                .overlay(Capsule().stroke(SSDesign.Palette.hairline, lineWidth: 0.5))
+        )
+    }
+
+    // MARK: - Tracks list
+
+    private var tracksList: some View {
+        VStack(alignment: .leading, spacing: SSDesign.Space.s) {
+            HStack {
+                Text("\(filtered.count) track\(filtered.count == 1 ? "" : "s")")
+                    .font(SSDesign.Typography.caption(11))
+                    .kerning(1.5)
+                    .textCase(.uppercase)
+                    .foregroundStyle(SSDesign.Palette.textMuted)
+                Spacer()
+                let analyzedCount = library.tracks.filter { analysisStore.has(trackId: $0.id) }.count
+                if analyzedCount > 0 {
+                    Text("\(analyzedCount) analyzed")
+                        .font(SSDesign.Typography.caption(11))
+                        .kerning(1.5)
+                        .textCase(.uppercase)
+                        .foregroundStyle(SSDesign.Palette.accent)
+                }
+            }
+            .padding(.horizontal, SSDesign.Space.xs)
+
+            VStack(spacing: SSDesign.Space.m) {
+                ForEach(filtered) { track in
+                    TrackCard(
+                        track: track,
+                        isAnalyzed: analysisStore.has(trackId: track.id),
+                        isAnalyzing: analyzingTrackId == track.id,
+                        anyAnalyzeInFlight: analyzeTask.isWorking,
+                        onOpen: { open(track: track) },
+                        onAnalyze: { Task { await analyze(track: track) } },
+                        onReanalyze: { trackPendingReanalysis = track },
+                        onRemove: {
+                            analysisStore.remove(trackId: track.id)
+                            library.remove(track)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Empty states
+
+    private var emptyState: some View {
+        VStack(spacing: SSDesign.Space.l) {
+            Spacer(minLength: 40)
+            ZStack {
+                Circle()
+                    .fill(SSDesign.Palette.surfaceRaised)
+                    .frame(width: 96, height: 96)
+                Image(systemName: "waveform")
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundStyle(SSDesign.Palette.accent)
+            }
+            .ssShadow(SSDesign.Shadow.card)
+
+            VStack(spacing: SSDesign.Space.s) {
+                Text("Your library is empty")
+                    .font(SSDesign.Typography.title(20))
+                    .foregroundStyle(SSDesign.Palette.textPrimary)
+                Text("Upload a song to watch — and feel — its energy, structure, and emotion.")
+                    .font(SSDesign.Typography.body())
+                    .foregroundStyle(SSDesign.Palette.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, SSDesign.Space.l)
+
+            Button {
+                showUploadSheet = true
+            } label: {
+                Text("Upload a song")
+            }
+            .buttonStyle(PillButtonStyle(tint: .primary))
+            .padding(.top, SSDesign.Space.s)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, SSDesign.Space.xxxl)
+    }
+
+    private var noSearchResults: some View {
+        VStack(spacing: SSDesign.Space.m) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(SSDesign.Palette.textMuted)
+            Text("No matches")
+                .font(SSDesign.Typography.headline())
+                .foregroundStyle(SSDesign.Palette.textPrimary)
+            Text("Try a different search.")
+                .font(SSDesign.Typography.body(13))
+                .foregroundStyle(SSDesign.Palette.textMuted)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, SSDesign.Space.xxxl)
+    }
+
+    // MARK: - Navigation destination
+
     @ViewBuilder
     private func analyzedPlayerDestination(for trackId: UUID) -> some View {
-        if let track = library.tracks.first(where: { $0.id == trackId }) {
-            if let analysis = try? analysisStore.load(trackId: trackId) {
-                AnalyzedPlayerView(
-                    track: track,
-                    analysis: analysis,
-                    onRequestReanalyze: {
-                        Task { @MainActor in
-                            await reanalyze(track: track)
-                        }
-                    }
-                )
-            } else {
+        if let track = library.tracks.first(where: { $0.id == trackId }),
+           let analysis = try? analysisStore.load(trackId: trackId) {
+            AnalyzedPlayerView(
+                track: track,
+                analysis: analysis,
+                onRequestReanalyze: {
+                    Task { await reanalyze(track: track) }
+                }
+            )
+        } else {
+            ZStack {
+                AppBackground()
                 ContentUnavailableView(
                     "Analysis unavailable",
                     systemImage: "exclamationmark.triangle",
                     description: Text("The backend analysis for this track couldn't be loaded.")
                 )
+                .foregroundStyle(SSDesign.Palette.textPrimary)
             }
+        }
+    }
+
+    // MARK: - Actions
+
+    private func open(track: LibraryTrack) {
+        if analysisStore.has(trackId: track.id) {
+            // Navigation is handled by NavigationLink inside the card; this
+            // exists for tap-on-card-body when there's no navigation link.
         } else {
-            ContentUnavailableView(
-                "Track not found",
-                systemImage: "music.note",
-                description: Text("This track is no longer in your library.")
-            )
+            Task { await analyze(track: track) }
         }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "music.note.list")
-                .font(.system(size: 56, weight: .light))
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            SoundSeenTheme.tabAccent.opacity(0.9),
-            
-                            
-                            Color(red: 0.95, green: 0.45, blue: 0.75),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .symbolRenderingMode(.hierarchical)
-
-            VStack(spacing: 8) {
-                Text("No tracks yet")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text("Tap the + button below to add MP3, M4A, or other audio files. They’ll appear here.")
-                    .font(.subheadline)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.white.opacity(0.6))
-                    .padding(.horizontal, 32)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var noSearchResults: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 44, weight: .light))
-                .foregroundStyle(.white.opacity(0.45))
-            Text("No matches")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
-            Text("Try a different search.")
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.55))
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var trackList: some View {
-        List {
-            Section {
-                ForEach(filtered) { track in
-                    HStack(spacing: 14) {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color(red: 0.45, green: 0.28, blue: 0.85).opacity(0.9),
-                                        Color(red: 0.85, green: 0.35, blue: 0.55).opacity(0.85),
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 52, height: 52)
-                            .overlay {
-                                Image(systemName: "waveform")
-                                    .font(.title3.weight(.semibold))
-                                    .foregroundStyle(.white.opacity(0.95))
-                            }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(track.title)
-                                .font(.headline)
-                                .foregroundStyle(.primary)
-                                .multilineTextAlignment(.leading)
-                            if !track.artist.isEmpty {
-                                Text(track.artist)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(track.isBundled ? "Included with SoundSeen" : track.addedAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        if analysisStore.has(trackId: track.id) {
-                            NavigationLink(value: track.id) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "sparkles")
-                                    Text("Open")
-                                }
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    Capsule().fill(SoundSeenTheme.tabAccent)
-                                )
-                                .contentShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Open analyzed player")
-                        } else if analyzingTrackId == track.id {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                    .tint(.white)
-                                Text("Analyzing")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(.white.opacity(0.85))
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                Capsule().fill(Color.white.opacity(0.15))
-                            )
-                        } else {
-                            Button {
-                                Task { @MainActor in
-                                    await analyze(track: track)
-                                }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "wand.and.stars")
-                                    Text("Analyze")
-                                }
-                                .font(.caption.weight(.bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(
-                                    Capsule().fill(SoundSeenTheme.purpleAccent)
-                                )
-                                .contentShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(analyzeTask.isWorking)
-                            .opacity(analyzeTask.isWorking ? 0.5 : 1.0)
-                            .accessibilityLabel("Analyze track")
-                        }
-
-                        Text(track.formattedDuration ?? "—")
-                            .font(.subheadline.monospacedDigit().weight(.medium))
-                            .foregroundStyle(.secondary)
-
-                        Image(systemName: "play.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(SoundSeenTheme.purpleAccent.opacity(0.9))
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onPlayTrack(track)
-                    }
-                    .listRowBackground(Color.white.opacity(0.06))
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                        if !track.isBundled {
-                            Button(role: .destructive) {
-                                analysisStore.remove(trackId: track.id)
-                                library.remove(track)
-                            } label: {
-                                Label("Remove", systemImage: "trash")
-                            }
-                        }
-                    }
-                    .contextMenu {
-                        if analysisStore.has(trackId: track.id) {
-                            Button(role: .destructive) {
-                                trackPendingReanalysis = track
-                            } label: {
-                                Label("Re-analyze", systemImage: "arrow.clockwise")
-                            }
-                            .disabled(analyzeTask.isWorking)
-                        }
-                    }
-                }
-            } header: {
-                Text("\(library.tracks.count) track\(library.tracks.count == 1 ? "" : "s")")
-                    .foregroundStyle(.white.opacity(0.55))
-            }
-        }
-        .scrollContentBackground(.hidden)
-        .listStyle(.insetGrouped)
-    }
-
-    // MARK: - Analyze on demand
-
-    /// Discards the existing analysis for `track` and runs the upload +
-    /// analyze flow again. Called by the context menu and by the player's
-    /// top-bar Re-analyze action (after the player dismisses itself).
-    @MainActor
-    func reanalyze(track: LibraryTrack) async {
-        guard !analyzeTask.isWorking else { return }
-        analysisStore.remove(trackId: track.id)
-        await analyze(track: track)
     }
 
     @MainActor
@@ -304,9 +302,6 @@ struct LibraryView: View {
         guard !analyzeTask.isWorking else { return }
         guard let audioURL = library.playbackURL(for: track) else { return }
         let mime = AudioFileStore.mimeType(for: audioURL)
-        // Backend sniffs by extension from the multipart filename; pass the
-        // on-disk filename (e.g. "feel U luv Me.mp3") rather than track.title
-        // which may be missing the extension.
         let uploadFilename = audioURL.lastPathComponent
         analyzingTrackId = track.id
         await analyzeTask.run(
@@ -318,63 +313,151 @@ struct LibraryView: View {
         )
         analyzingTrackId = nil
     }
+
+    @MainActor
+    func reanalyze(track: LibraryTrack) async {
+        guard !analyzeTask.isWorking else { return }
+        analysisStore.remove(trackId: track.id)
+        await analyze(track: track)
+    }
 }
 
-/// Extracted to keep LibraryView.body's modifier chain short enough for the
-/// SwiftUI type-checker. Both dialogs share state readers, so bundling them
-/// in one modifier also keeps the presentation logic in one place.
-private struct LibraryDialogs: ViewModifier {
-    let analyzeTask: AnalyzeTask
-    @Binding var trackPendingReanalysis: LibraryTrack?
-    let onReanalyzeConfirmed: (LibraryTrack) -> Void
+// MARK: - Track card
 
-    private var isAnalyzeErrorPresented: Binding<Bool> {
-        Binding(
-            get: { analyzeTask.errorMessage != nil },
-            set: { if !$0 { analyzeTask.reset() } }
-        )
+private struct TrackCard: View {
+    let track: LibraryTrack
+    let isAnalyzed: Bool
+    let isAnalyzing: Bool
+    let anyAnalyzeInFlight: Bool
+    let onOpen: () -> Void
+    let onAnalyze: () -> Void
+    let onReanalyze: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        // When analyzed, the whole card is a NavigationLink. When not, the
+        // card is a plain button that kicks off analysis.
+        Group {
+            if isAnalyzed {
+                NavigationLink(value: track.id) {
+                    cardBody
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button(action: onAnalyze) { cardBody }
+                    .buttonStyle(.plain)
+                    .disabled(isAnalyzing || anyAnalyzeInFlight)
+            }
+        }
+        .contextMenu {
+            if isAnalyzed {
+                Button {
+                    onReanalyze()
+                } label: {
+                    Label("Re-analyze", systemImage: "arrow.clockwise")
+                }
+                .disabled(anyAnalyzeInFlight)
+            }
+            if !track.isBundled {
+                Button(role: .destructive, action: onRemove) {
+                    Label("Remove from library", systemImage: "trash")
+                }
+            }
+        }
     }
 
-    private var isReanalyzeConfirmPresented: Binding<Bool> {
-        Binding(
-            get: { trackPendingReanalysis != nil },
-            set: { if !$0 { trackPendingReanalysis = nil } }
-        )
+    private var cardBody: some View {
+        CardSurface {
+            HStack(spacing: SSDesign.Space.l) {
+                mark
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(track.title)
+                        .font(SSDesign.Typography.headline())
+                        .foregroundStyle(SSDesign.Palette.textPrimary)
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        if !track.artist.isEmpty {
+                            Text(track.artist)
+                                .font(SSDesign.Typography.body(13))
+                                .foregroundStyle(SSDesign.Palette.textSecondary)
+                                .lineLimit(1)
+                        }
+                        if let dur = track.formattedDuration {
+                            metaSeparator
+                            Text(dur)
+                                .font(SSDesign.Typography.meta(12))
+                                .foregroundStyle(SSDesign.Palette.textMuted)
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+                trailing
+            }
+            .padding(.horizontal, SSDesign.Space.l)
+            .padding(.vertical, SSDesign.Space.m)
+        }
     }
 
-    func body(content: Content) -> some View {
-        content
-            .alert(
-                "Analysis failed",
-                isPresented: isAnalyzeErrorPresented,
-                presenting: analyzeTask.errorMessage
-            ) { _ in
-                Button("OK", role: .cancel) { analyzeTask.reset() }
-            } message: { msg in
-                Text(msg)
+    private var metaSeparator: some View {
+        Circle()
+            .fill(SSDesign.Palette.textMuted)
+            .frame(width: 3, height: 3)
+    }
+
+    /// Circular disc on the left. Glows with the accent color when the
+    /// track is analyzed (ready to play), neutral gray when it isn't.
+    private var mark: some View {
+        ZStack {
+            Circle()
+                .fill(isAnalyzed ? SSDesign.Palette.accent.opacity(0.22) : SSDesign.Palette.surfaceActive)
+                .overlay(
+                    Circle()
+                        .stroke(
+                            isAnalyzed ? SSDesign.Palette.accent.opacity(0.7) : SSDesign.Palette.hairlineStrong,
+                            lineWidth: isAnalyzed ? 1.2 : 0.6
+                        )
+                )
+            Image(systemName: isAnalyzed ? "waveform" : "music.note")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(isAnalyzed ? SSDesign.Palette.accent : SSDesign.Palette.textMuted)
+        }
+        .frame(width: 44, height: 44)
+    }
+
+    @ViewBuilder
+    private var trailing: some View {
+        if isAnalyzing {
+            HStack(spacing: 6) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                    .tint(SSDesign.Palette.accent)
+                Text("Analyzing")
+                    .font(SSDesign.Typography.caption(10))
+                    .kerning(1)
+                    .textCase(.uppercase)
+                    .foregroundStyle(SSDesign.Palette.textSecondary)
             }
-            .confirmationDialog(
-                "Re-analyze this track?",
-                isPresented: isReanalyzeConfirmPresented,
-                titleVisibility: .visible,
-                presenting: trackPendingReanalysis
-            ) { track in
-                Button("Re-analyze", role: .destructive) {
-                    let target = track
-                    trackPendingReanalysis = nil
-                    onReanalyzeConfirmed(target)
-                }
-                Button("Cancel", role: .cancel) {
-                    trackPendingReanalysis = nil
-                }
-            } message: { track in
-                Text("This discards the existing analysis for \u{201C}\(track.title)\u{201D} and uploads the track again. Takes ~5\u{2013}15 seconds.")
-            }
+        } else if isAnalyzed {
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(SSDesign.Palette.accent)
+        } else {
+            Text("Analyze")
+                .font(SSDesign.Typography.caption(10))
+                .kerning(1)
+                .textCase(.uppercase)
+                .padding(.horizontal, SSDesign.Space.m)
+                .padding(.vertical, 6)
+                .background(Capsule().fill(SSDesign.Palette.surfaceActive))
+                .overlay(Capsule().stroke(SSDesign.Palette.hairlineStrong, lineWidth: 0.5))
+                .foregroundStyle(SSDesign.Palette.textPrimary)
+        }
     }
 }
 
 #Preview {
-    LibraryView { _ in }
+    LibraryView()
         .environmentObject(LibraryStore())
         .environmentObject(AnalysisStore())
+        .preferredColorScheme(.dark)
 }

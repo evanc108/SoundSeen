@@ -37,10 +37,48 @@ final class VisualizerState {
     /// Current-frame tonal strength in [0, 1]. 1 = strongly pitched/chordal,
     /// 0 = noisy/atonal. Drives how much chroma color dominates mood color.
     private(set) var currentChromaStrength: Double = 0
+    /// Current-frame harmonic vs. percussive balance (0 = percussive, 1 =
+    /// harmonic). Drives whether HarmonicFormVoice renders smooth ribbons
+    /// (harmonic) or crystalline shards (percussive).
+    private(set) var currentHarmonicRatio: Double = 0.5
+    /// Current-frame spectral rolloff (normalized). High-frequency cutoff;
+    /// low rolloff = muffled/dark, high = bright/sparkly. Drives the
+    /// sky-ceiling height for sparkle textures.
+    private(set) var currentRolloff: Double = 0.5
+    /// Current-frame zero-crossing rate (normalized). High in noise/sibilance,
+    /// low in tonal/bassy content. Drives film grain density.
+    private(set) var currentZCR: Double = 0.3
+    /// Current-frame spectral contrast (normalized). High = peaky/clean
+    /// spectrum, low = smeared/noisy. Drives ink-bleed edge raggedness.
+    private(set) var currentSpectralContrast: Double = 0.5
+    /// Current-frame first-4 MFCC coefficients (normalized). Coef 0 tracks
+    /// energy; 1..3 encode timbre (brightness, warmth, nasality). Archetype
+    /// stroke weight rides MFCC[1].
+    private(set) var currentMFCC: [Double] = Array(repeating: 0.5, count: 4)
+    /// Current-frame 12-pitch-class chroma vector (roughly [0, 1]). Drives
+    /// per-pitch-class color mapping in ChromaSlickTexture.
+    private(set) var currentChromaVector: [Double] = Array(repeating: 0, count: 12)
+    /// Per-track normalized centroid in [0, 1] (p5..p95 mapped). Different
+    /// tracks have wildly different absolute centroid ranges, so voices that
+    /// read "brightness" want the normalized view, not the raw Hz-like value.
+    private(set) var currentCentroidNormalized: Double = 0.5
+    /// First derivative of normalized centroid, smoothed. Positive = rising
+    /// pitch / brightness, negative = falling. Used by PitchGestureVoice to
+    /// bias particles up/down since backend doesn't ship pitch_direction.
+    private(set) var currentPitchDirection: Double = 0
     /// Monotonic counter bumped when a non-beat transient is detected in
     /// frames.flux. Views observe the counter (rising edge) to spawn halos.
     /// This catches snare hits / synth stabs that BeatEvents miss.
     private(set) var fluxSpikeGeneration: Int = 0
+    /// Monotonic counter bumped when a backend OnsetEvent fires at the
+    /// current playback time. Voices that want onset-synced bursts (shard
+    /// shatters, attack blooms) observe this and read `lastOnset` on the
+    /// rising edge.
+    private(set) var onsetGeneration: Int = 0
+    /// The OnsetEvent that caused the most recent onsetGeneration bump.
+    /// nil until the first onset lands. Voices read this with attack
+    /// envelope fields to shape their per-onset animation.
+    private(set) var lastOnset: OnsetEvent? = nil
     /// EMA-smoothed valence/arousal. Shared by every emotion-driven layer so
     /// they all move on the same curve — previously each layer (e.g.
     /// MoodPaletteBackground) ran its own smoother and drifted out of phase.
@@ -48,6 +86,19 @@ final class VisualizerState {
     private(set) var smoothedArousal: Double = 0.5
     private(set) var currentSectionLabel: String = ""
     private(set) var currentSectionEnergyProfile: String = ""
+    /// Start time (seconds) of the currently-playing section, or 0 if none.
+    private(set) var currentSectionStart: Double = 0
+    /// End time (seconds) of the currently-playing section, or 0 if none.
+    private(set) var currentSectionEnd: Double = 0
+    /// 0..1 position within the current section. 0 at section entry, ~1 at
+    /// section exit. Used by SectionDirector / DropChoreography to scale
+    /// tension over the length of a buildup.
+    var currentSectionProgress: Double {
+        let span = currentSectionEnd - currentSectionStart
+        guard span > 1e-6 else { return 0 }
+        let t = (lastFrameTime - currentSectionStart) / span
+        return max(0, min(1, t))
+    }
     /// 1.0 at the moment of a beat, decays exponentially toward 0.
     private(set) var beatPulse: Double = 0
 
@@ -72,6 +123,15 @@ final class VisualizerState {
 
     // MARK: - Cursors for linear-scan paths
     @ObservationIgnored private var beatCursor: Int = 0
+    @ObservationIgnored private var onsetCursor: Int = 0
+    @ObservationIgnored private var sortedOnsets: [OnsetEvent] = []
+    @ObservationIgnored private var lastFrameTime: Double = 0
+    /// Rolling average of raw centroid for per-frame rate-of-change. Smooth
+    /// because raw centroid jitters frame-to-frame and we want the gesture,
+    /// not the noise.
+    @ObservationIgnored private var smoothedCentroidNormalized: Double = 0.5
+    @ObservationIgnored private var didSeedCentroidSmoothing: Bool = false
+    @ObservationIgnored private var prevSmoothedCentroidNormalized: Double = 0.5
 
     // MARK: - Smoothing / hysteresis state
     /// True until the first emotion sample lands — on the first tick we seed
@@ -97,6 +157,10 @@ final class VisualizerState {
             lower: 0.05,
             upper: 0.95
         )
+        // Pre-sort onsets so the cursor walk is monotonic and binary search
+        // on seek is correct. The backend usually ships them sorted, but we
+        // defend against that changing.
+        self.sortedOnsets = analysis.onsetEvents.sorted { $0.time < $1.time }
     }
 
     /// Returns (p_lower, p_upper) of a sorted copy of `values`. Falls back
@@ -121,10 +185,12 @@ final class VisualizerState {
     /// Drive the visualizer forward one tick. Wire this into
     /// `AudioPlayer.addTickHandler`.
     func update(prevTime: Double, currentTime: Double) {
+        lastFrameTime = currentTime
         updateFrameState(at: currentTime)
         updateEmotion(at: currentTime)
         updateSection(at: currentTime)
         updateBeatPulse(prevTime: prevTime, currentTime: currentTime)
+        updateOnsetCursor(prevTime: prevTime, currentTime: currentTime)
     }
 
     // MARK: - Per-frame lookups
@@ -161,6 +227,66 @@ final class VisualizerState {
         if idx < frames.chromaStrength.count {
             currentChromaStrength = frames.chromaStrength[idx]
         }
+        if idx < frames.harmonicRatio.count {
+            currentHarmonicRatio = frames.harmonicRatio[idx]
+        }
+        // Round-3 timbre fields — optional in Frames so old cached analyses
+        // still decode; when present, they override the default.
+        if let rolloff = frames.rolloff, idx < rolloff.count {
+            currentRolloff = rolloff[idx]
+        }
+        if let zcr = frames.zcr, idx < zcr.count {
+            currentZCR = zcr[idx]
+        }
+        if let contrast = frames.spectralContrast, idx < contrast.count {
+            currentSpectralContrast = contrast[idx]
+        }
+        if let mfcc = frames.mfcc, idx < mfcc.count {
+            let row = mfcc[idx]
+            if row.count == currentMFCC.count {
+                currentMFCC = row
+            } else {
+                currentMFCC = Array(row.prefix(currentMFCC.count))
+                while currentMFCC.count < 4 { currentMFCC.append(0.5) }
+            }
+        }
+        if let chroma = frames.chroma, idx < chroma.count {
+            let row = chroma[idx]
+            if row.count == currentChromaVector.count {
+                currentChromaVector = row
+            } else {
+                currentChromaVector = Array(row.prefix(currentChromaVector.count))
+                while currentChromaVector.count < 12 { currentChromaVector.append(0) }
+            }
+        }
+
+        // Per-track normalized centroid (p5/p95 mapped to 0..1) — use this
+        // in voices that want "brightness" as a normalized quantity, since
+        // raw centroid values vary wildly between tracks.
+        let spanCentroid = centroidMax - centroidMin
+        let normalized: Double
+        if spanCentroid > 1e-6 {
+            normalized = max(0, min(1, (currentCentroid - centroidMin) / spanCentroid))
+        } else {
+            normalized = 0.5
+        }
+        // α=0.12 at 60Hz → visible responsiveness (~400ms to settle) while
+        // killing the sub-frame jitter that makes naive centroid deltas
+        // dominated by noise rather than real melodic motion.
+        let alpha = 0.12
+        prevSmoothedCentroidNormalized = smoothedCentroidNormalized
+        if !didSeedCentroidSmoothing {
+            smoothedCentroidNormalized = normalized
+            prevSmoothedCentroidNormalized = normalized
+            didSeedCentroidSmoothing = true
+        } else {
+            smoothedCentroidNormalized = alpha * normalized + (1 - alpha) * smoothedCentroidNormalized
+        }
+        currentCentroidNormalized = smoothedCentroidNormalized
+        // Δ per frame is tiny; scale by ~50 so a typical half-octave sweep
+        // over a beat registers as ~±1 on the output. Then soft-clip.
+        let rawDir = (smoothedCentroidNormalized - prevSmoothedCentroidNormalized) * 50
+        currentPitchDirection = max(-1, min(1, rawDir))
 
         detectFluxSpike(newFlux: currentFlux, frameIdx: idx, time: time)
     }
@@ -286,7 +412,49 @@ final class VisualizerState {
         if let s = found {
             currentSectionLabel = s.label
             currentSectionEnergyProfile = s.energyProfile
+            currentSectionStart = s.start
+            currentSectionEnd = s.end
         }
+    }
+
+    // MARK: - Onset cursor
+
+    /// Advance the onset cursor in lock-step with the playback clock so
+    /// `onsetGeneration` bumps exactly when a backend OnsetEvent's `.time`
+    /// falls in (prevTime, currentTime]. Mirrors the HapticEngine cursor
+    /// pattern so visual onset-bursts stay in sync with whatever haptic
+    /// layer consumes the same events.
+    private func updateOnsetCursor(prevTime: Double, currentTime: Double) {
+        guard !sortedOnsets.isEmpty else { return }
+
+        // Seek / discontinuity: rebind cursor via binary search.
+        if currentTime < prevTime || (currentTime - prevTime) > 2.0 {
+            onsetCursor = firstOnsetIndex(atOrAfter: currentTime)
+            return
+        }
+
+        while onsetCursor < sortedOnsets.count && sortedOnsets[onsetCursor].time <= prevTime {
+            onsetCursor += 1
+        }
+        while onsetCursor < sortedOnsets.count && sortedOnsets[onsetCursor].time <= currentTime {
+            lastOnset = sortedOnsets[onsetCursor]
+            onsetGeneration &+= 1
+            onsetCursor += 1
+        }
+    }
+
+    private func firstOnsetIndex(atOrAfter time: Double) -> Int {
+        var lo = 0
+        var hi = sortedOnsets.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if sortedOnsets[mid].time < time {
+                lo = mid + 1
+            } else {
+                hi = mid
+            }
+        }
+        return lo
     }
 
     // MARK: - Beat pulse

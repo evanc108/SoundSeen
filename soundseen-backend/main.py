@@ -71,6 +71,12 @@ class Frames(BaseModel):
     hue: list[float]
     chroma_strength: list[float]
     harmonic_ratio: list[float]
+    # Round-3 timbre signals (optional so older cached analyses still parse).
+    rolloff: list[float] = []
+    zcr: list[float] = []
+    spectral_contrast: list[float] = []
+    mfcc: list[list[float]] = []       # 4 coefficients per frame
+    chroma: list[list[float]] = []     # 12 pitch classes per frame
 
 
 class Emotion(BaseModel):

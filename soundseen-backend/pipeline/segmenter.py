@@ -38,6 +38,12 @@ def build_frames(spectral: dict, duration: float) -> dict:
     chroma_str = spectral["chroma_strength_norm"]
     harmonic = spectral["harmonic_ratio"]
     band_norms = spectral["band_energies_norm"]
+    # Round-3 timbre signals — already normalized upstream.
+    rolloff = spectral["spectral_rolloff_norm"]
+    zcr = spectral["zcr_norm"]
+    contrast = spectral["spectral_contrast_norm"]
+    mfcc_norm = spectral["mfcc_norm"]           # shape (4, n_frames)
+    chroma_full = spectral["chroma"]            # shape (12, n_frames), roughly [0, 1]
 
     times = []
     energies = []
@@ -47,6 +53,11 @@ def build_frames(spectral: dict, duration: float) -> dict:
     hues = []
     chroma_strengths = []
     harmonic_ratios = []
+    rolloffs = []
+    zcrs = []
+    contrasts = []
+    mfccs = []
+    chromas = []
 
     for i in range(n_frames):
         t = librosa.frames_to_time(i, sr=sr, hop_length=hop_length)
@@ -61,6 +72,11 @@ def build_frames(spectral: dict, duration: float) -> dict:
         hues.append(round(float(hue[i]) if i < len(hue) else 0.0, 1))
         chroma_strengths.append(round(float(chroma_str[i]), 2))
         harmonic_ratios.append(round(float(harmonic[i]) if i < len(harmonic) else 0.5, 2))
+        rolloffs.append(round(float(rolloff[i]) if i < len(rolloff) else 0.0, 2))
+        zcrs.append(round(float(zcr[i]) if i < len(zcr) else 0.0, 2))
+        contrasts.append(round(float(contrast[i]) if i < len(contrast) else 0.0, 2))
+        mfccs.append([round(float(mfcc_norm[c, i]), 2) for c in range(4)])
+        chromas.append([round(float(chroma_full[c, i]), 2) for c in range(12)])
 
     return {
         "frame_duration_ms": round(hop_length / sr * 1000, 1),
@@ -73,4 +89,10 @@ def build_frames(spectral: dict, duration: float) -> dict:
         "hue": hues,
         "chroma_strength": chroma_strengths,
         "harmonic_ratio": harmonic_ratios,
+        # Round-3 timbre signals.
+        "rolloff": rolloffs,
+        "zcr": zcrs,
+        "spectral_contrast": contrasts,
+        "mfcc": mfccs,
+        "chroma": chromas,
     }

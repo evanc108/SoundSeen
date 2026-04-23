@@ -2,31 +2,22 @@
 //  ContentView.swift
 //  SoundSeen
 //
-//  Created by Evan Chang on 4/6/26.
+//  Single-surface app: Library is the home, and the analyzed player is
+//  reached by tapping a track. No tab bar, no realtime FFT mode —
+//  SoundSeen MVP is about songs you've uploaded and had analyzed.
 //
 
 import SwiftUI
 
 struct ContentView: View {
-    @EnvironmentObject private var library: LibraryStore
-    @EnvironmentObject private var audioPlayer: AudioReactivePlayer
-
     var body: some View {
-        MainTabView()
+        LibraryView()
             .preferredColorScheme(.dark)
-            .onAppear {
-                audioPlayer.attachLibrary(library)
-#if canImport(UIKit)
-                audioPlayer.attachHapticConductor(UIKitHapticConductor())
-#else
-                audioPlayer.attachHapticConductor(NullHapticConductor())
-#endif
-            }
     }
 }
 
 #Preview {
     ContentView()
         .environmentObject(LibraryStore())
-        .environmentObject(AudioReactivePlayer())
+        .environmentObject(AnalysisStore())
 }

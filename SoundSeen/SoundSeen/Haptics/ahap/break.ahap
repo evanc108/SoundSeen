@@ -1,0 +1,11 @@
+{
+  "Version": 1.0,
+  "Metadata": {
+    "Project": "SoundSeen",
+    "Pattern": "break",
+    "Description": "The floor drops out: sharp ping, then silence. Cues a break section by removing sensation rather than adding it."
+  },
+  "Pattern": [
+    { "Event": { "Time": 0.000, "EventType": "HapticTransient", "EventParameters": [ { "ParameterID": "HapticIntensity", "ParameterValue": 0.55 }, { "ParameterID": "HapticSharpness", "ParameterValue": 0.95 } ] } }
+  ]
+}

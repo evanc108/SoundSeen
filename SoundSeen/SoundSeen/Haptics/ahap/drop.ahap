@@ -1,0 +1,64 @@
+{
+  "Version": 1.0,
+  "Metadata": {
+    "Project": "SoundSeen",
+    "Pattern": "drop",
+    "Description": "Rumble-to-strike drop moment. 300ms low rumble builds, then a single sharp transient slams at t=0.30s. Paired with DropChoreography.flash."
+  },
+  "Pattern": [
+    {
+      "Event": {
+        "Time": 0.0,
+        "EventType": "HapticContinuous",
+        "EventDuration": 0.30,
+        "EventParameters": [
+          { "ParameterID": "HapticIntensity", "ParameterValue": 0.35 },
+          { "ParameterID": "HapticSharpness", "ParameterValue": 0.15 }
+        ]
+      }
+    },
+    {
+      "ParameterCurve": {
+        "ParameterID": "HapticIntensityControl",
+        "Time": 0.0,
+        "ParameterCurveControlPoints": [
+          { "Time": 0.00, "ParameterValue": 0.25 },
+          { "Time": 0.15, "ParameterValue": 0.65 },
+          { "Time": 0.28, "ParameterValue": 1.0 }
+        ]
+      }
+    },
+    {
+      "Event": {
+        "Time": 0.30,
+        "EventType": "HapticTransient",
+        "EventParameters": [
+          { "ParameterID": "HapticIntensity", "ParameterValue": 1.0 },
+          { "ParameterID": "HapticSharpness", "ParameterValue": 0.9 }
+        ]
+      }
+    },
+    {
+      "Event": {
+        "Time": 0.32,
+        "EventType": "HapticContinuous",
+        "EventDuration": 0.35,
+        "EventParameters": [
+          { "ParameterID": "HapticIntensity", "ParameterValue": 0.75 },
+          { "ParameterID": "HapticSharpness", "ParameterValue": 0.35 }
+        ]
+      }
+    },
+    {
+      "ParameterCurve": {
+        "ParameterID": "HapticIntensityControl",
+        "Time": 0.32,
+        "ParameterCurveControlPoints": [
+          { "Time": 0.00, "ParameterValue": 0.95 },
+          { "Time": 0.20, "ParameterValue": 0.45 },
+          { "Time": 0.35, "ParameterValue": 0.0 }
+        ]
+      }
+    }
+  ]
+}

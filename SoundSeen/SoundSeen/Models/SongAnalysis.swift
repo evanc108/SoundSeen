@@ -56,6 +56,17 @@ struct Frames: Codable, Hashable, Sendable {
     let hue: [Double]
     let chromaStrength: [Double]
     let harmonicRatio: [Double]
+    /// Round-3 timbre signals. Optional so older cached analyses decode —
+    /// the backend always emits these; when nil, the client stays at defaults.
+    let rolloff: [Double]?
+    let zcr: [Double]?
+    let spectralContrast: [Double]?
+    /// Per-frame first-4 MFCC coefficients (normalized). Outer: frame index,
+    /// inner: 4 coefficients. Coef 0 mirrors energy; coef 1+ encode timbre.
+    let mfcc: [[Double]]?
+    /// Per-frame 12-pitch-class chroma vector (roughly [0, 1]). Outer: frame
+    /// index, inner: 12 pitch classes. Drives per-pitch color mapping.
+    let chroma: [[Double]]?
 }
 
 struct Emotion: Codable, Hashable, Sendable {
