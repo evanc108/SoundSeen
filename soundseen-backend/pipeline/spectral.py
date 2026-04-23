@@ -95,6 +95,13 @@ def analyze_spectral(y: np.ndarray, sr: int) -> dict:
     chroma_hue = dominant_chroma * 30.0
     chroma_strength = np.max(chroma, axis=0)
 
+    # --- MFCC (first 4 coefficients) → timbre descriptors ---
+    # coef 0: overall spectral energy (redundant with RMS)
+    # coef 1..3: spectral shape — drives brushstroke/stroke-weight in visuals
+    # Normalized per-coefficient so each reads as a [0, 1] signal at the UI.
+    mfcc_4 = librosa.feature.mfcc(y=y, sr=sr, hop_length=hop_length, n_mfcc=4)
+    mfcc_norm = np.stack([_min_max_normalize(mfcc_4[i]) for i in range(4)], axis=0)
+
     # --- Pitch direction (frame-to-frame dominant chroma movement) ---
     # +1 = pitch rising, -1 = pitch falling, 0 = static
     chroma_diff = np.diff(dominant_chroma)
@@ -124,6 +131,8 @@ def analyze_spectral(y: np.ndarray, sr: int) -> dict:
         "chroma": chroma,
         "chroma_hue": chroma_hue,
         "chroma_strength_norm": _min_max_normalize(chroma_strength),
+        # Per-coefficient normalized MFCC (4 x n_frames).
+        "mfcc_norm": mfcc_norm,
         # Raw values
         "rms_raw": rms,
         "centroid_raw": centroid,

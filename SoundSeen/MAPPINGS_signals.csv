@@ -1,0 +1,26 @@
+id,signal,category,backend_source,value_range,physical_meaning,update_rate
+S01,currentBands[0],spectral_band,librosa.feature.melspectrogram band 0,"Float [0.0, 1.0]",20-60 Hz sub-bass pressure,~23ms frame
+S02,currentBands[1],spectral_band,librosa.feature.melspectrogram band 1,"Float [0.0, 1.0]",60-250 Hz bass body,~23ms frame
+S03,currentBands[2],spectral_band,librosa.feature.melspectrogram band 2,"Float [0.0, 1.0]",250-500 Hz low-mid,~23ms frame
+S04,currentBands[3],spectral_band,librosa.feature.melspectrogram band 3,"Float [0.0, 1.0]",500 Hz - 2 kHz mid,~23ms frame
+S05,currentBands[4],spectral_band,librosa.feature.melspectrogram band 4,"Float [0.0, 1.0]",2-4 kHz upper-mid,~23ms frame
+S06,currentBands[5],spectral_band,librosa.feature.melspectrogram band 5,"Float [0.0, 1.0]",4-6 kHz presence,~23ms frame
+S07,currentBands[6],spectral_band,librosa.feature.melspectrogram band 6,"Float [0.0, 1.0]",6-10 kHz brilliance,~23ms frame
+S08,currentBands[7],spectral_band,librosa.feature.melspectrogram band 7,"Float [0.0, 1.0]",10-20 kHz ultra-high sheen,~23ms frame
+S09,currentEnergy,spectral_shape,librosa.feature.rms,"Float [0.0, 1.0]",frame-level RMS loudness,~23ms frame
+S10,currentFlux,spectral_shape,librosa.onset.onset_strength,"Float [0.0, ~1.5]",spectral rate-of-change,~23ms frame
+S11,fluxSpikeGeneration,spectral_shape,derived (mean + 1.8sigma over 15-frame window; 0.12s cooldown),Int monotonic counter,transient detector rising-edge flag,event
+S12,currentCentroidNormalized,spectral_shape,"librosa.feature.spectral_centroid (per-track p5/p95 normalized; EMA alpha=0.12)","Float [0.0, 1.0]",perceptual brightness,~23ms frame
+S13,currentHue,harmonic,"librosa.feature.chroma_cqt argmax (mapped to [0,1))","Float [0.0, 1.0)","chromatic key angle (0=C, 1/12=C#, ...)",~23ms frame
+S14,currentChromaStrength,harmonic,derived (chroma vector max),"Float [0.0, 1.0]","tonality strength (0=noisy, 1=strongly pitched)",~23ms frame
+S15,currentHarmonicRatio,harmonic,librosa.effects.hpss harmonic-vs-percussive ratio,"Float [0.0, 1.0]",harmonic vs percussive balance,~23ms frame
+S16,currentPitchDirection,gesture,"derived (smoothed centroid 1st derivative, clamped)","Float [-1.0, +1.0]",pitch rising / falling / static,~23ms frame
+S17,smoothedValence,emotion,backend valence model + EMA alpha=0.1,"Float [0.0, 1.0]",negative <-> positive emotion,0.5s sample
+S18,smoothedArousal,emotion,backend arousal model + EMA alpha=0.1,"Float [0.0, 1.0]",calm <-> intense,0.5s sample
+S19,biomeWeights,emotion,"derived (4-quadrant softmax of (V, A) with sticky-winner hysteresis)",struct sums to 1,per-biome blend weights,every tick
+S20,beatPulse,rhythm,"derived (BeatEvent driven; decays as pow(0.5, dt/0.15))","Float [0.0, 1.0]","decaying beat marker (1.0 on downbeat, 0.7 on offbeat)",every tick
+S21,BeatEvent,rhythm,librosa.beat.beat_track + downbeat detection,"event {time, intensity, sharpness, isDownbeat}",per-beat event payload,event
+S22,onsetGeneration / lastOnset,attack,librosa.onset.onset_detect + attack-envelope features,"int counter + event {time, intensity, sharpness, attackSlope, ...}",attack event flag + payload,event
+S23,currentSectionLabel,structure,backend section segmentation,"string in {intro, verse, chorus, bridge, break, drop, outro}",song-structural region,section span
+S24,currentSectionProgress,structure,VisualizerState (lastFrameTime - sectionStart) / span,"Float [0.0, 1.0]",position within current section,every tick
+S25,DropChoreography (state machine),structure,"derived (rising edge into 'drop' label OR heuristic: arousal>0.82 AND flux>0.75 AND energy>0.70; 4s cooldown)","enum {idle, crest, flash, settle} + releaseGeneration counter",scored drop moment,integrative
