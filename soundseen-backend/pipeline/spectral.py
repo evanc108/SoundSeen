@@ -1,3 +1,5 @@
+import gc
+
 import numpy as np
 import librosa
 
@@ -59,6 +61,9 @@ def analyze_spectral(y: np.ndarray, sr: int) -> dict:
         band_energies[name] = energy
         band_energies_norm[name] = _min_max_normalize(energy)
 
+    # Free the mel matrices (~5MB each per 4-min track) — bands are extracted.
+    del mel_spec, mel_db, mel_linear, mel_freqs
+
     # Legacy 3-band (kept for backward compat in segments)
     bass_energy = band_energies_norm["sub_bass"] * 0.3 + band_energies_norm["bass"] * 0.7
     mid_energy = (
@@ -75,6 +80,7 @@ def analyze_spectral(y: np.ndarray, sr: int) -> dict:
     # --- Spectral contrast (7 bands) → single perceptual "texture" value ---
     contrast = librosa.feature.spectral_contrast(y=y, sr=sr, hop_length=hop_length)
     spectral_contrast = np.mean(contrast, axis=0)
+    del contrast
 
     # --- Spectral flux (frame-to-frame spectral change) ---
     S = np.abs(librosa.stft(y=y, hop_length=hop_length, n_fft=frame_length))
@@ -83,11 +89,17 @@ def analyze_spectral(y: np.ndarray, sr: int) -> dict:
     spectral_flux = np.concatenate([[0.0], spectral_flux])
 
     # --- HPSS: harmonic vs percussive separation ratio ---
+    # S, H, P are each ~40MB for a 4-min track; drop them as soon as the ratio
+    # is extracted so they don't linger through the rest of the pipeline.
     H, P = librosa.decompose.hpss(S)
+    del S
     harmonic_energy = np.sum(H ** 2, axis=0)
     percussive_energy = np.sum(P ** 2, axis=0)
+    del H, P
     # Ratio: 1.0 = fully harmonic, 0.0 = fully percussive
     harmonic_ratio = harmonic_energy / (harmonic_energy + percussive_energy + 1e-10)
+    del harmonic_energy, percussive_energy
+    gc.collect()
 
     # --- Chromagram → dominant pitch class for color hue ---
     chroma = librosa.feature.chroma_cqt(y=y, sr=sr, hop_length=hop_length)

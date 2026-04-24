@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import logging
 import time
 import uuid
@@ -34,7 +35,9 @@ ALLOWED_CONTENT_TYPES = {
     "audio/m4a",
 }
 
-_executor = ThreadPoolExecutor(max_workers=2)
+# Serialize analyses: the pipeline peaks at hundreds of MB per track (STFT +
+# HPSS), and concurrent runs on a small Railway container OOM. Queue instead.
+_executor = ThreadPoolExecutor(max_workers=1)
 
 
 # --- Pydantic response models ---
@@ -202,6 +205,9 @@ async def analyze(file: UploadFile = File(...)):
         if settings.env == "development":
             raise
         raise HTTPException(status_code=500, detail="Analysis pipeline failed")
+    finally:
+        del file_bytes
+        gc.collect()
 
     processing_time = round(time.monotonic() - start_time, 1)
 
