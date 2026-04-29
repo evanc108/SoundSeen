@@ -112,14 +112,18 @@ final class VisualizerState {
     private(set) var dominantBiome: Biome = .serene
 
     // MARK: - Immutable inputs
-    @ObservationIgnored private let analysis: SongAnalysis
+    /// nil in live mode — the state is driven by `ingest*` methods from
+    /// LiveAudioEngine instead of polled off a precomputed SongAnalysis.
+    @ObservationIgnored private let analysis: SongAnalysis?
     @ObservationIgnored let bandNames: [String]
-    /// p5 of frames.centroid, precomputed once — tracks vary widely in their
-    /// absolute centroid range (genre-dependent), so we normalize per-track
-    /// rather than globally. p5/p95 instead of absolute min/max so a single
-    /// outlier frame doesn't flatten the visible range.
-    @ObservationIgnored let centroidMin: Double
-    @ObservationIgnored let centroidMax: Double
+    /// p5/p95 of centroid. In offline mode these are precomputed once from
+    /// the full track; in live mode they're updated by a rolling estimator
+    /// so per-track normalization still works without whole-song context.
+    @ObservationIgnored private(set) var centroidMin: Double
+    @ObservationIgnored private(set) var centroidMax: Double
+    /// True if this state is being driven by a live microphone feed rather
+    /// than precomputed frames. Gates the analysis-based update paths.
+    @ObservationIgnored let isLive: Bool
 
     // MARK: - Cursors for linear-scan paths
     @ObservationIgnored private var beatCursor: Int = 0
@@ -152,6 +156,7 @@ final class VisualizerState {
     init(analysis: SongAnalysis) {
         self.analysis = analysis
         self.bandNames = analysis.bandNames
+        self.isLive = false
         (self.centroidMin, self.centroidMax) = Self.percentileRange(
             of: analysis.frames.centroid,
             lower: 0.05,
@@ -161,6 +166,24 @@ final class VisualizerState {
         // on seek is correct. The backend usually ships them sorted, but we
         // defend against that changing.
         self.sortedOnsets = analysis.onsetEvents.sorted { $0.time < $1.time }
+    }
+
+    /// Live-microphone initializer. No SongAnalysis — LiveAudioEngine drives
+    /// state directly via `ingest*` methods at ~43Hz. All downstream consumers
+    /// (textures, archetypes, narratives) read the same @Observable properties
+    /// and don't need to know whether they're in live or offline mode.
+    init(liveBandNames: [String] = [
+        "sub_bass", "bass", "low_mid", "mid",
+        "upper_mid", "presence", "brilliance", "ultra_high",
+    ]) {
+        self.analysis = nil
+        self.bandNames = liveBandNames
+        self.isLive = true
+        // Start with a reasonable default range; the rolling centroid
+        // estimator widens/narrows these as samples accumulate.
+        self.centroidMin = 500
+        self.centroidMax = 4000
+        self.sortedOnsets = []
     }
 
     /// Returns (p_lower, p_upper) of a sorted copy of `values`. Falls back
@@ -183,8 +206,10 @@ final class VisualizerState {
     }
 
     /// Drive the visualizer forward one tick. Wire this into
-    /// `AudioPlayer.addTickHandler`.
+    /// `AudioPlayer.addTickHandler`. No-op in live mode — state is driven
+    /// by `ingest*` methods from LiveAudioEngine instead.
     func update(prevTime: Double, currentTime: Double) {
+        guard analysis != nil else { return }
         lastFrameTime = currentTime
         updateFrameState(at: currentTime)
         updateEmotion(at: currentTime)
@@ -196,6 +221,7 @@ final class VisualizerState {
     // MARK: - Per-frame lookups
 
     private func updateFrameState(at time: Double) {
+        guard let analysis else { return }
         let frames = analysis.frames
         guard frames.count > 0, frames.frameDurationMs > 0 else { return }
         var idx = Int(time * 1000.0 / frames.frameDurationMs)
@@ -339,6 +365,7 @@ final class VisualizerState {
     }
 
     private func updateEmotion(at time: Double) {
+        guard let analysis else { return }
         let emotion = analysis.emotion
         guard emotion.interval > 0, !emotion.valence.isEmpty else { return }
         var idx = Int(time / emotion.interval)
@@ -391,6 +418,7 @@ final class VisualizerState {
     }
 
     private func updateSection(at time: Double) {
+        guard let analysis else { return }
         let sections = analysis.sections
         guard !sections.isEmpty else { return }
         // Binary search for the section whose [start, end) contains `time`.
@@ -470,6 +498,7 @@ final class VisualizerState {
         }
 
         // Handle clock discontinuities (seek/scrub).
+        guard let analysis else { return }
         let beats = analysis.beatEvents
         if currentTime < prevTime || (currentTime - prevTime) > 2.0 {
             beatCursor = firstBeatIndex(atOrAfter: currentTime, in: beats)
@@ -501,5 +530,156 @@ final class VisualizerState {
             }
         }
         return lo
+    }
+
+    // MARK: - Live ingest (microphone mode)
+
+    /// Rolling centroid samples used to recompute p5/p95 in live mode, so
+    /// per-track brightness normalization still works without whole-song
+    /// context. Sized for ~30s of ~43Hz frames.
+    @ObservationIgnored private var liveCentroidSamples: [Double] = []
+    @ObservationIgnored private var liveCentroidResortDue: Int = 0
+
+    /// Push one DSP frame from LiveAudioEngine. Mirrors everything
+    /// `updateFrameState(at:)` sets for offline mode, so every downstream
+    /// texture/archetype reads the same @Observable properties.
+    func ingestLiveFrame(
+        time: Double,
+        energy: Double,
+        bands: [Double],
+        centroid: Double,
+        flux: Double,
+        hue: Double,
+        chromaStrength: Double,
+        harmonicRatio: Double,
+        rolloff: Double,
+        zcr: Double,
+        spectralContrast: Double,
+        mfcc: [Double],
+        chroma: [Double]
+    ) {
+        guard isLive else { return }
+        lastFrameTime = time
+
+        currentEnergy = max(0, min(1, energy))
+        if bands.count == currentBands.count {
+            currentBands = bands
+        } else {
+            var padded = Array(bands.prefix(8))
+            while padded.count < 8 { padded.append(0) }
+            currentBands = padded
+        }
+        currentFlux = max(0, min(1, flux))
+        currentCentroid = centroid
+        currentHue = hue
+        currentChromaStrength = max(0, min(1, chromaStrength))
+        currentHarmonicRatio = max(0, min(1, harmonicRatio))
+        currentRolloff = max(0, min(1, rolloff))
+        currentZCR = max(0, min(1, zcr))
+        currentSpectralContrast = max(0, min(1, spectralContrast))
+        if mfcc.count == currentMFCC.count {
+            currentMFCC = mfcc
+        } else {
+            var padded = Array(mfcc.prefix(4))
+            while padded.count < 4 { padded.append(0.5) }
+            currentMFCC = padded
+        }
+        if chroma.count == currentChromaVector.count {
+            currentChromaVector = chroma
+        } else {
+            var padded = Array(chroma.prefix(12))
+            while padded.count < 12 { padded.append(0) }
+            currentChromaVector = padded
+        }
+
+        // Rolling centroid p5/p95 — recompute every 32 frames (~0.75s) so
+        // we don't sort on every frame. Cap samples at ~30s of history.
+        liveCentroidSamples.append(centroid)
+        if liveCentroidSamples.count > 1300 {
+            liveCentroidSamples.removeFirst(liveCentroidSamples.count - 1300)
+        }
+        liveCentroidResortDue += 1
+        if liveCentroidResortDue >= 32 && liveCentroidSamples.count >= 16 {
+            liveCentroidResortDue = 0
+            (centroidMin, centroidMax) = Self.percentileRange(
+                of: liveCentroidSamples, lower: 0.05, upper: 0.95
+            )
+        }
+
+        let spanCentroid = centroidMax - centroidMin
+        let normalized: Double
+        if spanCentroid > 1e-6 {
+            normalized = max(0, min(1, (currentCentroid - centroidMin) / spanCentroid))
+        } else {
+            normalized = 0.5
+        }
+        let alpha = 0.12
+        prevSmoothedCentroidNormalized = smoothedCentroidNormalized
+        if !didSeedCentroidSmoothing {
+            smoothedCentroidNormalized = normalized
+            prevSmoothedCentroidNormalized = normalized
+            didSeedCentroidSmoothing = true
+        } else {
+            smoothedCentroidNormalized = alpha * normalized + (1 - alpha) * smoothedCentroidNormalized
+        }
+        currentCentroidNormalized = smoothedCentroidNormalized
+        let rawDir = (smoothedCentroidNormalized - prevSmoothedCentroidNormalized) * 50
+        currentPitchDirection = max(-1, min(1, rawDir))
+
+        // Reuse the same flux-spike detector; frameIdx can be a monotonic
+        // tick count since we don't need time-alignment to precomputed frames.
+        let frameIdx = lastFrameIdx &+ 1
+        detectFluxSpike(newFlux: flux, frameIdx: frameIdx, time: time)
+
+        // Beat pulse decay tick — offline mode decays inside updateBeatPulse,
+        // but live mode never calls that path, so decay here each frame.
+        // Each ~23ms frame: pulse *= 0.5^(0.023/0.15) ≈ 0.9.
+        beatPulse *= pow(0.5, 0.023 / 0.15)
+    }
+
+    /// Record a live onset. Bumps `onsetGeneration` and caches the event so
+    /// voices observing the rising edge can read attack envelope.
+    func ingestLiveOnset(_ onset: OnsetEvent) {
+        guard isLive else { return }
+        lastOnset = onset
+        onsetGeneration &+= 1
+    }
+
+    /// Record a live beat (synthetic, from LiveBeatTracker). Drives the
+    /// shared beat pulse so every visualizer layer reacts the same way it
+    /// does for offline beats.
+    func ingestLiveBeat(_ beat: BeatEvent) {
+        guard isLive else { return }
+        let target = (beat.isDownbeat ? 1.0 : 0.7) * max(0.3, beat.intensity)
+        if target > beatPulse { beatPulse = target }
+    }
+
+    /// Update the emotion state from a backend chunk response (~every 2s).
+    /// Feeds the same EMA smoother offline mode uses, so downstream biome
+    /// weights and mood palettes cross-fade smoothly instead of stepping.
+    func ingestLiveEmotion(valence: Double, arousal: Double) {
+        guard isLive else { return }
+        currentValence = max(0, min(1, valence))
+        currentArousal = max(0, min(1, arousal))
+        // Larger α here than offline (0.25 vs 0.1) because cadence is ~2s,
+        // not 0.5s — we need to reach most of the step between samples.
+        let alpha = 0.25
+        if !didSeedEmotionSmoothing {
+            smoothedValence = currentValence
+            smoothedArousal = currentArousal
+            didSeedEmotionSmoothing = true
+        } else {
+            smoothedValence = alpha * currentValence + (1 - alpha) * smoothedValence
+            smoothedArousal = alpha * currentArousal + (1 - alpha) * smoothedArousal
+        }
+        updateBiomeWeights(now: lastFrameTime)
+    }
+
+    /// Update the energy profile label from the rolling classifier. The
+    /// existing biome/dialect resolver already reads `currentSectionEnergyProfile`,
+    /// so no downstream code needs to change.
+    func ingestLiveEnergyProfile(_ label: String) {
+        guard isLive else { return }
+        currentSectionEnergyProfile = label
     }
 }

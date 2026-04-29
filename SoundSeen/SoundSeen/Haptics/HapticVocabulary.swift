@@ -104,6 +104,46 @@ final class HapticVocabulary {
         self.onsetCursor = 0
     }
 
+    // MARK: - Streaming mode (live microphone)
+
+    /// Switch into event-driven mode for LiveAudioEngine. No schedule is
+    /// installed; callers push events into `fireLiveBeat` / `fireLiveOnset`
+    /// as they're detected in real time.
+    func startStreaming() {
+        start()
+        self.beats = []
+        self.onsets = []
+        self.beatCursor = 0
+        self.onsetCursor = 0
+    }
+
+    /// Stop streaming mode. Idempotent with `stop()` but kept symmetric for
+    /// callers that want intent-named lifecycle methods.
+    func stopStreaming() {
+        stop()
+    }
+
+    /// Fire a haptic on a live-detected beat. Same envelope shaping as the
+    /// offline fireBeat — just exposed for event-driven callers.
+    func fireLiveBeat(_ beat: BeatEvent) {
+        guard isEnabled, isSupported else { return }
+        fireBeat(beat)
+    }
+
+    /// Fire a haptic on a live-detected onset.
+    func fireLiveOnset(_ onset: OnsetEvent) {
+        guard isEnabled, isSupported else { return }
+        fireOnset(onset)
+    }
+
+    /// Update the continuous hum intensity from live low-band energy. Can
+    /// be called by LiveAudioEngine if it wants the ambient hum to track
+    /// the mic's bass content; optional.
+    func updateLiveHum(lowBandIntensity: Double) {
+        guard isEnabled, isSupported, humVoiceEnabled else { return }
+        updateHum(intensity: lowBandIntensity)
+    }
+
     // MARK: - Tick
 
     /// Drive forward on the AudioPlayer clock. `lowBandIntensity` is the

@@ -7,12 +7,14 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from functools import partial
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from collections import defaultdict
+
+from fastapi import FastAPI, File, HTTPException, Header, Request, UploadFile
 from pydantic import BaseModel
 
 from config import settings
 from db import supabase_client
-from pipeline.emotion import analyze_emotion, load_models, models_loaded
+from pipeline.emotion import analyze_chunk, analyze_emotion, load_models, models_loaded
 from pipeline.loader import load_audio
 from pipeline.rhythm import analyze_rhythm
 from pipeline.segmenter import build_frames, build_emotion_timeline
@@ -38,6 +40,13 @@ ALLOWED_CONTENT_TYPES = {
 # Serialize analyses: the pipeline peaks at hundreds of MB per track (STFT +
 # HPSS), and concurrent runs on a small Railway container OOM. Queue instead.
 _executor = ThreadPoolExecutor(max_workers=1)
+
+# Separate pool for /analyze_chunk — 2s windows peak at ~10MB and must not
+# starve behind a 5–15s full analysis.
+_chunk_executor = ThreadPoolExecutor(max_workers=2)
+_chunk_max_bytes = 400 * 1024
+_chunk_inflight: dict[str, int] = defaultdict(int)
+_chunk_inflight_lock = asyncio.Lock()
 
 
 # --- Pydantic response models ---
@@ -116,6 +125,11 @@ class HealthResponse(BaseModel):
     models_loaded: bool
 
 
+class ChunkEmotion(BaseModel):
+    valence: float
+    arousal: float
+
+
 # --- Lifespan ---
 
 
@@ -129,6 +143,7 @@ async def lifespan(app: FastAPI):
         logger.warning("Running without Essentia models — using spectral-derived emotion")
     yield
     _executor.shutdown(wait=False)
+    _chunk_executor.shutdown(wait=False)
 
 
 app = FastAPI(title="SoundSeen Backend", lifespan=lifespan)
@@ -228,6 +243,44 @@ async def analyze(file: UploadFile = File(...)):
 
     logger.info("Song %s analyzed in %.1fs", song_id, processing_time)
     return analysis
+
+
+def _run_chunk(file_bytes: bytes, suffix: str) -> tuple[float, float]:
+    y, sr, _ = load_audio(file_bytes, suffix=suffix)
+    return analyze_chunk(y, sr)
+
+
+@app.post("/analyze_chunk", response_model=ChunkEmotion)
+async def analyze_chunk_route(
+    request: Request,
+    x_client_id: str | None = Header(default=None),
+):
+    body = await request.body()
+    if not body:
+        raise HTTPException(status_code=400, detail="Empty request body")
+    if len(body) > _chunk_max_bytes:
+        raise HTTPException(status_code=413, detail="Chunk too large")
+
+    client_id = x_client_id or request.client.host if request.client else "anon"
+
+    async with _chunk_inflight_lock:
+        if _chunk_inflight[client_id] >= 2:
+            raise HTTPException(status_code=429, detail="Too many chunks in flight")
+        _chunk_inflight[client_id] += 1
+
+    try:
+        loop = asyncio.get_running_loop()
+        valence, arousal = await loop.run_in_executor(
+            _chunk_executor, partial(_run_chunk, body, ".wav")
+        )
+    except Exception:
+        logger.exception("Chunk analysis failed")
+        raise HTTPException(status_code=500, detail="Chunk analysis failed")
+    finally:
+        async with _chunk_inflight_lock:
+            _chunk_inflight[client_id] = max(0, _chunk_inflight[client_id] - 1)
+
+    return ChunkEmotion(valence=valence, arousal=arousal)
 
 
 @app.get("/song/{song_id}", response_model=SongAnalysis)

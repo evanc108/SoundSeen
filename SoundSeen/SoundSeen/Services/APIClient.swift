@@ -105,6 +105,28 @@ actor APIClient {
         }
     }
 
+    /// POST /analyze_chunk with raw 16-bit PCM WAV bytes. Short timeout (5s)
+    /// — the server path is <100ms; if it's slower than 5s the network is
+    /// broken and we'd rather keep the visualizer running on stale emotion.
+    func analyzeChunk(wav: Data, clientId: String) async throws -> (Double, Double) {
+        let url = baseURL.appendingPathComponent("analyze_chunk")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 5
+        request.setValue("audio/wav", forHTTPHeaderField: "Content-Type")
+        request.setValue(clientId, forHTTPHeaderField: "X-Client-Id")
+        request.httpBody = wav
+
+        let (data, _) = try await perform(request)
+        struct ChunkEmotion: Decodable { let valence: Double; let arousal: Double }
+        do {
+            let decoded = try JSONDecoder.soundSeen.decode(ChunkEmotion.self, from: data)
+            return (decoded.valence, decoded.arousal)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+
     // MARK: - Internals
 
     private func perform(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {

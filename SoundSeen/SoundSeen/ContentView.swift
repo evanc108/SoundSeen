@@ -2,17 +2,26 @@
 //  ContentView.swift
 //  SoundSeen
 //
-//  Single-surface app: Library is the home, and the analyzed player is
-//  reached by tapping a track. No tab bar, no realtime FFT mode —
-//  SoundSeen MVP is about songs you've uploaded and had analyzed.
+//  Two tabs: Library (uploaded + analyzed songs) and Live (microphone
+//  mode with on-device DSP + periodic backend emotion updates).
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        LibraryView()
-            .preferredColorScheme(.dark)
+        TabView {
+            LibraryView()
+                .tabItem {
+                    Label("Library", systemImage: "music.note.list")
+                }
+
+            LiveView()
+                .tabItem {
+                    Label("Live", systemImage: "waveform.and.mic")
+                }
+        }
+        .preferredColorScheme(.dark)
     }
 }
 

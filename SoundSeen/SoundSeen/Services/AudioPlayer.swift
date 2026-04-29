@@ -175,18 +175,16 @@ final class AudioPlayer {
     // MARK: - Audio session
 
     private func configureAudioSession() {
-        #if os(iOS)
-        do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default)
-            try session.setActive(true)
-        } catch {
-            // Non-fatal: without a configured session the simulator can still
-            // output sound. We surface this only via console logs.
-            print("AudioPlayer: audio session config failed: \(error)")
+        // Route through the coordinator so Library→Live→Library transitions
+        // reset the category cleanly instead of leaving the session in
+        // .playAndRecord (which sends playback to the earpiece).
+        Task {
+            do {
+                try await AudioSessionCoordinator.shared.configureForPlayback()
+            } catch {
+                print("AudioPlayer: audio session config failed: \(error)")
+            }
         }
-        #endif
-        // macOS has no AVAudioSession — playback works without session config.
     }
 }
 

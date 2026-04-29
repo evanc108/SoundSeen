@@ -196,6 +196,69 @@ def _spectral_emotion(
     return results
 
 
+def analyze_chunk(y: np.ndarray, sr: int) -> tuple[float, float]:
+    """Compute (valence, arousal) for a short (~2s) chunk.
+
+    Lightweight path for live microphone input — skips HPSS and Essentia
+    to keep per-call cost <100ms and memory <20MB. Uses the same weightings
+    as `_spectral_emotion` but on a single window, with chunk-local
+    normalization (no whole-song context available).
+    """
+    hop_length = 512
+    frame_length = 2048
+
+    rms = librosa.feature.rms(y=y, frame_length=frame_length, hop_length=hop_length)[0]
+    centroid = librosa.feature.spectral_centroid(y=y, sr=sr, hop_length=hop_length)[0]
+
+    S = np.abs(librosa.stft(y=y, hop_length=hop_length, n_fft=frame_length))
+    flux = np.sqrt(np.sum(np.diff(S, axis=1) ** 2, axis=0))
+    flux = np.concatenate([[0.0], flux])
+    del S
+
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
+    chroma = librosa.feature.chroma_stft(y=y, sr=sr, hop_length=hop_length, n_fft=frame_length)
+
+    # Chunk-local scaling: map each feature into [0, 1] using its own
+    # min/max over the window. Not identical to whole-song normalization,
+    # but the weightings below read correctly in relative terms.
+    def _scale(a: np.ndarray) -> float:
+        if a.size == 0:
+            return 0.0
+        lo, hi = float(a.min()), float(a.max())
+        if hi - lo < 1e-10:
+            return 0.5
+        return float(np.clip((a.mean() - lo) / (hi - lo), 0.0, 1.0))
+
+    # Absolute-energy tempered by RMS mean (prevents a silent chunk from
+    # reading as "high energy" just because _scale always centers on 0.5).
+    rms_abs = float(np.clip(np.mean(rms) * 4.0, 0.0, 1.0))
+    onset_env_max = float(onset_env.max())
+    onset_density = (
+        float(np.mean(onset_env) / onset_env_max) if onset_env_max > 1e-10 else 0.0
+    )
+    brightness = _scale(centroid)
+    flux_mean = _scale(flux)
+
+    arousal = (
+        rms_abs * 0.30
+        + onset_density * 0.25
+        + brightness * 0.20
+        + flux_mean * 0.25
+    )
+    arousal = float(np.clip(arousal, 0.0, 1.0))
+
+    mode_score = _detect_mode(chroma) if chroma.size > 0 else 0.5
+    valence = (
+        mode_score * 0.40
+        + brightness * 0.30
+        + (1.0 - flux_mean * 0.5) * 0.15
+        + rms_abs * 0.15
+    )
+    valence = float(np.clip(valence, 0.0, 1.0))
+
+    return valence, arousal
+
+
 def analyze_emotion(
     y: np.ndarray,
     sr: int,
