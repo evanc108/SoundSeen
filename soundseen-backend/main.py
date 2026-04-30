@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from config import settings
 from db import supabase_client
+from pipeline.composition import SPEC_VERSION, build_composition_spec
 from pipeline.emotion import analyze_chunk, analyze_emotion, load_models, models_loaded
 from pipeline.loader import load_audio
 from pipeline.rhythm import analyze_rhythm
@@ -295,3 +296,35 @@ async def get_song(song_id: str):
         raise HTTPException(status_code=404, detail="Song not found")
 
     return data
+
+
+@app.get("/song/{song_id}/composition")
+async def get_song_composition(song_id: str, preset: str = "default"):
+    """Return the deterministic CompositionSpec for a song.
+
+    Built fresh from the cached SongAnalysis on each call. Cheap (<10ms
+    for a 4-min track) so no need to cache the spec itself — caching the
+    rendered MP4 keyed by (audio_hash, spec_version) is what actually
+    matters downstream.
+    """
+    try:
+        data = await supabase_client.fetch_song(song_id)
+    except Exception:
+        logger.exception("Failed to fetch song %s", song_id)
+        raise HTTPException(status_code=500, detail="Database error")
+
+    if data is None:
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    # `data` may be a Pydantic model or dict depending on the supabase
+    # client's hydration path; coerce defensively.
+    payload = data.model_dump() if hasattr(data, "model_dump") else dict(data)
+    spec = build_composition_spec(payload, preset=preset)
+    return spec
+
+
+@app.get("/composition/version")
+async def get_composition_version():
+    """Cheap probe so the renderer can detect schema bumps without
+    fetching a full spec."""
+    return {"spec_version": SPEC_VERSION}
