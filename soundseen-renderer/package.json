@@ -1,0 +1,22 @@
+{
+  "name": "soundseen-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Server-side cinematic visualizer renderer for SoundSeen. Reads a CompositionSpec, drives a Three.js scene in headless Chrome at deterministic 60fps, pipes frames to FFmpeg.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p .",
+    "render-local": "tsc -p . && node dist/render.js",
+    "bundle-page": "esbuild src/page/runtime.ts --bundle --format=esm --outfile=dist/page/runtime.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/three": "^0.170.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.2"
+  }
+}
