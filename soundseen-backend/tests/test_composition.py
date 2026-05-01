@@ -14,6 +14,8 @@ from pipeline.composition import (
     build_composition_spec,
     _biome_weights,
     _dominant_biome,
+    _vm_palette,
+    _hue_distance,
 )
 
 
@@ -96,21 +98,65 @@ def test_spec_top_level_shape():
     assert spec["bpm"] == 120.0
     for key in (
         "emotion_timeline", "section_script", "beat_track",
-        "onset_track", "drop_triggers",
+        "phrase_track", "onset_track", "drop_triggers",
     ):
         assert key in spec
         assert isinstance(spec[key], list)
 
 
-def test_emotion_timeline_includes_biome_weights():
+def test_emotion_timeline_includes_biome_weights_and_vm_palette():
     spec = build_composition_spec(_fixture_analysis())
     timeline = spec["emotion_timeline"]
     assert len(timeline) == 6
     first = timeline[0]
-    assert set(first.keys()) == {"t", "valence", "arousal", "biome_weights"}
+    # v2: emotion samples carry V&M-derived continuous palette modulation.
+    assert set(first.keys()) == {
+        "t", "valence", "arousal", "biome_weights",
+        "vm_saturation", "vm_brightness",
+    }
     assert math.isclose(sum(first["biome_weights"].values()), 1.0, rel_tol=1e-3)
     # First sample is low V (0.30), low A (0.20) → melancholic should win.
     assert _dominant_biome(first["biome_weights"]) == "melancholic"
+    # First sample low arousal → low saturation, brightness near peak (V&M).
+    assert first["vm_saturation"] < 0.7
+    assert first["vm_brightness"] > 0.85
+
+
+def test_vm_palette_research_anchors():
+    """Verify Valdez & Mehrabian regression equations are honored at the
+    quadrant centers. β=0.60 saturation→arousal, β=−0.31 brightness→arousal,
+    β=+0.69 brightness→pleasure (scaled into our coefficient as 0.10)."""
+    # Euphoric (V=0.75, A=0.75): high S, mid B (high arousal counter-mods B).
+    s, b = _vm_palette(0.75, 0.75)
+    assert s > 0.85, f"Euphoric should be highly saturated, got {s}"
+    assert b < 0.92, f"Euphoric brightness should be moderated by arousal, got {b}"
+
+    # Serene (V=0.75, A=0.25): low-mid S, high B.
+    s, b = _vm_palette(0.75, 0.25)
+    assert s < 0.75
+    assert b > 0.90
+
+    # Melancholic (V=0.25, A=0.25): low-mid S, lowest B.
+    s, b = _vm_palette(0.25, 0.25)
+    assert s < 0.75
+    # Lowest brightness in the quadrant set (low V → no pleasure boost).
+    s_serene, b_serene = _vm_palette(0.75, 0.25)
+    assert b < b_serene
+
+    # Intense (V=0.25, A=0.75): high S, low B.
+    s, b = _vm_palette(0.25, 0.75)
+    assert s > 0.85
+    assert b < 0.85
+
+
+def test_hue_distance_widens_with_tension():
+    """Schloss & Palmer (2011): tension lever should widen hue distance
+    toward complementary; rest collapses to analogous."""
+    rest  = _hue_distance(valence=0.7, arousal=0.2, tension=0.1)
+    storm = _hue_distance(valence=0.3, arousal=0.9, tension=0.8)
+    assert storm > rest
+    assert rest < 0.40   # near analogous
+    assert storm > 0.70  # near complementary
 
 
 def test_section_script_picks_scene_per_section():
@@ -130,6 +176,36 @@ def test_section_script_picks_scene_per_section():
     # Drop section averaged is mid-V high-A → intense_storm or euphoric_bloom.
     assert drop["scene"] in {"euphoric_bloom", "intense_storm"}
     assert drop["camera"] == "explosive_zoom_out"
+
+
+def test_section_directives_carry_research_fields():
+    """v2 schema: tension, angularity, hue_distance per section."""
+    spec = build_composition_spec(_fixture_analysis())
+    for section in spec["section_script"]:
+        assert "tension" in section
+        assert "angularity" in section
+        assert "hue_distance" in section
+        for key in ("tension", "angularity", "hue_distance"):
+            assert 0.0 <= section[key] <= 1.0, f"{key} out of range: {section[key]}"
+
+
+def test_phrase_track_groups_downbeats():
+    """Phrase tier (Krumhansl): groups downbeats into 4-bar phrases."""
+    # Inject 8 downbeats so we get 2 full 4-bar phrases.
+    fixture = _fixture_analysis()
+    fixture["beat_events"] = [
+        {"time": 0.5 * i, "intensity": 0.6, "sharpness": 0.5,
+         "bass_intensity": 0.3, "is_downbeat": True}
+        for i in range(8)
+    ]
+    spec = build_composition_spec(fixture)
+    phrases = spec["phrase_track"]
+    assert len(phrases) == 2
+    assert phrases[0]["phrase_index"] == 0
+    assert phrases[0]["bar_count"] == 4
+    assert phrases[1]["phrase_index"] == 1
+    assert phrases[0]["t_start"] == 0.0
+    assert phrases[1]["t_start"] == 2.0  # 5th downbeat at 0.5*4 = 2.0
 
 
 def test_beat_track_passes_through():
