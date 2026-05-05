@@ -102,6 +102,42 @@ def test_spec_top_level_shape():
     ):
         assert key in spec
         assert isinstance(spec[key], list)
+    # v3: frames_track is a dict, not a list.
+    assert "frames_track" in spec
+    assert isinstance(spec["frames_track"], dict)
+
+
+def test_v3_section_includes_mode():
+    """Each section directive carries Krumhansl-Kessler mode + strength."""
+    spec = build_composition_spec(_fixture_analysis())
+    for section in spec["section_script"]:
+        assert section["mode"] in {"major", "minor"}
+        assert 0.0 <= section["mode_strength"] <= 1.0
+
+
+def test_v3_onset_includes_pitch_and_adsr():
+    """Each onset carries pitch_class (or -1) plus ADSR passthrough."""
+    spec = build_composition_spec(_fixture_analysis())
+    onset = spec["onset_track"][0]
+    assert "pitch_class" in onset
+    assert -1 <= onset["pitch_class"] <= 11
+    for key in ("attack_time_ms", "decay_time_ms", "sustain_level"):
+        assert key in onset
+
+
+def test_v3_frames_track_is_subsampled_columnar():
+    """frames_track is a dict-of-arrays at ~10Hz with all timbre fields."""
+    spec = build_composition_spec(_fixture_analysis())
+    ft = spec["frames_track"]
+    assert ft["count"] == len(ft["centroid_norm"])
+    for key in (
+        "centroid_norm", "harmonic_ratio", "chroma_strength",
+        "rolloff", "zcr", "spectral_contrast", "pitch_class",
+    ):
+        assert key in ft
+        assert len(ft[key]) == ft["count"]
+    for v in ft["centroid_norm"]:
+        assert 0.0 <= v <= 1.0
 
 
 def test_emotion_timeline_includes_biome_weights_and_vm_palette():

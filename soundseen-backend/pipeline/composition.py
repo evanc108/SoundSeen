@@ -26,10 +26,12 @@ from __future__ import annotations
 import math
 from typing import Any
 
-# v2: adds vm_saturation/vm_brightness/hue_distance/tension/angularity to
-# section directives (Valdez & Mehrabian + Schloss & Palmer + Bouba/Kiki),
-# plus phrase_track (Krumhansl phrase-level tier).
-SPEC_VERSION = 2
+# v3: per-frame timbre stream (frames_track) + per-onset pitch_class
+# (derived from chroma at onset) + per-section mode (Krumhansl-Kessler
+# major/minor with strength). Surfaces the Pratt 1930 pitch-elevation,
+# Marks 1989 centroid-brightness, Itoh 2017 chroma-saturation, and
+# dynamic Bouba/Kiki mappings into the renderer's per-frame inputs.
+SPEC_VERSION = 3
 
 # ---------------------------------------------------------------------------
 # Biome model — a 4-quadrant emotion taxonomy.
@@ -137,6 +139,77 @@ def _hue_distance(valence: float, arousal: float, tension: float) -> float:
     # part of their identity. Bias by valence inversion.
     raw += 0.10 * (1.0 - valence)
     return max(0.0, min(1.0, raw))
+
+
+# ---------------------------------------------------------------------------
+# Krumhansl-Kessler key/mode profiles. Same profiles the emotion pipeline
+# uses (see pipeline/emotion.py:30-31) — major/minor templates that
+# correlate against a song's average chroma to decide mode.
+# Reference: Krumhansl & Kessler (1982), "Tracing the dynamic changes in
+# perceived tonal organization in a spatial representation of musical keys."
+
+_MAJOR_PROFILE = (6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88)
+_MINOR_PROFILE = (6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17)
+
+
+def _mean_chroma_vector(frames: dict[str, Any], start: float, end: float) -> list[float]:
+    times = frames.get("time") or []
+    chroma = frames.get("chroma") or []
+    if not times or not chroma:
+        return [0.0] * 12
+    n = min(len(times), len(chroma))
+    sums = [0.0] * 12
+    count = 0
+    for i in range(n):
+        t = float(times[i])
+        if t < start:
+            continue
+        if t >= end:
+            break
+        row = chroma[i]
+        if not row:
+            continue
+        for j in range(min(12, len(row))):
+            sums[j] += float(row[j])
+        count += 1
+    if count == 0:
+        return [0.0] * 12
+    return [s / count for s in sums]
+
+
+def _detect_mode(frames: dict[str, Any], start: float, end: float) -> tuple[str, float]:
+    """Krumhansl-Kessler mode detection over a section.
+
+    Correlates the section's mean 12-bin chroma vector with rotated
+    major and minor profiles, picks whichever wins. Returns
+    (mode, strength) where strength in [0, 1] is how strongly the
+    winning template fit relative to its rival (Pearson-like ratio).
+
+    Major mode → warm hue bias in the renderer; minor → cool bias.
+    Hevner (1937), Palmer (2013): major/fast → warm/light; minor/slow → cool/dark.
+    """
+    chroma_mean = _mean_chroma_vector(frames, start, end)
+    if sum(chroma_mean) <= 0:
+        return "major", 0.0
+
+    def correlate(profile: tuple[float, ...], offset: int) -> float:
+        # Rotate the profile to start at pitch class `offset`.
+        rotated = profile[offset:] + profile[:offset]
+        # Centered-correlation numerator only (denominators are ~constant
+        # across rotations of the same profile, so we can shortcut).
+        mp = sum(profile) / 12
+        mc = sum(chroma_mean) / 12
+        return sum((rotated[i] - mp) * (chroma_mean[i] - mc) for i in range(12))
+
+    best_major = max(correlate(_MAJOR_PROFILE, k) for k in range(12))
+    best_minor = max(correlate(_MINOR_PROFILE, k) for k in range(12))
+
+    total = abs(best_major) + abs(best_minor)
+    if total < 1e-9:
+        return "major", 0.0
+    if best_major >= best_minor:
+        return "major", min(1.0, max(0.0, (best_major - best_minor) / total))
+    return "minor", min(1.0, max(0.0, (best_minor - best_major) / total))
 
 
 # ---------------------------------------------------------------------------
@@ -345,6 +418,7 @@ def _build_section_script(
         tension = _section_tension(frames, start, end)
         angularity = _section_angularity(frames, onsets, start, end)
         hue_dist = _hue_distance(v_avg, a_avg, tension)
+        mode, mode_strength = _detect_mode(frames, start, end)
 
         out.append(
             {
@@ -357,10 +431,14 @@ def _build_section_script(
                 "camera": camera,
                 "saturation": round(sat, 3),
                 "brightness": round(bri, 3),
-                # New in v2 — research-backed structural fields.
+                # v2 — research-backed structural fields.
                 "tension": round(tension, 3),
                 "angularity": round(angularity, 3),
                 "hue_distance": round(hue_dist, 3),
+                # v3 — Krumhansl-Kessler mode (Hevner 1937, Palmer 2013).
+                # Major → renderer biases hue warm; minor → cool.
+                "mode": mode,
+                "mode_strength": round(mode_strength, 3),
             }
         )
     return out
@@ -449,19 +527,165 @@ def _build_phrase_track(beats: list[dict[str, Any]], bars_per_phrase: int = 4) -
     return phrases
 
 
-def _build_onset_track(onsets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _pitch_class_at(frames: dict[str, Any], t: float) -> int:
+    """Find the dominant pitch class (0..11) from the chroma vector at
+    time `t`. Returns -1 if chroma is unavailable or all-zero (atonal).
+
+    Pratt (1930) → high pitch maps to high vertical position; this is the
+    field the renderer uses for that mapping. Walker et al. (2010) — also
+    high pitch → smaller particle size.
+    """
+    times = frames.get("time") or []
+    chroma = frames.get("chroma") or []
+    if not times or not chroma:
+        return -1
+    n = min(len(times), len(chroma))
+    if n == 0:
+        return -1
+    # Linear scan to nearest frame — onset count is small (~hundreds).
+    idx = 0
+    for i in range(n):
+        if float(times[i]) > t:
+            break
+        idx = i
+    row = chroma[idx]
+    if not row:
+        return -1
+    best = -1
+    best_v = -1.0
+    for j in range(min(12, len(row))):
+        v = float(row[j])
+        if v > best_v:
+            best_v = v
+            best = j
+    if best_v <= 1e-6:
+        return -1
+    return best
+
+
+def _build_onset_track(
+    onsets: list[dict[str, Any]], frames: dict[str, Any]
+) -> list[dict[str, Any]]:
     out = []
     for o in onsets:
+        t = float(o["time"])
         out.append(
             {
-                "t": round(float(o["time"]), 3),
+                "t": round(t, 3),
                 "intensity": round(float(o.get("intensity", 0.3)), 4),
                 "sharpness": round(float(o.get("sharpness", 0.5)), 4),
                 "attack_strength": round(float(o.get("attack_strength", 0.0)), 4),
                 "attack_slope": round(float(o.get("attack_slope", 0.0)), 4),
+                # v2 ADSR fields (passthrough — already in OnsetEvent).
+                "attack_time_ms": round(float(o.get("attack_time_ms", 10.0)), 2),
+                "decay_time_ms":  round(float(o.get("decay_time_ms",  60.0)), 2),
+                "sustain_level":  round(float(o.get("sustain_level",  0.4)), 4),
+                # v3 — pitch class from chroma at onset time. -1 = atonal.
+                "pitch_class": _pitch_class_at(frames, t),
             }
         )
     return out
+
+
+def _build_frames_track(frames: dict[str, Any], target_hz: float = 10.0) -> dict[str, Any]:
+    """Subsampled per-frame timbre stream the renderer consumes per
+    render frame. Backend frames are at ~43Hz (~23ms); 10Hz is enough
+    for visuals (smoothing covers the rest) and keeps payload size sane.
+
+    Surfaced fields and their visual mappings:
+      - centroid_norm:    Marks (1989) brightness ↔ visual luminance
+      - harmonic_ratio:   Bouba/Kiki shape vocabulary (per-frame, not
+                          just per-section)
+      - chroma_strength:  Itoh (2017) saturation lock-in factor
+      - rolloff:          high-frequency ceiling (sky-height proxy)
+      - zcr:              sibilance / grain density
+      - spectral_contrast:edge crispness (smeared vs peaky spectrum)
+      - pitch_class:      Pratt (1930) pitch-elevation, Walker (2010) pitch-size.
+                          Continuous (per-frame argmax of chroma).
+    """
+    times = frames.get("time") or []
+    energy = frames.get("energy") or []
+    if not times or not energy:
+        return {"interval": 1.0 / target_hz, "count": 0,
+                "centroid_norm": [], "harmonic_ratio": [], "chroma_strength": [],
+                "rolloff": [], "zcr": [], "spectral_contrast": [],
+                "pitch_class": []}
+
+    src_hz = 0.0
+    if len(times) > 1:
+        avg_dt = (float(times[-1]) - float(times[0])) / max(1, len(times) - 1)
+        src_hz = (1.0 / avg_dt) if avg_dt > 1e-6 else 43.0
+    else:
+        src_hz = 43.0
+    stride = max(1, int(round(src_hz / target_hz)))
+
+    # Per-frame fields. Some (rolloff/zcr/spectral_contrast) are optional
+    # in older analyses — fall back to a constant default rather than
+    # rejecting the whole stream.
+    centroid    = frames.get("centroid") or []
+    flux        = frames.get("flux") or []
+    harmonic    = frames.get("harmonic_ratio") or []
+    chroma_s    = frames.get("chroma_strength") or []
+    rolloff     = frames.get("rolloff") or []
+    zcr         = frames.get("zcr") or []
+    contrast    = frames.get("spectral_contrast") or []
+    chroma_vec  = frames.get("chroma") or []
+
+    # Centroid is in raw Hz; normalize per-track to [0, 1] using p5/p95
+    # so the renderer doesn't have to deal with absolute frequencies.
+    sorted_c = sorted(float(x) for x in centroid)
+    if len(sorted_c) >= 2:
+        lo = sorted_c[max(0, int(len(sorted_c) * 0.05))]
+        hi = sorted_c[min(len(sorted_c) - 1, int(len(sorted_c) * 0.95))]
+        rng = hi - lo if hi > lo else 1.0
+    else:
+        lo, rng = 0.0, 1.0
+
+    def _at(arr: list, i: int, default: float) -> float:
+        return float(arr[i]) if i < len(arr) else default
+
+    out_centroid: list[float] = []
+    out_harmonic: list[float] = []
+    out_chromas:  list[float] = []
+    out_rolloff:  list[float] = []
+    out_zcr:      list[float] = []
+    out_contrast: list[float] = []
+    out_pitch:    list[int]   = []
+
+    n = len(times)
+    for i in range(0, n, stride):
+        c_norm = max(0.0, min(1.0, (_at(centroid, i, lo) - lo) / rng))
+        out_centroid.append(round(c_norm, 4))
+        out_harmonic.append(round(_at(harmonic, i, 0.5), 4))
+        out_chromas.append(round(_at(chroma_s, i, 0.0), 4))
+        out_rolloff.append(round(_at(rolloff, i, 0.5), 4))
+        out_zcr.append(round(_at(zcr, i, 0.3), 4))
+        out_contrast.append(round(_at(contrast, i, 0.5), 4))
+
+        pc = -1
+        if i < len(chroma_vec):
+            row = chroma_vec[i] or []
+            best = -1
+            best_v = -1.0
+            for j in range(min(12, len(row))):
+                v = float(row[j])
+                if v > best_v:
+                    best_v = v
+                    best = j
+            pc = best if best_v > 1e-6 else -1
+        out_pitch.append(pc)
+
+    return {
+        "interval": round(stride / src_hz, 4),
+        "count": len(out_centroid),
+        "centroid_norm":     out_centroid,
+        "harmonic_ratio":    out_harmonic,
+        "chroma_strength":   out_chromas,
+        "rolloff":           out_rolloff,
+        "zcr":               out_zcr,
+        "spectral_contrast": out_contrast,
+        "pitch_class":       out_pitch,
+    }
 
 
 def build_composition_spec(
@@ -489,6 +713,8 @@ def build_composition_spec(
         "section_script": _build_section_script(sections, emotion, frames, onsets),
         "beat_track": _build_beat_track(beats),
         "phrase_track": _build_phrase_track(beats),
-        "onset_track": _build_onset_track(onsets),
+        "onset_track": _build_onset_track(onsets, frames),
         "drop_triggers": _build_drop_triggers(sections, frames, emotion),
+        # v3 — per-frame timbre stream sampled at ~10Hz.
+        "frames_track": _build_frames_track(frames, target_hz=10.0),
     }
