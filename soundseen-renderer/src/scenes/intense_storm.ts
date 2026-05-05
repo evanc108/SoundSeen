@@ -44,9 +44,12 @@ const BG_FRAGMENT = /* glsl */ `
   uniform float uSaturation;
   uniform float uBrightness;
   uniform float uCentroid;        // Marks 1989 — bright timbre lifts blue accents
+  uniform float uHarmonicRatio;
   uniform float uZCR;             // sibilance density → grain
   uniform float uChromaStrength;
   uniform float uModeWarm;
+  uniform float uHueDistance;
+  uniform float uPhrasePulse;
 
   float hash(vec2 p) {
     p = fract(p * vec2(443.897, 441.423));
@@ -77,9 +80,14 @@ const BG_FRAGMENT = /* glsl */ `
 
     // Stormcloud — fbm with horizontal scrolling, shaped by a
     // top-heavy gradient so the cloud lives in the upper half.
-    vec2 p = uv * vec2(2.5, 1.6) + vec2(uTime * 0.10, uTime * 0.04);
+    // Bouba/Kiki on cloud frequency: low harmonic_ratio → tighter,
+    // higher-freq turbulence (more chaotic); high → broader, slower.
+    float cloudFreqX = mix(3.5, 2.0, uHarmonicRatio);
+    vec2 p = uv * vec2(cloudFreqX, cloudFreqX * 0.65) + vec2(uTime * 0.10, uTime * 0.04);
     float cloud = fbm(p);
-    cloud = pow(cloud, 1.7);  // sharpen contrast — Intense should not look soft
+    // Pow sharpening also modulated — high HR keeps cloud softer.
+    float cloudPow = mix(2.1, 1.4, uHarmonicRatio);
+    cloud = pow(cloud, cloudPow);
 
     // Color: red dominates, blue accent in dim areas (contrast singleton
     // per Itti-Koch — opposite hue captures attention against the warm field).
@@ -120,6 +128,22 @@ const BG_FRAGMENT = /* glsl */ `
 
     col.r *= 1.0 + uModeWarm * 0.04;
     col.b *= 1.0 - uModeWarm * 0.04;
+
+    // hue_distance: at high tension, RGB-split the cloud field for
+    // a chromatic-aberration "pressure" feel. Intense biome leans
+    // into this rather than away from it.
+    if (uHueDistance > 0.40) {
+      float split = (uHueDistance - 0.40) * 1.2;
+      vec2 splitOff = vec2(split * 0.008, 0);
+      vec3 colR = mix(uColorBlack, uColorRed, fbm(p + splitOff));
+      vec3 colB = mix(uColorBlack, uColorBlue, fbm(p - splitOff));
+      col.r = mix(col.r, colR.r, 0.4);
+      col.b = mix(col.b, colB.b, 0.4);
+    }
+
+    // Phrase pulse: brief reverse-vignette flash at frame edges so
+    // structural moments register as a "frame closing in."
+    col += vec3(uPhrasePulse * 0.10) * (1.0 - smoothstep(0.7, 0.2, r));
 
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
@@ -174,9 +198,12 @@ export class IntenseStormScene implements Scene {
         uSaturation: { value: 1.0 },
         uBrightness: { value: 1.0 },
         uCentroid: { value: 0.5 },
+        uHarmonicRatio: { value: 0.3 },
         uZCR: { value: 0.3 },
         uChromaStrength: { value: 0.0 },
         uModeWarm: { value: 0.0 },
+        uHueDistance: { value: 0.7 },
+        uPhrasePulse: { value: 0.0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -246,10 +273,13 @@ export class IntenseStormScene implements Scene {
     u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
 
     u.uCentroid.value = ctx.audio.centroid;
+    u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
     u.uZCR.value = ctx.audio.zcr;
     u.uChromaStrength.value = ctx.audio.chromaStrength;
     const modeStrength = ctx.section?.mode_strength ?? 0;
     u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
+    u.uHueDistance.value = ctx.section?.hue_distance ?? 0.7;
+    u.uPhrasePulse.value = ctx.phrasePulse;
 
     // Trigger a bolt on the rising edge of downbeatPulse / dropImpulse
     // (i.e., when these values just spiked above a threshold).

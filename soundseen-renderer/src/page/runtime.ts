@@ -203,6 +203,15 @@ function buildContext(spec: CompositionSpec, t: number): FrameContext {
   const phraseProgress = phrase
     ? Math.min(1, Math.max(0, (t - phrase.t_start) / Math.max(1e-6, phrase.t_end - phrase.t_start)))
     : 0;
+  // Phrase pulse: spike at t_start, decay with τ ≈ 0.5s so it's gone
+  // by ~1.5s into the phrase but visible at the boundary.
+  let phrasePulse = 0;
+  if (phrase) {
+    const dt = t - phrase.t_start;
+    if (dt >= 0 && dt < 2.0) {
+      phrasePulse = Math.exp(-dt / 0.5);
+    }
+  }
   const downbeats = spec.beat_track.filter((b) => b.downbeat);
   const vm = vmPaletteAt(spec, t);
   return {
@@ -212,6 +221,7 @@ function buildContext(spec: CompositionSpec, t: number): FrameContext {
     sectionProgress,
     phrase,
     phraseProgress,
+    phrasePulse,
     biomeWeights: biomeWeightsAt(spec, t),
     vmSaturation: vm.sat,
     vmBrightness: vm.bri,

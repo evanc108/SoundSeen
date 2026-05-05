@@ -203,6 +203,12 @@ export interface FrameContext {
   /// 0..1 position within the current phrase. Krumhansl-tier visual
   /// events (camera arc completion, palette rotation) drive off this.
   phraseProgress: number;
+  /// 1.0 right at a phrase boundary, decays exponentially over ~1.5s.
+  /// Use this for transient phrase-level effects (particle turnover,
+  /// palette rotation). Krumhansl 1996 — phrase boundaries carry the
+  /// most segmentation weight; a brief pulse on the boundary gives
+  /// the listener a visual anchor for the structural shift.
+  phrasePulse: number;
   /// Smooth biome blend (linearly interpolated between adjacent emotion
   /// samples so the renderer doesn't stutter at 0.5s boundaries).
   biomeWeights: BiomeWeights;

@@ -19741,6 +19741,8 @@ void main() {
   uniform float uHarmonicRatio;   // 0..1 \u2014 softer when high (Bouba/Kiki)
   uniform float uChromaStrength;  // 0..1 \u2014 Itoh 2017, saturation lock-in
   uniform float uModeWarm;        // -1..+1 \u2014 minor cool / major warm
+  uniform float uHueDistance;     // 0..1 \u2014 Schloss & Palmer; high = tense
+  uniform float uPhrasePulse;     // 0..1 \u2014 Krumhansl phrase boundary
 
   // Hash without sin \u2014 cheap, no driver-specific drift.
   float hash(vec2 p) {
@@ -19767,7 +19769,11 @@ void main() {
 
   void main() {
     vec2 uv = vUv;
-    vec2 p = uv * 2.5 + vec2(uTime * 0.03, uTime * 0.018);
+    // Bouba/Kiki applied to the noise field itself: high harmonic_ratio
+    // (tonal/sustained) \u2192 softer, smoother noise; low \u2192 more granular.
+    // Modulate sample frequency so tonal passages read as smoother.
+    float boubaScale = mix(3.0, 1.8, uHarmonicRatio);
+    vec2 p = uv * boubaScale + vec2(uTime * 0.03, uTime * 0.018);
     float n = valueNoise(p) * 0.6 + valueNoise(p * 2.1) * 0.4;
 
     // Radial falloff so the frame has a visible "source" rather than
@@ -19794,6 +19800,24 @@ void main() {
     // Small effect (\xB13%) so it doesn't override the biome identity.
     col.r *= 1.0 + uModeWarm * 0.03;
     col.b *= 1.0 - uModeWarm * 0.03;
+
+    // Schloss & Palmer hue_distance: tension splits the RGB channels
+    // slightly along x, reading as quiet chromatic dissonance. Subtle
+    // here \u2014 Serene shouldn't go full prismatic.
+    if (uHueDistance > 0.20) {
+      vec2 splitOff = vec2(uHueDistance * 0.004, 0);
+      vec2 sp = uv * boubaScale + vec2(uTime * 0.03, uTime * 0.018);
+      float nR = valueNoise(sp + splitOff) * 0.6 + valueNoise((sp + splitOff) * 2.1) * 0.4;
+      float nB = valueNoise(sp - splitOff) * 0.6 + valueNoise((sp - splitOff) * 2.1) * 0.4;
+      vec3 colR = mix(uColorEdge, uColorCore, vignette * (0.5 + 0.5 * nR) + ripple * 0.25);
+      vec3 colB = mix(uColorEdge, uColorCore, vignette * (0.5 + 0.5 * nB) + ripple * 0.25);
+      col.r = mix(col.r, colR.r, uHueDistance * 0.5);
+      col.b = mix(col.b, colB.b, uHueDistance * 0.5);
+    }
+
+    // Phrase boundary: brief overall lift so the listener gets a
+    // visual anchor at structural moments.
+    col += vec3(uPhrasePulse * 0.06);
 
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
@@ -19831,7 +19855,9 @@ void main() {
           uCentroid: { value: 0.5 },
           uHarmonicRatio: { value: 0.7 },
           uChromaStrength: { value: 0 },
-          uModeWarm: { value: 0 }
+          uModeWarm: { value: 0 },
+          uHueDistance: { value: 0.2 },
+          uPhrasePulse: { value: 0 }
         },
         depthTest: false,
         depthWrite: false
@@ -19882,6 +19908,8 @@ void main() {
       const modeStrength = ctx.section?.mode_strength ?? 0;
       const modeWarm = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
       u.uModeWarm.value = modeWarm;
+      u.uHueDistance.value = ctx.section?.hue_distance ?? 0.2;
+      u.uPhrasePulse.value = ctx.phrasePulse;
       const pos = this.particles.geometry.getAttribute("position");
       for (let i = 0; i < pos.count; i++) {
         const y = this.particlePositions[i * 3 + 1] + Math.sin(ctx.t * 0.18 + i) * 15e-4;
@@ -19925,8 +19953,11 @@ void main() {
   uniform float uSaturation;
   uniform float uBrightness;
   uniform float uCentroid;
+  uniform float uHarmonicRatio;
   uniform float uChromaStrength;
   uniform float uModeWarm;
+  uniform float uHueDistance;
+  uniform float uPhrasePulse;
 
   // Cheap value noise for halo modulation.
   float hash(vec2 p) {
@@ -19962,9 +19993,10 @@ void main() {
       col = mix(uColorMid, uColorEdge, smoothstep(0.40, 1.05, r));
     }
 
-    // Slow rotating shimmer in the mid band \u2014 keeps the bloom alive
-    // between beats without reading as motion.
-    float shimmer = noise(vec2(angle * 3.0 + uTime * 0.20, r * 4.0)) * 0.10;
+    // Bouba/Kiki on shimmer frequency: high harmonic_ratio \u2192 smoother,
+    // slower-changing shimmer (tonal); low \u2192 grittier shimmer.
+    float shimmerFreq = mix(5.0, 2.5, uHarmonicRatio);
+    float shimmer = noise(vec2(angle * shimmerFreq + uTime * 0.20, r * 4.0)) * 0.10;
     col += vec3(shimmer) * smoothstep(0.6, 0.2, r);
 
     // Beat halo \u2014 luminance ring expanding outward on each beat.
@@ -19995,6 +20027,18 @@ void main() {
 
     col.r *= 1.0 + uModeWarm * 0.04;
     col.b *= 1.0 - uModeWarm * 0.04;
+
+    // hue_distance: tension splits the magenta toward cyan accents.
+    // Subtle, since Euphoric is identity-stable on its warm palette.
+    if (uHueDistance > 0.30) {
+      float split = (uHueDistance - 0.30) * 0.6;
+      col.b += split * (1.0 - r) * 0.3;
+      col.g += split * (1.0 - r) * 0.15;
+    }
+
+    // Phrase boundary: brightness pop on the bloom core. Krumhansl-tier
+    // events should land prominently in a celebratory biome.
+    col += vec3(uPhrasePulse * 0.18) * smoothstep(0.5, 0.0, r);
 
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
@@ -20033,8 +20077,11 @@ void main() {
           uSaturation: { value: 1 },
           uBrightness: { value: 1 },
           uCentroid: { value: 0.5 },
+          uHarmonicRatio: { value: 0.7 },
           uChromaStrength: { value: 0 },
-          uModeWarm: { value: 0 }
+          uModeWarm: { value: 0 },
+          uHueDistance: { value: 0.4 },
+          uPhrasePulse: { value: 0 }
         },
         depthTest: false,
         depthWrite: false
@@ -20088,12 +20135,15 @@ void main() {
       u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
       u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
       u.uCentroid.value = ctx.audio.centroid;
+      u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
       u.uChromaStrength.value = ctx.audio.chromaStrength;
       const modeStrength = ctx.section?.mode_strength ?? 0;
       u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
+      u.uHueDistance.value = ctx.section?.hue_distance ?? 0.4;
+      u.uPhrasePulse.value = ctx.phrasePulse;
       const pos = this.particles.geometry.getAttribute("position");
       const dt = 1 / 60;
-      const beatBoost = 1 + ctx.beatPulse * 1.5;
+      const beatBoost = 1 + ctx.beatPulse * 1.5 + ctx.phrasePulse * 0.6;
       for (let i = 0; i < _EuphoricBloomScene.PARTICLE_COUNT; i++) {
         const ix = i * 3;
         this.positions[ix + 0] += this.velocities[ix + 0] * dt * beatBoost;
@@ -20149,9 +20199,12 @@ void main() {
   uniform float uSaturation;
   uniform float uBrightness;
   uniform float uCentroid;        // Marks 1989 \u2014 bright timbre lifts blue accents
+  uniform float uHarmonicRatio;
   uniform float uZCR;             // sibilance density \u2192 grain
   uniform float uChromaStrength;
   uniform float uModeWarm;
+  uniform float uHueDistance;
+  uniform float uPhrasePulse;
 
   float hash(vec2 p) {
     p = fract(p * vec2(443.897, 441.423));
@@ -20182,9 +20235,14 @@ void main() {
 
     // Stormcloud \u2014 fbm with horizontal scrolling, shaped by a
     // top-heavy gradient so the cloud lives in the upper half.
-    vec2 p = uv * vec2(2.5, 1.6) + vec2(uTime * 0.10, uTime * 0.04);
+    // Bouba/Kiki on cloud frequency: low harmonic_ratio \u2192 tighter,
+    // higher-freq turbulence (more chaotic); high \u2192 broader, slower.
+    float cloudFreqX = mix(3.5, 2.0, uHarmonicRatio);
+    vec2 p = uv * vec2(cloudFreqX, cloudFreqX * 0.65) + vec2(uTime * 0.10, uTime * 0.04);
     float cloud = fbm(p);
-    cloud = pow(cloud, 1.7);  // sharpen contrast \u2014 Intense should not look soft
+    // Pow sharpening also modulated \u2014 high HR keeps cloud softer.
+    float cloudPow = mix(2.1, 1.4, uHarmonicRatio);
+    cloud = pow(cloud, cloudPow);
 
     // Color: red dominates, blue accent in dim areas (contrast singleton
     // per Itti-Koch \u2014 opposite hue captures attention against the warm field).
@@ -20225,6 +20283,22 @@ void main() {
 
     col.r *= 1.0 + uModeWarm * 0.04;
     col.b *= 1.0 - uModeWarm * 0.04;
+
+    // hue_distance: at high tension, RGB-split the cloud field for
+    // a chromatic-aberration "pressure" feel. Intense biome leans
+    // into this rather than away from it.
+    if (uHueDistance > 0.40) {
+      float split = (uHueDistance - 0.40) * 1.2;
+      vec2 splitOff = vec2(split * 0.008, 0);
+      vec3 colR = mix(uColorBlack, uColorRed, fbm(p + splitOff));
+      vec3 colB = mix(uColorBlack, uColorBlue, fbm(p - splitOff));
+      col.r = mix(col.r, colR.r, 0.4);
+      col.b = mix(col.b, colB.b, 0.4);
+    }
+
+    // Phrase pulse: brief reverse-vignette flash at frame edges so
+    // structural moments register as a "frame closing in."
+    col += vec3(uPhrasePulse * 0.10) * (1.0 - smoothstep(0.7, 0.2, r));
 
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
@@ -20270,9 +20344,12 @@ void main() {
           uSaturation: { value: 1 },
           uBrightness: { value: 1 },
           uCentroid: { value: 0.5 },
+          uHarmonicRatio: { value: 0.3 },
           uZCR: { value: 0.3 },
           uChromaStrength: { value: 0 },
-          uModeWarm: { value: 0 }
+          uModeWarm: { value: 0 },
+          uHueDistance: { value: 0.7 },
+          uPhrasePulse: { value: 0 }
         },
         depthTest: false,
         depthWrite: false
@@ -20332,10 +20409,13 @@ void main() {
       u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
       u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
       u.uCentroid.value = ctx.audio.centroid;
+      u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
       u.uZCR.value = ctx.audio.zcr;
       u.uChromaStrength.value = ctx.audio.chromaStrength;
       const modeStrength = ctx.section?.mode_strength ?? 0;
       u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
+      u.uHueDistance.value = ctx.section?.hue_distance ?? 0.7;
+      u.uPhrasePulse.value = ctx.phrasePulse;
       const downbeatFiring = ctx.downbeatPulse > 0.85 && this.prevDownbeat <= 0.85;
       const dropFiring = ctx.dropImpulse > 0.5 && this.prevDrop <= 0.5;
       this.prevDownbeat = ctx.downbeatPulse;
@@ -20424,8 +20504,11 @@ void main() {
   uniform float uSaturation;
   uniform float uBrightness;
   uniform float uCentroid;
+  uniform float uHarmonicRatio;
   uniform float uChromaStrength;
   uniform float uModeWarm;
+  uniform float uHueDistance;
+  uniform float uPhrasePulse;
 
   float hash(vec2 p) {
     p = fract(p * vec2(443.897, 441.423));
@@ -20454,8 +20537,10 @@ void main() {
     if (uv.y > 0.40) {
       float t = (uv.y - 0.40) / 0.60;
       col = mix(uColorTop * 0.95, uColorTop, t);
-      // Slow horizontal fog drift in the upper half.
-      float fog = noise(vec2(uv.x * 3.0 + uTime * 0.04, uv.y * 2.0)) * 0.20;
+      // Bouba/Kiki on fog: high harmonic_ratio (sustained, tonal) \u2192
+      // smoother, slower fog drift; low \u2192 more granular fog.
+      float fogFreq = mix(4.0, 2.4, uHarmonicRatio);
+      float fog = noise(vec2(uv.x * fogFreq + uTime * 0.04, uv.y * 2.0)) * 0.20;
       col = mix(col, uColorFog, fog);
     } else {
       // Reflection: vertically mirror the upper sky's brightness, smeared.
@@ -20489,6 +20574,20 @@ void main() {
     // the most direct empirical link (Hevner 1937, Palmer 2013).
     col.r *= 1.0 + uModeWarm * 0.06;
     col.b *= 1.0 - uModeWarm * 0.06;
+
+    // hue_distance: rare for melancholic to register high tension,
+    // but if it does (e.g., dissonant minor), shift the indigo toward
+    // a faint warm bleed \u2014 reads as suppressed agitation.
+    if (uHueDistance > 0.35) {
+      float warmth = (uHueDistance - 0.35) * 0.4;
+      col.r += warmth * 0.04;
+      col.g += warmth * 0.02;
+    }
+
+    // Phrase pulse: a single faint horizontal sweep \u2014 the visual
+    // analogue of "a wave going through the puddle." Krumhansl-tier
+    // mark, restrained for this biome.
+    col += vec3(uPhrasePulse * 0.05) * smoothstep(0.6, 0.0, abs(uv.y - 0.40));
 
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
@@ -20526,8 +20625,11 @@ void main() {
           uSaturation: { value: 1 },
           uBrightness: { value: 1 },
           uCentroid: { value: 0.4 },
+          uHarmonicRatio: { value: 0.6 },
           uChromaStrength: { value: 0 },
-          uModeWarm: { value: 0 }
+          uModeWarm: { value: 0 },
+          uHueDistance: { value: 0.3 },
+          uPhrasePulse: { value: 0 }
         },
         depthTest: false,
         depthWrite: false
@@ -20577,9 +20679,12 @@ void main() {
       u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
       u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
       u.uCentroid.value = ctx.audio.centroid;
+      u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
       u.uChromaStrength.value = ctx.audio.chromaStrength;
       const modeStrength = ctx.section?.mode_strength ?? 0;
       u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
+      u.uHueDistance.value = ctx.section?.hue_distance ?? 0.3;
+      u.uPhrasePulse.value = ctx.phrasePulse;
       const pos = this.rainParticles.geometry.getAttribute("position");
       const dt = 1 / 60;
       for (let i = 0; i < _MelancholicRainScene.RAIN_COUNT; i++) {
@@ -20766,6 +20871,13 @@ void main() {
     const sectionProgress = section ? Math.min(1, Math.max(0, (t - section.start) / Math.max(1e-6, section.end - section.start))) : 0;
     const phrase = phraseAt(spec2, t);
     const phraseProgress = phrase ? Math.min(1, Math.max(0, (t - phrase.t_start) / Math.max(1e-6, phrase.t_end - phrase.t_start))) : 0;
+    let phrasePulse = 0;
+    if (phrase) {
+      const dt = t - phrase.t_start;
+      if (dt >= 0 && dt < 2) {
+        phrasePulse = Math.exp(-dt / 0.5);
+      }
+    }
     const downbeats = spec2.beat_track.filter((b) => b.downbeat);
     const vm = vmPaletteAt(spec2, t);
     return {
@@ -20775,6 +20887,7 @@ void main() {
       sectionProgress,
       phrase,
       phraseProgress,
+      phrasePulse,
       biomeWeights: biomeWeightsAt(spec2, t),
       vmSaturation: vm.sat,
       vmBrightness: vm.bri,

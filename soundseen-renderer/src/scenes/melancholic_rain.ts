@@ -44,8 +44,11 @@ const BG_FRAGMENT = /* glsl */ `
   uniform float uSaturation;
   uniform float uBrightness;
   uniform float uCentroid;
+  uniform float uHarmonicRatio;
   uniform float uChromaStrength;
   uniform float uModeWarm;
+  uniform float uHueDistance;
+  uniform float uPhrasePulse;
 
   float hash(vec2 p) {
     p = fract(p * vec2(443.897, 441.423));
@@ -74,8 +77,10 @@ const BG_FRAGMENT = /* glsl */ `
     if (uv.y > 0.40) {
       float t = (uv.y - 0.40) / 0.60;
       col = mix(uColorTop * 0.95, uColorTop, t);
-      // Slow horizontal fog drift in the upper half.
-      float fog = noise(vec2(uv.x * 3.0 + uTime * 0.04, uv.y * 2.0)) * 0.20;
+      // Bouba/Kiki on fog: high harmonic_ratio (sustained, tonal) →
+      // smoother, slower fog drift; low → more granular fog.
+      float fogFreq = mix(4.0, 2.4, uHarmonicRatio);
+      float fog = noise(vec2(uv.x * fogFreq + uTime * 0.04, uv.y * 2.0)) * 0.20;
       col = mix(col, uColorFog, fog);
     } else {
       // Reflection: vertically mirror the upper sky's brightness, smeared.
@@ -109,6 +114,20 @@ const BG_FRAGMENT = /* glsl */ `
     // the most direct empirical link (Hevner 1937, Palmer 2013).
     col.r *= 1.0 + uModeWarm * 0.06;
     col.b *= 1.0 - uModeWarm * 0.06;
+
+    // hue_distance: rare for melancholic to register high tension,
+    // but if it does (e.g., dissonant minor), shift the indigo toward
+    // a faint warm bleed — reads as suppressed agitation.
+    if (uHueDistance > 0.35) {
+      float warmth = (uHueDistance - 0.35) * 0.4;
+      col.r += warmth * 0.04;
+      col.g += warmth * 0.02;
+    }
+
+    // Phrase pulse: a single faint horizontal sweep — the visual
+    // analogue of "a wave going through the puddle." Krumhansl-tier
+    // mark, restrained for this biome.
+    col += vec3(uPhrasePulse * 0.05) * smoothstep(0.6, 0.0, abs(uv.y - 0.40));
 
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
@@ -146,8 +165,11 @@ export class MelancholicRainScene implements Scene {
         uSaturation: { value: 1.0 },
         uBrightness: { value: 1.0 },
         uCentroid: { value: 0.4 },
+        uHarmonicRatio: { value: 0.6 },
         uChromaStrength: { value: 0.0 },
         uModeWarm: { value: 0.0 },
+        uHueDistance: { value: 0.3 },
+        uPhrasePulse: { value: 0.0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -208,9 +230,12 @@ export class MelancholicRainScene implements Scene {
     u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
 
     u.uCentroid.value = ctx.audio.centroid;
+    u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
     u.uChromaStrength.value = ctx.audio.chromaStrength;
     const modeStrength = ctx.section?.mode_strength ?? 0;
     u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
+    u.uHueDistance.value = ctx.section?.hue_distance ?? 0.3;
+    u.uPhrasePulse.value = ctx.phrasePulse;
 
     // Step rain downward; recycle to the top when it leaves the frame.
     const pos = this.rainParticles.geometry.getAttribute("position") as THREE.BufferAttribute;

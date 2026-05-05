@@ -42,6 +42,8 @@ const BG_FRAGMENT = /* glsl */ `
   uniform float uHarmonicRatio;   // 0..1 — softer when high (Bouba/Kiki)
   uniform float uChromaStrength;  // 0..1 — Itoh 2017, saturation lock-in
   uniform float uModeWarm;        // -1..+1 — minor cool / major warm
+  uniform float uHueDistance;     // 0..1 — Schloss & Palmer; high = tense
+  uniform float uPhrasePulse;     // 0..1 — Krumhansl phrase boundary
 
   // Hash without sin — cheap, no driver-specific drift.
   float hash(vec2 p) {
@@ -68,7 +70,11 @@ const BG_FRAGMENT = /* glsl */ `
 
   void main() {
     vec2 uv = vUv;
-    vec2 p = uv * 2.5 + vec2(uTime * 0.03, uTime * 0.018);
+    // Bouba/Kiki applied to the noise field itself: high harmonic_ratio
+    // (tonal/sustained) → softer, smoother noise; low → more granular.
+    // Modulate sample frequency so tonal passages read as smoother.
+    float boubaScale = mix(3.0, 1.8, uHarmonicRatio);
+    vec2 p = uv * boubaScale + vec2(uTime * 0.03, uTime * 0.018);
     float n = valueNoise(p) * 0.6 + valueNoise(p * 2.1) * 0.4;
 
     // Radial falloff so the frame has a visible "source" rather than
@@ -95,6 +101,24 @@ const BG_FRAGMENT = /* glsl */ `
     // Small effect (±3%) so it doesn't override the biome identity.
     col.r *= 1.0 + uModeWarm * 0.03;
     col.b *= 1.0 - uModeWarm * 0.03;
+
+    // Schloss & Palmer hue_distance: tension splits the RGB channels
+    // slightly along x, reading as quiet chromatic dissonance. Subtle
+    // here — Serene shouldn't go full prismatic.
+    if (uHueDistance > 0.20) {
+      vec2 splitOff = vec2(uHueDistance * 0.004, 0);
+      vec2 sp = uv * boubaScale + vec2(uTime * 0.03, uTime * 0.018);
+      float nR = valueNoise(sp + splitOff) * 0.6 + valueNoise((sp + splitOff) * 2.1) * 0.4;
+      float nB = valueNoise(sp - splitOff) * 0.6 + valueNoise((sp - splitOff) * 2.1) * 0.4;
+      vec3 colR = mix(uColorEdge, uColorCore, vignette * (0.5 + 0.5 * nR) + ripple * 0.25);
+      vec3 colB = mix(uColorEdge, uColorCore, vignette * (0.5 + 0.5 * nB) + ripple * 0.25);
+      col.r = mix(col.r, colR.r, uHueDistance * 0.5);
+      col.b = mix(col.b, colB.b, uHueDistance * 0.5);
+    }
+
+    // Phrase boundary: brief overall lift so the listener gets a
+    // visual anchor at structural moments.
+    col += vec3(uPhrasePulse * 0.06);
 
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
@@ -131,6 +155,8 @@ export class SereneDawnScene {
                 uHarmonicRatio: { value: 0.7 },
                 uChromaStrength: { value: 0.0 },
                 uModeWarm: { value: 0.0 },
+                uHueDistance: { value: 0.2 },
+                uPhrasePulse: { value: 0.0 },
             },
             depthTest: false,
             depthWrite: false,
@@ -193,6 +219,8 @@ export class SereneDawnScene {
         const modeStrength = ctx.section?.mode_strength ?? 0;
         const modeWarm = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
         u.uModeWarm.value = modeWarm;
+        u.uHueDistance.value = ctx.section?.hue_distance ?? 0.2;
+        u.uPhrasePulse.value = ctx.phrasePulse;
         // Gentle drift so the bokeh feels alive, not stamped.
         const pos = this.particles.geometry.getAttribute("position");
         for (let i = 0; i < pos.count; i++) {

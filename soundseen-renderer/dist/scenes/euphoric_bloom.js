@@ -37,8 +37,11 @@ const BG_FRAGMENT = /* glsl */ `
   uniform float uSaturation;
   uniform float uBrightness;
   uniform float uCentroid;
+  uniform float uHarmonicRatio;
   uniform float uChromaStrength;
   uniform float uModeWarm;
+  uniform float uHueDistance;
+  uniform float uPhrasePulse;
 
   // Cheap value noise for halo modulation.
   float hash(vec2 p) {
@@ -74,9 +77,10 @@ const BG_FRAGMENT = /* glsl */ `
       col = mix(uColorMid, uColorEdge, smoothstep(0.40, 1.05, r));
     }
 
-    // Slow rotating shimmer in the mid band — keeps the bloom alive
-    // between beats without reading as motion.
-    float shimmer = noise(vec2(angle * 3.0 + uTime * 0.20, r * 4.0)) * 0.10;
+    // Bouba/Kiki on shimmer frequency: high harmonic_ratio → smoother,
+    // slower-changing shimmer (tonal); low → grittier shimmer.
+    float shimmerFreq = mix(5.0, 2.5, uHarmonicRatio);
+    float shimmer = noise(vec2(angle * shimmerFreq + uTime * 0.20, r * 4.0)) * 0.10;
     col += vec3(shimmer) * smoothstep(0.6, 0.2, r);
 
     // Beat halo — luminance ring expanding outward on each beat.
@@ -107,6 +111,18 @@ const BG_FRAGMENT = /* glsl */ `
 
     col.r *= 1.0 + uModeWarm * 0.04;
     col.b *= 1.0 - uModeWarm * 0.04;
+
+    // hue_distance: tension splits the magenta toward cyan accents.
+    // Subtle, since Euphoric is identity-stable on its warm palette.
+    if (uHueDistance > 0.30) {
+      float split = (uHueDistance - 0.30) * 0.6;
+      col.b += split * (1.0 - r) * 0.3;
+      col.g += split * (1.0 - r) * 0.15;
+    }
+
+    // Phrase boundary: brightness pop on the bloom core. Krumhansl-tier
+    // events should land prominently in a celebratory biome.
+    col += vec3(uPhrasePulse * 0.18) * smoothstep(0.5, 0.0, r);
 
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
@@ -141,8 +157,11 @@ export class EuphoricBloomScene {
                 uSaturation: { value: 1.0 },
                 uBrightness: { value: 1.0 },
                 uCentroid: { value: 0.5 },
+                uHarmonicRatio: { value: 0.7 },
                 uChromaStrength: { value: 0.0 },
                 uModeWarm: { value: 0.0 },
+                uHueDistance: { value: 0.4 },
+                uPhrasePulse: { value: 0.0 },
             },
             depthTest: false,
             depthWrite: false,
@@ -201,14 +220,18 @@ export class EuphoricBloomScene {
         u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
         u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
         u.uCentroid.value = ctx.audio.centroid;
+        u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
         u.uChromaStrength.value = ctx.audio.chromaStrength;
         const modeStrength = ctx.section?.mode_strength ?? 0;
         u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
-        // Particles drift outward, recycle to center when they leave the frame.
-        // Beat pulse adds a velocity nudge so the bloom feels alive on rhythm.
+        u.uHueDistance.value = ctx.section?.hue_distance ?? 0.4;
+        u.uPhrasePulse.value = ctx.phrasePulse;
+        // Particle behavior — beat boost + phrase-boundary outward kick
+        // (Krumhansl-tier visual event: the population physically shifts
+        // when the listener's segmentation response fires).
         const pos = this.particles.geometry.getAttribute("position");
         const dt = 1 / 60;
-        const beatBoost = 1.0 + ctx.beatPulse * 1.5;
+        const beatBoost = 1.0 + ctx.beatPulse * 1.5 + ctx.phrasePulse * 0.6;
         for (let i = 0; i < EuphoricBloomScene.PARTICLE_COUNT; i++) {
             const ix = i * 3;
             this.positions[ix + 0] += this.velocities[ix + 0] * dt * beatBoost;
