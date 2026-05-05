@@ -11,8 +11,10 @@
 import * as THREE from "three";
 import type {
   CompositionSpec,
+  EmotionSample,
   FrameContext,
   SectionDirective,
+  PhraseDirective,
   BiomeWeights,
 } from "../types";
 import { makeScene } from "../scenes/registry";
@@ -91,6 +93,38 @@ function biomeWeightsAt(spec: CompositionSpec, t: number): BiomeWeights {
   return tl[tl.length - 1]!.biome_weights;
 }
 
+/// Interpolate V&M (saturation, brightness) between adjacent emotion
+/// samples so the renderer doesn't step at the 0.5s emotion grid.
+function vmPaletteAt(spec: CompositionSpec, t: number): { sat: number; bri: number } {
+  const tl = spec.emotion_timeline;
+  if (tl.length === 0) return { sat: 0.7, bri: 0.9 };
+  if (t <= tl[0]!.t) return { sat: tl[0]!.vm_saturation, bri: tl[0]!.vm_brightness };
+  if (t >= tl[tl.length - 1]!.t) {
+    const last = tl[tl.length - 1]!;
+    return { sat: last.vm_saturation, bri: last.vm_brightness };
+  }
+  for (let i = 0; i < tl.length - 1; i++) {
+    const a = tl[i]!;
+    const b = tl[i + 1]!;
+    if (t >= a.t && t < b.t) {
+      const u = (t - a.t) / Math.max(1e-6, b.t - a.t);
+      return {
+        sat: a.vm_saturation + (b.vm_saturation - a.vm_saturation) * u,
+        bri: a.vm_brightness + (b.vm_brightness - a.vm_brightness) * u,
+      };
+    }
+  }
+  const last = tl[tl.length - 1]!;
+  return { sat: last.vm_saturation, bri: last.vm_brightness };
+}
+
+function phraseAt(spec: CompositionSpec, t: number): PhraseDirective | null {
+  for (const p of spec.phrase_track) {
+    if (t >= p.t_start && t <= p.t_end) return p;
+  }
+  return null;
+}
+
 const BEAT_HALF_LIFE = 0.150; // s
 const ONSET_HALF_LIFE = 0.080;
 const DROP_DURATION = 1.30;
@@ -126,13 +160,22 @@ function buildContext(spec: CompositionSpec, t: number): FrameContext {
   const sectionProgress = section
     ? Math.min(1, Math.max(0, (t - section.start) / Math.max(1e-6, section.end - section.start)))
     : 0;
+  const phrase = phraseAt(spec, t);
+  const phraseProgress = phrase
+    ? Math.min(1, Math.max(0, (t - phrase.t_start) / Math.max(1e-6, phrase.t_end - phrase.t_start)))
+    : 0;
   const downbeats = spec.beat_track.filter((b) => b.downbeat);
+  const vm = vmPaletteAt(spec, t);
   return {
     t,
     progress: spec.duration_seconds > 0 ? t / spec.duration_seconds : 0,
     section,
     sectionProgress,
+    phrase,
+    phraseProgress,
     biomeWeights: biomeWeightsAt(spec, t),
+    vmSaturation: vm.sat,
+    vmBrightness: vm.bri,
     beatPulse: pulseFromMostRecent(spec.beat_track, t, BEAT_HALF_LIFE),
     downbeatPulse: pulseFromMostRecent(downbeats, t, BEAT_HALF_LIFE),
     onsetPulse: pulseFromMostRecent(spec.onset_track, t, ONSET_HALF_LIFE),

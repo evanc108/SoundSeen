@@ -1,8 +1,17 @@
 // Serene dawn — high-V, low-A biome.
 //
-// Slow-drifting noise field in pastel teal/peach with soft bokeh particles
-// and a gentle radial god-ray wash. Beats register as soft ripples; drops
-// are heavily softened (this biome doesn't punch).
+// Slow-drifting noise field in warm analogous palette (cream + sienna)
+// with soft bokeh particles and a gentle radial god-ray wash. Beats
+// register as soft ripples; drops are heavily softened — this biome
+// doesn't punch.
+//
+// Palette is intentionally ANALOGOUS, not complementary, per
+// Schloss & Palmer (2011) "Aesthetic response to color combinations":
+// analogous color pairs are perceived as more harmonious than
+// complementary, contradicting Itten's classical doctrine. A low-tension
+// biome should sit in the harmony zone. Earlier teal+peach (~160° apart)
+// read as quietly tense; cream+sienna sits at ~25-35° hue interval —
+// firmly analogous.
 //
 // MVP-level implementation: the goal here is the SHAPE of the pipeline,
 // not flagship visual quality. Iterate on the fragment shader (or swap in
@@ -101,8 +110,11 @@ export class SereneDawnScene implements Scene {
         uTime: { value: 0 },
         uBeat: { value: 0 },
         uDrop: { value: 0 },
-        uColorCore: { value: new THREE.Color("#ffd9b8") }, // peach
-        uColorEdge: { value: new THREE.Color("#3a6b73") }, // deep teal
+        // Analogous warm palette — Schloss & Palmer (2011). Both hues
+        // sit in the 25-35° amber/cream/sienna range so the pair reads
+        // harmonious rather than tense.
+        uColorCore: { value: new THREE.Color("#fff0c2") }, // soft cream
+        uColorEdge: { value: new THREE.Color("#a8654a") }, // warm sienna
         uSaturation: { value: 1.0 },
         uBrightness: { value: 1.0 },
       },
@@ -125,8 +137,10 @@ export class SereneDawnScene implements Scene {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(this.particlePositions, 3));
 
+    // Bokeh stays in the warm-cream family so the particles read as
+    // part of the same scene and don't introduce a third hue.
     this.particleMaterial = new THREE.PointsMaterial({
-      color: new THREE.Color("#fff2dc"),
+      color: new THREE.Color("#fff5dc"),
       size: 0.04,
       sizeAttenuation: true,
       transparent: true,
@@ -145,10 +159,14 @@ export class SereneDawnScene implements Scene {
     u.uBeat.value = ctx.beatPulse * 0.45;
     u.uDrop.value = ctx.dropImpulse * 0.30;
 
-    if (ctx.section) {
-      u.uSaturation.value = ctx.section.saturation;
-      u.uBrightness.value = ctx.section.brightness;
-    }
+    // V&M continuous palette modulation × section-intent multiplier.
+    // The section value is V&M baseline × section-intent already, but
+    // we still want frame-level interpolation between emotion samples
+    // so the visuals don't step at 0.5s boundaries.
+    const sectionGainSat = ctx.section?.saturation ?? 1.0;
+    const sectionGainBri = ctx.section?.brightness ?? 1.0;
+    u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
+    u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
 
     // Gentle drift so the bokeh feels alive, not stamped.
     const pos = this.particles.geometry.getAttribute("position") as THREE.BufferAttribute;
