@@ -5,7 +5,7 @@
 // output video frame with a fully-resolved FrameContext.
 
 import * as THREE from "three";
-import type { FrameContext } from "../types";
+import type { FrameContext } from "../types.js";
 
 export interface Scene {
   /// Three.js scene root the runtime adds to the WebGLRenderer.

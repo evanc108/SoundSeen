@@ -3,9 +3,9 @@
 // MVP scaffold ships with serene_dawn; the rest fall back to it
 // until they're implemented in Phase 4.
 
-import type { SceneName } from "../types";
-import type { Scene } from "./scene";
-import { SereneDawnScene } from "./serene_dawn";
+import type { SceneName } from "../types.js";
+import type { Scene } from "./scene.js";
+import { SereneDawnScene } from "./serene_dawn.js";
 
 type SceneFactory = () => Scene;
 

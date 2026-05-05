@@ -16,9 +16,9 @@ import type {
   SectionDirective,
   PhraseDirective,
   BiomeWeights,
-} from "../types";
-import { makeScene } from "../scenes/registry";
-import type { Scene } from "../scenes/scene";
+} from "../types.js";
+import { makeScene } from "../scenes/registry.js";
+import type { Scene } from "../scenes/scene.js";
 
 declare global {
   interface Window {

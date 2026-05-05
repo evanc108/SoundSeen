@@ -18,8 +18,8 @@
 // Pavel Dobryakov's WebGL fluid sim later) to push fidelity.
 
 import * as THREE from "three";
-import type { Scene } from "./scene";
-import type { FrameContext } from "../types";
+import type { Scene } from "./scene.js";
+import type { FrameContext } from "../types.js";
 
 const BG_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -175,7 +175,7 @@ export class SereneDawnScene implements Scene {
       pos.setY(i, y);
     }
     pos.needsUpdate = true;
-    this.particles.material.opacity = 0.45 + ctx.beatPulse * 0.20;
+    this.particleMaterial.opacity = 0.45 + ctx.beatPulse * 0.20;
   }
 
   dispose(): void {

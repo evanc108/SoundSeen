@@ -5,9 +5,10 @@
   "description": "Server-side cinematic visualizer renderer for SoundSeen. Reads a CompositionSpec, drives a Three.js scene in headless Chrome at deterministic 60fps, pipes frames to FFmpeg.",
   "type": "module",
   "scripts": {
-    "build": "tsc -p .",
-    "render-local": "tsc -p . && node dist/render.js",
-    "bundle-page": "esbuild src/page/runtime.ts --bundle --format=esm --outfile=dist/page/runtime.js"
+    "build": "tsc -p . && esbuild src/page/runtime.ts --bundle --format=iife --outfile=dist/page/runtime.js && mkdir -p dist/page && cp src/page/host.html dist/page/host.html",
+    "postinstall": "playwright install chromium",
+    "render": "npm run build && node dist/render.js",
+    "sample": "npm run build && node dist/sample.js"
   },
   "dependencies": {
     "playwright": "^1.49.0",

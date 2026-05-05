@@ -10,7 +10,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium, type Browser, type Page } from "playwright";
-import type { CompositionSpec } from "./types";
+import type { CompositionSpec } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,6 +47,16 @@ async function launchPage(): Promise<{ browser: Browser; page: Page }> {
     viewport: { width: WIDTH, height: HEIGHT },
   });
   const page = await context.newPage();
+
+  // Surface page-side errors and console output so silent runtime
+  // failures don't show up only as "waitForFunction timeout."
+  page.on("console", (msg) => {
+    process.stderr.write(`[page:${msg.type()}] ${msg.text()}\n`);
+  });
+  page.on("pageerror", (err) => {
+    process.stderr.write(`[page:error] ${err.message}\n${err.stack ?? ""}\n`);
+  });
+
   return { browser, page };
 }
 
@@ -74,6 +84,15 @@ async function renderVideoTrack(
     ],
     { stdio: ["pipe", "inherit", "inherit"] },
   );
+  ffmpeg.on("error", (err: NodeJS.ErrnoException) => {
+    if (err.code === "ENOENT") {
+      console.error(
+        "\n[error] ffmpeg not found on PATH. Install it:\n" +
+        "  macOS:  brew install ffmpeg\n" +
+        "  Linux:  apt install ffmpeg  (or your distro's equivalent)\n",
+      );
+    }
+  });
 
   const totalFrames = Math.floor(maxSeconds * FPS);
   for (let frame = 0; frame < totalFrames; frame++) {
