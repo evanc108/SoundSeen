@@ -4,10 +4,11 @@
 // hitting the real backend.
 //
 // Usage:
-//   npm run sample -- <audio.mp3> [out.mp4]
+//   npm run sample -- [--scene <name>] [--audio <path>] [--out <path>]
+//   npm run sample -- --scene euphoric_bloom
 //
-// If no audio file is provided, defaults to ../soundseen-backend/test.mp3
-// (the bundled test track in the backend tree).
+// Scenes: serene_dawn (default) | euphoric_bloom | intense_storm | melancholic_rain.
+// Audio defaults to ../soundseen-backend/test.mp3.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -18,7 +19,16 @@ import type { CompositionSpec } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function syntheticSpec(durationSeconds: number): CompositionSpec {
+type SceneName = CompositionSpec["section_script"][number]["scene"];
+
+const BIOME_PROFILE: Record<SceneName, { v: number; a: number; tension: number; angularity: number }> = {
+  serene_dawn:      { v: 0.75, a: 0.30, tension: 0.20, angularity: 0.30 },
+  euphoric_bloom:   { v: 0.78, a: 0.78, tension: 0.40, angularity: 0.30 },
+  intense_storm:    { v: 0.22, a: 0.82, tension: 0.85, angularity: 0.78 },
+  melancholic_rain: { v: 0.22, a: 0.22, tension: 0.30, angularity: 0.25 },
+};
+
+function syntheticSpec(durationSeconds: number, scene: SceneName): CompositionSpec {
   const beats = [];
   const phrases = [];
   const onsets = [];
@@ -53,15 +63,15 @@ function syntheticSpec(durationSeconds: number): CompositionSpec {
     });
   }
 
-  // Emotion timeline: 0.5s grid, drifts from low-A serene up to
-  // high-A euphoric over the duration, so the renderer exercises the
-  // V&M coefficients across a meaningful range.
+  // Emotion timeline: 0.5s grid, V/A held at the biome's profile so
+  // the renderer's V&M coefficients exercise the right range for the
+  // chosen scene. (Real songs sweep through; this is a smoke test.)
+  const profile = BIOME_PROFILE[scene];
+  const valence = profile.v;
+  const arousal = profile.a;
   const emotion: CompositionSpec["emotion_timeline"] = [];
   const samples = Math.ceil(durationSeconds / 0.5);
   for (let i = 0; i < samples; i++) {
-    const u = samples > 1 ? i / (samples - 1) : 0;
-    const valence = 0.7;
-    const arousal = 0.25 + u * 0.5; // 0.25 → 0.75
     const sat = 0.55 + 0.45 * arousal;
     const bri = 0.9 - 0.15 * arousal + 0.1 * valence;
     emotion.push({
@@ -74,6 +84,9 @@ function syntheticSpec(durationSeconds: number): CompositionSpec {
     });
   }
 
+  // Drop trigger at midpoint so each scene gets to show its drop response.
+  const dropT = durationSeconds / 2;
+
   return {
     spec_version: 2,
     preset: "default",
@@ -85,22 +98,22 @@ function syntheticSpec(durationSeconds: number): CompositionSpec {
       {
         start: 0,
         end: durationSeconds,
-        label: "verse",
-        energy_profile: "moderate",
-        scene: "serene_dawn",
-        biome_weights: { euphoric: 0.2, serene: 0.6, intense: 0.1, melancholic: 0.1 },
-        camera: "slow_dolly_in",
-        saturation: 0.85,
-        brightness: 0.95,
-        tension: 0.25,
-        angularity: 0.30,
-        hue_distance: 0.20,
+        label: "chorus",
+        energy_profile: "high",
+        scene,
+        biome_weights: serenfBlendBiomeWeights(valence, arousal),
+        camera: "high_orbit",
+        saturation: (0.55 + 0.45 * arousal) * 1.10, // chorus multiplier
+        brightness: (0.9 - 0.15 * arousal + 0.1 * valence) * 1.05,
+        tension: profile.tension,
+        angularity: profile.angularity,
+        hue_distance: profile.tension * 0.7 + arousal * 0.2,
       },
     ],
     beat_track: beats,
     phrase_track: phrases,
     onset_track: onsets,
-    drop_triggers: [],
+    drop_triggers: [{ t: dropT, type: "section" }],
   };
 }
 
@@ -135,13 +148,34 @@ function serenfBlendBiomeWeights(v: number, a: number): { euphoric: number; sere
   };
 }
 
+function parseArgs(argv: string[]): { scene: SceneName; audio?: string; out?: string } {
+  let scene: SceneName = "serene_dawn";
+  let audio: string | undefined;
+  let out: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--scene" && argv[i + 1]) {
+      const next = argv[i + 1] as SceneName;
+      if (next in BIOME_PROFILE) scene = next;
+      i++;
+    } else if (a === "--audio" && argv[i + 1]) {
+      audio = argv[i + 1]!;
+      i++;
+    } else if (a === "--out" && argv[i + 1]) {
+      out = argv[i + 1]!;
+      i++;
+    }
+  }
+  return { scene, audio, out };
+}
+
 async function main() {
-  const audioArg = process.argv[2];
-  const outArg = process.argv[3] ?? "sample-out.mp4";
+  const args = parseArgs(process.argv.slice(2));
   const durationSeconds = 5;
 
   const defaultAudio = path.resolve(__dirname, "..", "..", "soundseen-backend", "test.mp3");
-  const audioPath = audioArg ?? defaultAudio;
+  const audioPath = args.audio ?? defaultAudio;
+  const outArg = args.out ?? `sample-${args.scene}.mp4`;
 
   try {
     await fs.access(audioPath);
@@ -151,11 +185,11 @@ async function main() {
     process.exit(2);
   }
 
-  const spec = syntheticSpec(durationSeconds);
+  const spec = syntheticSpec(durationSeconds, args.scene);
   const tmpSpec = path.join(os.tmpdir(), `soundseen-sample-${Date.now()}.json`);
   await fs.writeFile(tmpSpec, JSON.stringify(spec, null, 2));
 
-  console.log(`rendering ${durationSeconds}s sample → ${outArg}`);
+  console.log(`rendering ${durationSeconds}s sample of ${args.scene} → ${outArg}`);
   console.log(`  audio:  ${audioPath}`);
   console.log(`  spec:   ${tmpSpec}`);
 
