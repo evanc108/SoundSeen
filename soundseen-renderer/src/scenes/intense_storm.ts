@@ -19,7 +19,8 @@
 
 import * as THREE from "three";
 import type { Scene } from "./scene.js";
-import type { FrameContext } from "../types.js";
+import type { CompositionSpec, FrameContext } from "../types.js";
+import { OnsetParticleEmitter } from "./onset_emitter.js";
 
 const BG_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -42,6 +43,10 @@ const BG_FRAGMENT = /* glsl */ `
   uniform vec3  uColorBlack;
   uniform float uSaturation;
   uniform float uBrightness;
+  uniform float uCentroid;        // Marks 1989 — bright timbre lifts blue accents
+  uniform float uZCR;             // sibilance density → grain
+  uniform float uChromaStrength;
+  uniform float uModeWarm;
 
   float hash(vec2 p) {
     p = fract(p * vec2(443.897, 441.423));
@@ -98,11 +103,24 @@ const BG_FRAGMENT = /* glsl */ `
     float pressure = fbm(uv * 5.0 + uTime * 0.5) * uTension * 0.20;
     col += vec3(pressure * 0.4, pressure * 0.1, pressure * 0.5);
 
+    // Bright timbre lifts the electric-blue contrast singleton.
+    col.b += uCentroid * 0.12 * smoothstep(0.40, 0.10, cloud);
+
+    // ZCR (sibilance / noise density) drives a grain layer — high-noise
+    // passages get visibly grittier.
+    float grain = (hash(uv * 800.0 + uTime * 60.0) - 0.5) * 0.18;
+    col += vec3(grain * uZCR);
+
     // Vignette — Intense should feel claustrophobic.
     float r = length(d) * 1.4;
     col *= smoothstep(1.5, 0.20, r);
 
-    col = desaturate(col, uSaturation);
+    float chromaSat = mix(0.85, 1.10, uChromaStrength);
+    col = desaturate(col, uSaturation * chromaSat);
+
+    col.r *= 1.0 + uModeWarm * 0.04;
+    col.b *= 1.0 - uModeWarm * 0.04;
+
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
   }
@@ -131,6 +149,7 @@ export class IntenseStormScene implements Scene {
   private boltMaterial: THREE.LineBasicMaterial;
   private boltLines: THREE.LineSegments;
   private boltBuffer: Float32Array;
+  private onsetEmitter: OnsetParticleEmitter;
   private static readonly MAX_BOLT_VERTS = 256;
   private prevDownbeat = 0;
   private prevDrop = 0;
@@ -154,6 +173,10 @@ export class IntenseStormScene implements Scene {
         uColorBlack: { value: new THREE.Color("#0a0612") }, // dark base
         uSaturation: { value: 1.0 },
         uBrightness: { value: 1.0 },
+        uCentroid: { value: 0.5 },
+        uZCR: { value: 0.3 },
+        uChromaStrength: { value: 0.0 },
+        uModeWarm: { value: 0.0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -198,9 +221,18 @@ export class IntenseStormScene implements Scene {
     });
     this.boltLines = new THREE.LineSegments(this.boltGeometry, this.boltMaterial);
     this.object3D.add(this.boltLines);
+
+    // Per-onset shards — pale electric tint, smaller pool because
+    // Intense's onsets tend to be sharp & sparse.
+    this.onsetEmitter = new OnsetParticleEmitter({
+      baseColor: new THREE.Color("#a8c8ff"),
+      maxSize: 22,
+      poolSize: 192,
+    });
+    this.object3D.add(this.onsetEmitter.object3D);
   }
 
-  render(ctx: FrameContext): void {
+  render(spec: CompositionSpec, ctx: FrameContext): void {
     const u = this.bgMaterial.uniforms;
     u.uTime.value = ctx.t;
     u.uBeat.value = ctx.beatPulse;
@@ -212,6 +244,12 @@ export class IntenseStormScene implements Scene {
     const sectionGainBri = ctx.section?.brightness ?? 1.0;
     u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
     u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
+
+    u.uCentroid.value = ctx.audio.centroid;
+    u.uZCR.value = ctx.audio.zcr;
+    u.uChromaStrength.value = ctx.audio.chromaStrength;
+    const modeStrength = ctx.section?.mode_strength ?? 0;
+    u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
 
     // Trigger a bolt on the rising edge of downbeatPulse / dropImpulse
     // (i.e., when these values just spiked above a threshold).
@@ -238,6 +276,10 @@ export class IntenseStormScene implements Scene {
       this.positions[i * 3 + 1] += (Math.cos(ctx.t * 3 + i) * 0.001) + (Math.random() - 0.5) * jitter * 0.05;
     }
     pos.needsUpdate = true;
+
+    // Per-onset shards — tinted toward red on tonal hits for the
+    // signature complementary contrast against the pale-blue base.
+    this.onsetEmitter.update(spec, ctx, new THREE.Color("#ff5050"));
   }
 
   /// Write a jagged polyline lightning bolt into the line-segment
@@ -286,5 +328,6 @@ export class IntenseStormScene implements Scene {
     this.particles.geometry.dispose();
     this.boltMaterial.dispose();
     this.boltGeometry.dispose();
+    this.onsetEmitter.dispose();
   }
 }

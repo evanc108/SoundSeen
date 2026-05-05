@@ -125,6 +125,45 @@ function phraseAt(spec: CompositionSpec, t: number): PhraseDirective | null {
   return null;
 }
 
+function audioFrameAt(spec: CompositionSpec, t: number): import("../types.js").AudioFrame {
+  const ft = spec.frames_track;
+  const fallback = {
+    centroid: 0.5,
+    harmonicRatio: 0.5,
+    chromaStrength: 0.0,
+    rolloff: 0.5,
+    zcr: 0.3,
+    spectralContrast: 0.5,
+    pitchHeight: 0,
+    pitchClass: -1,
+  };
+  if (!ft || ft.count === 0) return fallback;
+
+  const idxF = Math.max(0, Math.min(ft.count - 1, t / Math.max(1e-6, ft.interval)));
+  const i0 = Math.floor(idxF);
+  const i1 = Math.min(ft.count - 1, i0 + 1);
+  const u = idxF - i0;
+
+  const lerp = (arr: number[], a: number, b: number) =>
+    (arr[a] ?? 0) + ((arr[b] ?? arr[a] ?? 0) - (arr[a] ?? 0)) * u;
+
+  // Pitch class: don't interpolate (categorical). Use nearest.
+  const pcArr = ft.pitch_class || [];
+  const pc = (u < 0.5 ? pcArr[i0] : pcArr[i1]) ?? -1;
+  const pitchHeight = pc >= 0 ? (pc / 11) * 2 - 1 : 0;
+
+  return {
+    centroid:         lerp(ft.centroid_norm, i0, i1),
+    harmonicRatio:    lerp(ft.harmonic_ratio, i0, i1),
+    chromaStrength:   lerp(ft.chroma_strength, i0, i1),
+    rolloff:          lerp(ft.rolloff, i0, i1),
+    zcr:              lerp(ft.zcr, i0, i1),
+    spectralContrast: lerp(ft.spectral_contrast, i0, i1),
+    pitchHeight,
+    pitchClass:       pc,
+  };
+}
+
 const BEAT_HALF_LIFE = 0.150; // s
 const ONSET_HALF_LIFE = 0.080;
 const DROP_DURATION = 1.30;
@@ -176,6 +215,7 @@ function buildContext(spec: CompositionSpec, t: number): FrameContext {
     biomeWeights: biomeWeightsAt(spec, t),
     vmSaturation: vm.sat,
     vmBrightness: vm.bri,
+    audio: audioFrameAt(spec, t),
     beatPulse: pulseFromMostRecent(spec.beat_track, t, BEAT_HALF_LIFE),
     downbeatPulse: pulseFromMostRecent(downbeats, t, BEAT_HALF_LIFE),
     onsetPulse: pulseFromMostRecent(spec.onset_track, t, ONSET_HALF_LIFE),
@@ -231,7 +271,7 @@ window.__renderFrameAt = (t: number) => {
   const scene = makeSceneFor(spec, t);
   const ctx = buildContext(spec, t);
   applyCamera(scene, ctx);
-  scene.render(ctx);
+  scene.render(spec, ctx);
   renderer.render(scene.object3D, scene.camera);
 };
 

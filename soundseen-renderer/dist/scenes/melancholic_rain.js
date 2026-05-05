@@ -19,6 +19,7 @@
 // melancholic doesn't punch — even if the drop heuristic fires we
 // scale the response down by 80%.
 import * as THREE from "three";
+import { OnsetParticleEmitter } from "./onset_emitter.js";
 const BG_VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -37,6 +38,9 @@ const BG_FRAGMENT = /* glsl */ `
   uniform vec3  uColorFog;
   uniform float uSaturation;
   uniform float uBrightness;
+  uniform float uCentroid;
+  uniform float uChromaStrength;
+  uniform float uModeWarm;
 
   float hash(vec2 p) {
     p = fract(p * vec2(443.897, 441.423));
@@ -88,7 +92,19 @@ const BG_FRAGMENT = /* glsl */ `
     // Drop is *softened* for this biome — 20% strength.
     col += vec3(uDrop * 0.08);
 
-    col = desaturate(col, uSaturation);
+    // Brighter timbre nudges the indigo toward lavender — keeps the
+    // scene navigable on bright melancholy (acoustic guitar) without
+    // breaking the dim atmosphere on dark melancholy (low strings).
+    col += vec3(uCentroid * 0.06, uCentroid * 0.05, uCentroid * 0.10);
+
+    float chromaSat = mix(0.85, 1.05, uChromaStrength);
+    col = desaturate(col, uSaturation * chromaSat);
+
+    // Mode bias is slightly stronger here since melancholic ↔ minor is
+    // the most direct empirical link (Hevner 1937, Palmer 2013).
+    col.r *= 1.0 + uModeWarm * 0.06;
+    col.b *= 1.0 - uModeWarm * 0.06;
+
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
   }
@@ -101,6 +117,7 @@ export class MelancholicRainScene {
     rainSpeeds;
     rainParticles;
     rainMaterial;
+    onsetEmitter;
     static RAIN_COUNT = 800;
     constructor() {
         this.object3D = new THREE.Scene();
@@ -119,6 +136,9 @@ export class MelancholicRainScene {
                 uColorFog: { value: new THREE.Color("#354068") }, // lavender fog
                 uSaturation: { value: 1.0 },
                 uBrightness: { value: 1.0 },
+                uCentroid: { value: 0.4 },
+                uChromaStrength: { value: 0.0 },
+                uModeWarm: { value: 0.0 },
             },
             depthTest: false,
             depthWrite: false,
@@ -153,8 +173,17 @@ export class MelancholicRainScene {
         });
         this.rainParticles = new THREE.Points(geo, this.rainMaterial);
         this.object3D.add(this.rainParticles);
+        // Per-onset particles — small lavender, restrained pool. Even
+        // melancholy songs have onsets (piano, strings); they should land
+        // softly rather than not at all.
+        this.onsetEmitter = new OnsetParticleEmitter({
+            baseColor: new THREE.Color("#b4b8d8"),
+            maxSize: 14,
+            poolSize: 160,
+        });
+        this.object3D.add(this.onsetEmitter.object3D);
     }
-    render(ctx) {
+    render(spec, ctx) {
         const u = this.bgMaterial.uniforms;
         u.uTime.value = ctx.t;
         u.uBeat.value = ctx.beatPulse * 0.65; // softened — biome doesn't punch
@@ -163,6 +192,10 @@ export class MelancholicRainScene {
         const sectionGainBri = ctx.section?.brightness ?? 1.0;
         u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
         u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
+        u.uCentroid.value = ctx.audio.centroid;
+        u.uChromaStrength.value = ctx.audio.chromaStrength;
+        const modeStrength = ctx.section?.mode_strength ?? 0;
+        u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
         // Step rain downward; recycle to the top when it leaves the frame.
         const pos = this.rainParticles.geometry.getAttribute("position");
         const dt = 1 / 60;
@@ -181,11 +214,13 @@ export class MelancholicRainScene {
         this.camera.position.y = -sp * 0.4;
         this.camera.lookAt(0, this.camera.position.y, 0);
         this.camera.updateProjectionMatrix();
+        this.onsetEmitter.update(spec, ctx);
     }
     dispose() {
         this.bgMaterial.dispose();
         this.rainMaterial.dispose();
         this.rainParticles.geometry.dispose();
+        this.onsetEmitter.dispose();
     }
 }
 //# sourceMappingURL=melancholic_rain.js.map

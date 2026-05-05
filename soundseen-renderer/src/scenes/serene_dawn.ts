@@ -19,7 +19,8 @@
 
 import * as THREE from "three";
 import type { Scene } from "./scene.js";
-import type { FrameContext } from "../types.js";
+import type { CompositionSpec, FrameContext } from "../types.js";
+import { OnsetParticleEmitter } from "./onset_emitter.js";
 
 const BG_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -41,6 +42,11 @@ const BG_FRAGMENT = /* glsl */ `
   uniform vec3  uColorEdge;
   uniform float uSaturation;
   uniform float uBrightness;
+  // v3 per-frame timbre.
+  uniform float uCentroid;        // 0..1 — Marks 1989, brightness lift
+  uniform float uHarmonicRatio;   // 0..1 — softer when high (Bouba/Kiki)
+  uniform float uChromaStrength;  // 0..1 — Itoh 2017, saturation lock-in
+  uniform float uModeWarm;        // -1..+1 — minor cool / major warm
 
   // Hash without sin — cheap, no driver-specific drift.
   float hash(vec2 p) {
@@ -80,9 +86,21 @@ const BG_FRAGMENT = /* glsl */ `
 
     float lum = vignette * (0.5 + 0.5 * n) + ripple * 0.25;
     lum += uDrop * 0.20 * (1.0 - r);
+    // Marks 1989: bright timbre lifts visual luminance.
+    lum += uCentroid * 0.18;
 
     vec3 col = mix(uColorEdge, uColorCore, lum);
-    col = desaturate(col, uSaturation);
+
+    // Itoh 2017: tonal passages (high chroma_strength) lock saturation
+    // toward the core; atonal noise smears toward the edge desaturate.
+    float chromaSat = mix(0.85, 1.10, uChromaStrength);
+    col = desaturate(col, uSaturation * chromaSat);
+
+    // Mode bias: minor → slight cool tilt, major → slight warm tilt.
+    // Small effect (±3%) so it doesn't override the biome identity.
+    col.r *= 1.0 + uModeWarm * 0.03;
+    col.b *= 1.0 - uModeWarm * 0.03;
+
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
   }
@@ -96,6 +114,7 @@ export class SereneDawnScene implements Scene {
   private particles: THREE.Points;
   private particleMaterial: THREE.PointsMaterial;
   private particlePositions: Float32Array;
+  private onsetEmitter: OnsetParticleEmitter;
 
   constructor() {
     this.object3D = new THREE.Scene();
@@ -117,6 +136,10 @@ export class SereneDawnScene implements Scene {
         uColorEdge: { value: new THREE.Color("#a8654a") }, // warm sienna
         uSaturation: { value: 1.0 },
         uBrightness: { value: 1.0 },
+        uCentroid: { value: 0.5 },
+        uHarmonicRatio: { value: 0.7 },
+        uChromaStrength: { value: 0.0 },
+        uModeWarm: { value: 0.0 },
       },
       depthTest: false,
       depthWrite: false,
@@ -150,9 +173,19 @@ export class SereneDawnScene implements Scene {
     });
     this.particles = new THREE.Points(geo, this.particleMaterial);
     this.object3D.add(this.particles);
+
+    // Onset particles — soft cream tint, smaller max size for a
+    // restrained biome. Each musical onset becomes one short-lived
+    // bokeh whose ADSR envelope mirrors the source instrument.
+    this.onsetEmitter = new OnsetParticleEmitter({
+      baseColor: new THREE.Color("#fff5dc"),
+      maxSize: 18,
+      poolSize: 192,
+    });
+    this.object3D.add(this.onsetEmitter.object3D);
   }
 
-  render(ctx: FrameContext): void {
+  render(spec: CompositionSpec, ctx: FrameContext): void {
     const u = this.bgMaterial.uniforms;
     u.uTime.value = ctx.t;
     // Soften beats — this biome doesn't punch on the beat.
@@ -168,6 +201,14 @@ export class SereneDawnScene implements Scene {
     u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
     u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
 
+    // v3 — pipe per-frame timbre + section mode into the shader.
+    u.uCentroid.value = ctx.audio.centroid;
+    u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
+    u.uChromaStrength.value = ctx.audio.chromaStrength;
+    const modeStrength = ctx.section?.mode_strength ?? 0;
+    const modeWarm = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
+    u.uModeWarm.value = modeWarm;
+
     // Gentle drift so the bokeh feels alive, not stamped.
     const pos = this.particles.geometry.getAttribute("position") as THREE.BufferAttribute;
     for (let i = 0; i < pos.count; i++) {
@@ -176,11 +217,15 @@ export class SereneDawnScene implements Scene {
     }
     pos.needsUpdate = true;
     this.particleMaterial.opacity = 0.45 + ctx.beatPulse * 0.20;
+
+    // Onset emitter walks (prev, t] and spawns per-onset particles.
+    this.onsetEmitter.update(spec, ctx);
   }
 
   dispose(): void {
     this.bgMaterial.dispose();
     this.particleMaterial.dispose();
     this.particles.geometry.dispose();
+    this.onsetEmitter.dispose();
   }
 }

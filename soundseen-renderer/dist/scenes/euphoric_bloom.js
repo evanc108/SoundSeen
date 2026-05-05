@@ -16,6 +16,7 @@
 // Bouba/Kiki: euphoric music typically has high harmonic_ratio →
 // rounded particles, soft halo. Sharp shapes would feel anxious.
 import * as THREE from "three";
+import { OnsetParticleEmitter } from "./onset_emitter.js";
 const BG_VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -35,6 +36,9 @@ const BG_FRAGMENT = /* glsl */ `
   uniform vec3  uColorEdge;
   uniform float uSaturation;
   uniform float uBrightness;
+  uniform float uCentroid;
+  uniform float uChromaStrength;
+  uniform float uModeWarm;
 
   // Cheap value noise for halo modulation.
   float hash(vec2 p) {
@@ -91,10 +95,19 @@ const BG_FRAGMENT = /* glsl */ `
     // Drop: full-frame prismatic flash.
     col += vec3(uDrop * 0.50, uDrop * 0.30, uDrop * 0.45);
 
+    // Marks 1989 — bright timbre lifts the bloom core.
+    col += vec3(uCentroid * 0.20) * smoothstep(0.6, 0.0, r);
+
     // Mild edge vignette so the bloom reads as the focal point.
     col *= smoothstep(1.45, 0.30, r);
 
-    col = desaturate(col, uSaturation);
+    // Itoh 2017 — chroma locks in palette vividness on tonal passages.
+    float chromaSat = mix(0.85, 1.15, uChromaStrength);
+    col = desaturate(col, uSaturation * chromaSat);
+
+    col.r *= 1.0 + uModeWarm * 0.04;
+    col.b *= 1.0 - uModeWarm * 0.04;
+
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
   }
@@ -107,6 +120,7 @@ export class EuphoricBloomScene {
     particleMaterial;
     positions;
     velocities;
+    onsetEmitter;
     static PARTICLE_COUNT = 600;
     constructor() {
         this.object3D = new THREE.Scene();
@@ -126,6 +140,9 @@ export class EuphoricBloomScene {
                 uColorEdge: { value: new THREE.Color("#3a0e1f") }, // deep wine
                 uSaturation: { value: 1.0 },
                 uBrightness: { value: 1.0 },
+                uCentroid: { value: 0.5 },
+                uChromaStrength: { value: 0.0 },
+                uModeWarm: { value: 0.0 },
             },
             depthTest: false,
             depthWrite: false,
@@ -166,8 +183,14 @@ export class EuphoricBloomScene {
         });
         this.particles = new THREE.Points(geo, this.particleMaterial);
         this.object3D.add(this.particles);
+        this.onsetEmitter = new OnsetParticleEmitter({
+            baseColor: new THREE.Color("#ffe7a3"),
+            maxSize: 32,
+            poolSize: 256,
+        });
+        this.object3D.add(this.onsetEmitter.object3D);
     }
-    render(ctx) {
+    render(spec, ctx) {
         const u = this.bgMaterial.uniforms;
         u.uTime.value = ctx.t;
         u.uBeat.value = ctx.beatPulse;
@@ -177,6 +200,10 @@ export class EuphoricBloomScene {
         const sectionGainBri = ctx.section?.brightness ?? 1.0;
         u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
         u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
+        u.uCentroid.value = ctx.audio.centroid;
+        u.uChromaStrength.value = ctx.audio.chromaStrength;
+        const modeStrength = ctx.section?.mode_strength ?? 0;
+        u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
         // Particles drift outward, recycle to center when they leave the frame.
         // Beat pulse adds a velocity nudge so the bloom feels alive on rhythm.
         const pos = this.particles.geometry.getAttribute("position");
@@ -202,11 +229,14 @@ export class EuphoricBloomScene {
         // Particle intensity tracks beat and drop.
         this.particleMaterial.opacity = 0.55 + ctx.beatPulse * 0.30 + ctx.dropImpulse * 0.20;
         this.particleMaterial.size = 0.06 + ctx.dropImpulse * 0.05;
+        // Per-onset particles, tinted toward magenta on tonal hits.
+        this.onsetEmitter.update(spec, ctx, new THREE.Color("#ff5588"));
     }
     dispose() {
         this.bgMaterial.dispose();
         this.particleMaterial.dispose();
         this.particles.geometry.dispose();
+        this.onsetEmitter.dispose();
     }
 }
 //# sourceMappingURL=euphoric_bloom.js.map

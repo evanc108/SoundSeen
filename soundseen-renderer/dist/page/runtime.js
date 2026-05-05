@@ -19498,6 +19498,221 @@ void main() {
     }
   }
 
+  // src/scenes/onset_emitter.ts
+  var VERT = (
+    /* glsl */
+    `
+  attribute vec4 aSpawn;     // x=spawnT, y=lifespan, z=attackSlope, w=pad
+  attribute vec4 aADSR;      // x=attMs, y=decMs, z=susLvl, w=intensity
+  attribute vec3 aColor;
+  attribute float aBaseSize;
+
+  uniform float uTime;
+
+  varying float vAge01;
+  varying float vEnvelope;
+  varying float vAttackSlope;
+  varying vec3 vColor;
+  varying float vIntensity;
+
+  void main() {
+    float age = uTime - aSpawn.x;
+    float lifespan = aSpawn.y;
+    vAge01 = clamp(age / max(lifespan, 0.001), 0.0, 1.0);
+    vAttackSlope = aSpawn.z;
+    vColor = aColor;
+    vIntensity = aADSR.w;
+
+    // Reconstruct a normalized ADSR envelope from the per-particle
+    // spec values. Lifespan = attack + decay + release (release is
+    // ~150ms tail after sustain). Sustain holds for max(0, lifespan-attack-decay-release).
+    float attS = aADSR.x * 0.001;        // s
+    float decS = aADSR.y * 0.001;        // s
+    float sus  = aADSR.z;                // 0..1
+    float relS = 0.150;                  // fixed release tail
+    float susS = max(0.0, lifespan - attS - decS - relS);
+
+    float env;
+    if (age < attS) {
+      // Attack: 0 \u2192 1. Power-shape by attackSlope so steep slopes
+      // produce a snappier rise (kiki) and shallow ones a soft swell.
+      float k = mix(2.5, 0.6, clamp(aSpawn.z, 0.0, 1.0));
+      env = pow(age / max(attS, 0.001), k);
+    } else if (age < attS + decS) {
+      // Decay: 1 \u2192 sus.
+      float u = (age - attS) / max(decS, 0.001);
+      env = mix(1.0, sus, u);
+    } else if (age < attS + decS + susS) {
+      env = sus;
+    } else {
+      // Release: sus \u2192 0.
+      float u = (age - attS - decS - susS) / max(relS, 0.001);
+      env = mix(sus, 0.0, clamp(u, 0.0, 1.0));
+    }
+    if (age < 0.0 || age > lifespan) env = 0.0;
+
+    vEnvelope = env;
+
+    // Size: spawn-time base \xD7 envelope \xD7 intensity, with a small
+    // attack-slope kicker so kiki onsets briefly punch above their
+    // sustain size. Capped to avoid GPU pixel-fill blowup.
+    float kick = 1.0 + aSpawn.z * vEnvelope * 0.4;
+    float size = aBaseSize * env * kick * (0.6 + 0.7 * aADSR.w);
+    gl_PointSize = clamp(size, 0.0, 64.0);
+
+    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mvPosition;
+  }
+`
+  );
+  var FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  varying float vAge01;
+  varying float vEnvelope;
+  varying float vAttackSlope;
+  varying vec3 vColor;
+  varying float vIntensity;
+
+  void main() {
+    if (vEnvelope <= 0.001) discard;
+
+    // Distance from center of point sprite, 0 at center, ~0.7 at corner.
+    vec2 d = gl_PointCoord - vec2(0.5);
+    float r = length(d) * 2.0;
+    if (r >= 1.0) discard;
+
+    // Bouba/Kiki edge: shallow slope \u2192 soft gaussian falloff (bouba);
+    // steep slope \u2192 hard linear falloff with a sharp ring (kiki).
+    float softness = 1.0 - clamp(vAttackSlope, 0.0, 1.0);
+    float soft  = exp(-r * r * 6.0);                      // gaussian
+    float hard  = smoothstep(1.0, 0.85, r) * (1.0 - r);   // hard edge with bright core
+    float alpha = mix(hard, soft, softness);
+
+    // Slight inner glow boost, strongest right at attack peak.
+    float glow = 1.0 + vEnvelope * 0.5;
+    vec3 col = vColor * glow;
+
+    gl_FragColor = vec4(col, alpha * vEnvelope * vIntensity * 0.95);
+  }
+`
+  );
+  var OnsetParticleEmitter = class {
+    object3D;
+    material;
+    positions;
+    spawn;
+    adsr;
+    colors;
+    baseSizes;
+    slotEndTimes;
+    // when each slot's lifespan ends
+    nextSpawn = 0;
+    prevT = -1;
+    poolSize;
+    baseColor;
+    maxSize;
+    constructor(opts) {
+      this.poolSize = opts.poolSize ?? 256;
+      this.baseColor = opts.baseColor.clone();
+      this.maxSize = opts.maxSize ?? 28;
+      const N = this.poolSize;
+      this.positions = new Float32Array(N * 3);
+      this.spawn = new Float32Array(N * 4);
+      this.adsr = new Float32Array(N * 4);
+      this.colors = new Float32Array(N * 3);
+      this.baseSizes = new Float32Array(N);
+      this.slotEndTimes = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        this.slotEndTimes[i] = -1;
+        this.spawn[i * 4 + 0] = -1e3;
+        this.spawn[i * 4 + 1] = 1e-3;
+        this.colors[i * 3 + 0] = this.baseColor.r;
+        this.colors[i * 3 + 1] = this.baseColor.g;
+        this.colors[i * 3 + 2] = this.baseColor.b;
+      }
+      const geo = new BufferGeometry();
+      geo.setAttribute("position", new BufferAttribute(this.positions, 3));
+      geo.setAttribute("aSpawn", new BufferAttribute(this.spawn, 4));
+      geo.setAttribute("aADSR", new BufferAttribute(this.adsr, 4));
+      geo.setAttribute("aColor", new BufferAttribute(this.colors, 3));
+      geo.setAttribute("aBaseSize", new BufferAttribute(this.baseSizes, 1));
+      this.material = new ShaderMaterial({
+        vertexShader: VERT,
+        fragmentShader: FRAG,
+        uniforms: { uTime: { value: 0 } },
+        transparent: true,
+        blending: AdditiveBlending,
+        depthWrite: false
+      });
+      this.object3D = new Points(geo, this.material);
+      this.object3D.frustumCulled = false;
+    }
+    /// Drive the emitter forward. Spawns particles for any onsets in the
+    /// (prev, current] window, advances the shader's clock uniform.
+    /// Call this once per render() in the host scene.
+    update(spec2, ctx, accentTint) {
+      this.material.uniforms.uTime.value = ctx.t;
+      const lo = this.prevT;
+      const hi = ctx.t;
+      this.prevT = ctx.t;
+      if (lo < 0) return;
+      for (const onset of spec2.onset_track) {
+        if (onset.t <= lo) continue;
+        if (onset.t > hi) break;
+        this.spawnFor(onset, ctx, accentTint);
+      }
+    }
+    spawnFor(onset, ctx, accentTint) {
+      const slot = this.nextSpawn;
+      this.nextSpawn = (this.nextSpawn + 1) % this.poolSize;
+      const attS = onset.attack_time_ms * 1e-3;
+      const decS = onset.decay_time_ms * 1e-3;
+      const susS = 0.05 + onset.sustain_level * 0.2;
+      const relS = 0.15;
+      const lifespan = attS + decS + susS + relS;
+      this.slotEndTimes[slot] = onset.t + lifespan;
+      const pitchHeight = onset.pitch_class >= 0 ? onset.pitch_class / 11 * 2 - 1 : 0;
+      const sizeFromPitch = onset.pitch_class >= 0 ? 1.4 - 0.7 * (onset.pitch_class / 11) : 1;
+      const hash = onset.t * 13.7 % 1;
+      const x = (hash - 0.5) * 4.5;
+      const y = pitchHeight * 1.6;
+      const z = -0.5 - hash * 1.5;
+      const ix3 = slot * 3;
+      const ix4 = slot * 4;
+      this.positions[ix3 + 0] = x;
+      this.positions[ix3 + 1] = y;
+      this.positions[ix3 + 2] = z;
+      this.spawn[ix4 + 0] = onset.t;
+      this.spawn[ix4 + 1] = lifespan;
+      this.spawn[ix4 + 2] = onset.attack_slope;
+      this.spawn[ix4 + 3] = 0;
+      this.adsr[ix4 + 0] = onset.attack_time_ms;
+      this.adsr[ix4 + 1] = onset.decay_time_ms;
+      this.adsr[ix4 + 2] = onset.sustain_level;
+      this.adsr[ix4 + 3] = onset.intensity;
+      const tint = accentTint ?? this.baseColor;
+      const blend = onset.pitch_class >= 0 ? 0.35 : 0;
+      this.colors[ix3 + 0] = this.baseColor.r * (1 - blend) + tint.r * blend;
+      this.colors[ix3 + 1] = this.baseColor.g * (1 - blend) + tint.g * blend;
+      this.colors[ix3 + 2] = this.baseColor.b * (1 - blend) + tint.b * blend;
+      const sectionAng = ctx.section?.angularity ?? 0.5;
+      const angScale = 1 - sectionAng * 0.25;
+      this.baseSizes[slot] = this.maxSize * sizeFromPitch * angScale;
+      const geo = this.object3D.geometry;
+      geo.getAttribute("position").needsUpdate = true;
+      geo.getAttribute("aSpawn").needsUpdate = true;
+      geo.getAttribute("aADSR").needsUpdate = true;
+      geo.getAttribute("aColor").needsUpdate = true;
+      geo.getAttribute("aBaseSize").needsUpdate = true;
+    }
+    dispose() {
+      this.material.dispose();
+      this.object3D.geometry.dispose();
+    }
+  };
+
   // src/scenes/serene_dawn.ts
   var BG_VERTEX = (
     /* glsl */
@@ -19521,6 +19736,11 @@ void main() {
   uniform vec3  uColorEdge;
   uniform float uSaturation;
   uniform float uBrightness;
+  // v3 per-frame timbre.
+  uniform float uCentroid;        // 0..1 \u2014 Marks 1989, brightness lift
+  uniform float uHarmonicRatio;   // 0..1 \u2014 softer when high (Bouba/Kiki)
+  uniform float uChromaStrength;  // 0..1 \u2014 Itoh 2017, saturation lock-in
+  uniform float uModeWarm;        // -1..+1 \u2014 minor cool / major warm
 
   // Hash without sin \u2014 cheap, no driver-specific drift.
   float hash(vec2 p) {
@@ -19560,9 +19780,21 @@ void main() {
 
     float lum = vignette * (0.5 + 0.5 * n) + ripple * 0.25;
     lum += uDrop * 0.20 * (1.0 - r);
+    // Marks 1989: bright timbre lifts visual luminance.
+    lum += uCentroid * 0.18;
 
     vec3 col = mix(uColorEdge, uColorCore, lum);
-    col = desaturate(col, uSaturation);
+
+    // Itoh 2017: tonal passages (high chroma_strength) lock saturation
+    // toward the core; atonal noise smears toward the edge desaturate.
+    float chromaSat = mix(0.85, 1.10, uChromaStrength);
+    col = desaturate(col, uSaturation * chromaSat);
+
+    // Mode bias: minor \u2192 slight cool tilt, major \u2192 slight warm tilt.
+    // Small effect (\xB13%) so it doesn't override the biome identity.
+    col.r *= 1.0 + uModeWarm * 0.03;
+    col.b *= 1.0 - uModeWarm * 0.03;
+
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
   }
@@ -19575,6 +19807,7 @@ void main() {
     particles;
     particleMaterial;
     particlePositions;
+    onsetEmitter;
     constructor() {
       this.object3D = new Scene();
       this.camera = new PerspectiveCamera(50, 16 / 9, 0.1, 100);
@@ -19594,7 +19827,11 @@ void main() {
           uColorEdge: { value: new Color("#a8654a") },
           // warm sienna
           uSaturation: { value: 1 },
-          uBrightness: { value: 1 }
+          uBrightness: { value: 1 },
+          uCentroid: { value: 0.5 },
+          uHarmonicRatio: { value: 0.7 },
+          uChromaStrength: { value: 0 },
+          uModeWarm: { value: 0 }
         },
         depthTest: false,
         depthWrite: false
@@ -19623,8 +19860,14 @@ void main() {
       });
       this.particles = new Points(geo, this.particleMaterial);
       this.object3D.add(this.particles);
+      this.onsetEmitter = new OnsetParticleEmitter({
+        baseColor: new Color("#fff5dc"),
+        maxSize: 18,
+        poolSize: 192
+      });
+      this.object3D.add(this.onsetEmitter.object3D);
     }
-    render(ctx) {
+    render(spec2, ctx) {
       const u = this.bgMaterial.uniforms;
       u.uTime.value = ctx.t;
       u.uBeat.value = ctx.beatPulse * 0.45;
@@ -19633,6 +19876,12 @@ void main() {
       const sectionGainBri = ctx.section?.brightness ?? 1;
       u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
       u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
+      u.uCentroid.value = ctx.audio.centroid;
+      u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
+      u.uChromaStrength.value = ctx.audio.chromaStrength;
+      const modeStrength = ctx.section?.mode_strength ?? 0;
+      const modeWarm = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
+      u.uModeWarm.value = modeWarm;
       const pos = this.particles.geometry.getAttribute("position");
       for (let i = 0; i < pos.count; i++) {
         const y = this.particlePositions[i * 3 + 1] + Math.sin(ctx.t * 0.18 + i) * 15e-4;
@@ -19640,11 +19889,13 @@ void main() {
       }
       pos.needsUpdate = true;
       this.particleMaterial.opacity = 0.45 + ctx.beatPulse * 0.2;
+      this.onsetEmitter.update(spec2, ctx);
     }
     dispose() {
       this.bgMaterial.dispose();
       this.particleMaterial.dispose();
       this.particles.geometry.dispose();
+      this.onsetEmitter.dispose();
     }
   };
 
@@ -19673,6 +19924,9 @@ void main() {
   uniform vec3  uColorEdge;
   uniform float uSaturation;
   uniform float uBrightness;
+  uniform float uCentroid;
+  uniform float uChromaStrength;
+  uniform float uModeWarm;
 
   // Cheap value noise for halo modulation.
   float hash(vec2 p) {
@@ -19729,10 +19983,19 @@ void main() {
     // Drop: full-frame prismatic flash.
     col += vec3(uDrop * 0.50, uDrop * 0.30, uDrop * 0.45);
 
+    // Marks 1989 \u2014 bright timbre lifts the bloom core.
+    col += vec3(uCentroid * 0.20) * smoothstep(0.6, 0.0, r);
+
     // Mild edge vignette so the bloom reads as the focal point.
     col *= smoothstep(1.45, 0.30, r);
 
-    col = desaturate(col, uSaturation);
+    // Itoh 2017 \u2014 chroma locks in palette vividness on tonal passages.
+    float chromaSat = mix(0.85, 1.15, uChromaStrength);
+    col = desaturate(col, uSaturation * chromaSat);
+
+    col.r *= 1.0 + uModeWarm * 0.04;
+    col.b *= 1.0 - uModeWarm * 0.04;
+
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
   }
@@ -19746,6 +20009,7 @@ void main() {
     particleMaterial;
     positions;
     velocities;
+    onsetEmitter;
     static PARTICLE_COUNT = 600;
     constructor() {
       this.object3D = new Scene();
@@ -19767,7 +20031,10 @@ void main() {
           uColorEdge: { value: new Color("#3a0e1f") },
           // deep wine
           uSaturation: { value: 1 },
-          uBrightness: { value: 1 }
+          uBrightness: { value: 1 },
+          uCentroid: { value: 0.5 },
+          uChromaStrength: { value: 0 },
+          uModeWarm: { value: 0 }
         },
         depthTest: false,
         depthWrite: false
@@ -19803,8 +20070,14 @@ void main() {
       });
       this.particles = new Points(geo, this.particleMaterial);
       this.object3D.add(this.particles);
+      this.onsetEmitter = new OnsetParticleEmitter({
+        baseColor: new Color("#ffe7a3"),
+        maxSize: 32,
+        poolSize: 256
+      });
+      this.object3D.add(this.onsetEmitter.object3D);
     }
-    render(ctx) {
+    render(spec2, ctx) {
       const u = this.bgMaterial.uniforms;
       u.uTime.value = ctx.t;
       u.uBeat.value = ctx.beatPulse;
@@ -19814,6 +20087,10 @@ void main() {
       const sectionGainBri = ctx.section?.brightness ?? 1;
       u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
       u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
+      u.uCentroid.value = ctx.audio.centroid;
+      u.uChromaStrength.value = ctx.audio.chromaStrength;
+      const modeStrength = ctx.section?.mode_strength ?? 0;
+      u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
       const pos = this.particles.geometry.getAttribute("position");
       const dt = 1 / 60;
       const beatBoost = 1 + ctx.beatPulse * 1.5;
@@ -19835,11 +20112,13 @@ void main() {
       pos.needsUpdate = true;
       this.particleMaterial.opacity = 0.55 + ctx.beatPulse * 0.3 + ctx.dropImpulse * 0.2;
       this.particleMaterial.size = 0.06 + ctx.dropImpulse * 0.05;
+      this.onsetEmitter.update(spec2, ctx, new Color("#ff5588"));
     }
     dispose() {
       this.bgMaterial.dispose();
       this.particleMaterial.dispose();
       this.particles.geometry.dispose();
+      this.onsetEmitter.dispose();
     }
   };
 
@@ -19869,6 +20148,10 @@ void main() {
   uniform vec3  uColorBlack;
   uniform float uSaturation;
   uniform float uBrightness;
+  uniform float uCentroid;        // Marks 1989 \u2014 bright timbre lifts blue accents
+  uniform float uZCR;             // sibilance density \u2192 grain
+  uniform float uChromaStrength;
+  uniform float uModeWarm;
 
   float hash(vec2 p) {
     p = fract(p * vec2(443.897, 441.423));
@@ -19925,11 +20208,24 @@ void main() {
     float pressure = fbm(uv * 5.0 + uTime * 0.5) * uTension * 0.20;
     col += vec3(pressure * 0.4, pressure * 0.1, pressure * 0.5);
 
+    // Bright timbre lifts the electric-blue contrast singleton.
+    col.b += uCentroid * 0.12 * smoothstep(0.40, 0.10, cloud);
+
+    // ZCR (sibilance / noise density) drives a grain layer \u2014 high-noise
+    // passages get visibly grittier.
+    float grain = (hash(uv * 800.0 + uTime * 60.0) - 0.5) * 0.18;
+    col += vec3(grain * uZCR);
+
     // Vignette \u2014 Intense should feel claustrophobic.
     float r = length(d) * 1.4;
     col *= smoothstep(1.5, 0.20, r);
 
-    col = desaturate(col, uSaturation);
+    float chromaSat = mix(0.85, 1.10, uChromaStrength);
+    col = desaturate(col, uSaturation * chromaSat);
+
+    col.r *= 1.0 + uModeWarm * 0.04;
+    col.b *= 1.0 - uModeWarm * 0.04;
+
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
   }
@@ -19948,6 +20244,7 @@ void main() {
     boltMaterial;
     boltLines;
     boltBuffer;
+    onsetEmitter;
     static MAX_BOLT_VERTS = 256;
     prevDownbeat = 0;
     prevDrop = 0;
@@ -19971,7 +20268,11 @@ void main() {
           uColorBlack: { value: new Color("#0a0612") },
           // dark base
           uSaturation: { value: 1 },
-          uBrightness: { value: 1 }
+          uBrightness: { value: 1 },
+          uCentroid: { value: 0.5 },
+          uZCR: { value: 0.3 },
+          uChromaStrength: { value: 0 },
+          uModeWarm: { value: 0 }
         },
         depthTest: false,
         depthWrite: false
@@ -20012,8 +20313,14 @@ void main() {
       });
       this.boltLines = new LineSegments(this.boltGeometry, this.boltMaterial);
       this.object3D.add(this.boltLines);
+      this.onsetEmitter = new OnsetParticleEmitter({
+        baseColor: new Color("#a8c8ff"),
+        maxSize: 22,
+        poolSize: 192
+      });
+      this.object3D.add(this.onsetEmitter.object3D);
     }
-    render(ctx) {
+    render(spec2, ctx) {
       const u = this.bgMaterial.uniforms;
       u.uTime.value = ctx.t;
       u.uBeat.value = ctx.beatPulse;
@@ -20024,6 +20331,11 @@ void main() {
       const sectionGainBri = ctx.section?.brightness ?? 1;
       u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
       u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
+      u.uCentroid.value = ctx.audio.centroid;
+      u.uZCR.value = ctx.audio.zcr;
+      u.uChromaStrength.value = ctx.audio.chromaStrength;
+      const modeStrength = ctx.section?.mode_strength ?? 0;
+      u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
       const downbeatFiring = ctx.downbeatPulse > 0.85 && this.prevDownbeat <= 0.85;
       const dropFiring = ctx.dropImpulse > 0.5 && this.prevDrop <= 0.5;
       this.prevDownbeat = ctx.downbeatPulse;
@@ -20042,6 +20354,7 @@ void main() {
         this.positions[i * 3 + 1] += Math.cos(ctx.t * 3 + i) * 1e-3 + (Math.random() - 0.5) * jitter * 0.05;
       }
       pos.needsUpdate = true;
+      this.onsetEmitter.update(spec2, ctx, new Color("#ff5050"));
     }
     /// Write a jagged polyline lightning bolt into the line-segment
     /// buffer. Returns the number of vertices written (must be even).
@@ -20082,6 +20395,7 @@ void main() {
       this.particles.geometry.dispose();
       this.boltMaterial.dispose();
       this.boltGeometry.dispose();
+      this.onsetEmitter.dispose();
     }
   };
 
@@ -20109,6 +20423,9 @@ void main() {
   uniform vec3  uColorFog;
   uniform float uSaturation;
   uniform float uBrightness;
+  uniform float uCentroid;
+  uniform float uChromaStrength;
+  uniform float uModeWarm;
 
   float hash(vec2 p) {
     p = fract(p * vec2(443.897, 441.423));
@@ -20160,7 +20477,19 @@ void main() {
     // Drop is *softened* for this biome \u2014 20% strength.
     col += vec3(uDrop * 0.08);
 
-    col = desaturate(col, uSaturation);
+    // Brighter timbre nudges the indigo toward lavender \u2014 keeps the
+    // scene navigable on bright melancholy (acoustic guitar) without
+    // breaking the dim atmosphere on dark melancholy (low strings).
+    col += vec3(uCentroid * 0.06, uCentroid * 0.05, uCentroid * 0.10);
+
+    float chromaSat = mix(0.85, 1.05, uChromaStrength);
+    col = desaturate(col, uSaturation * chromaSat);
+
+    // Mode bias is slightly stronger here since melancholic \u2194 minor is
+    // the most direct empirical link (Hevner 1937, Palmer 2013).
+    col.r *= 1.0 + uModeWarm * 0.06;
+    col.b *= 1.0 - uModeWarm * 0.06;
+
     col *= uBrightness;
     gl_FragColor = vec4(col, 1.0);
   }
@@ -20174,6 +20503,7 @@ void main() {
     rainSpeeds;
     rainParticles;
     rainMaterial;
+    onsetEmitter;
     static RAIN_COUNT = 800;
     constructor() {
       this.object3D = new Scene();
@@ -20194,7 +20524,10 @@ void main() {
           uColorFog: { value: new Color("#354068") },
           // lavender fog
           uSaturation: { value: 1 },
-          uBrightness: { value: 1 }
+          uBrightness: { value: 1 },
+          uCentroid: { value: 0.4 },
+          uChromaStrength: { value: 0 },
+          uModeWarm: { value: 0 }
         },
         depthTest: false,
         depthWrite: false
@@ -20227,8 +20560,14 @@ void main() {
       });
       this.rainParticles = new Points(geo, this.rainMaterial);
       this.object3D.add(this.rainParticles);
+      this.onsetEmitter = new OnsetParticleEmitter({
+        baseColor: new Color("#b4b8d8"),
+        maxSize: 14,
+        poolSize: 160
+      });
+      this.object3D.add(this.onsetEmitter.object3D);
     }
-    render(ctx) {
+    render(spec2, ctx) {
       const u = this.bgMaterial.uniforms;
       u.uTime.value = ctx.t;
       u.uBeat.value = ctx.beatPulse * 0.65;
@@ -20237,6 +20576,10 @@ void main() {
       const sectionGainBri = ctx.section?.brightness ?? 1;
       u.uSaturation.value = ctx.vmSaturation * (sectionGainSat / Math.max(0.5, ctx.vmSaturation));
       u.uBrightness.value = ctx.vmBrightness * (sectionGainBri / Math.max(0.5, ctx.vmBrightness));
+      u.uCentroid.value = ctx.audio.centroid;
+      u.uChromaStrength.value = ctx.audio.chromaStrength;
+      const modeStrength = ctx.section?.mode_strength ?? 0;
+      u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
       const pos = this.rainParticles.geometry.getAttribute("position");
       const dt = 1 / 60;
       for (let i = 0; i < _MelancholicRainScene.RAIN_COUNT; i++) {
@@ -20252,11 +20595,13 @@ void main() {
       this.camera.position.y = -sp * 0.4;
       this.camera.lookAt(0, this.camera.position.y, 0);
       this.camera.updateProjectionMatrix();
+      this.onsetEmitter.update(spec2, ctx);
     }
     dispose() {
       this.bgMaterial.dispose();
       this.rainMaterial.dispose();
       this.rainParticles.geometry.dispose();
+      this.onsetEmitter.dispose();
     }
   };
 
@@ -20359,6 +20704,38 @@ void main() {
     }
     return null;
   }
+  function audioFrameAt(spec2, t) {
+    const ft = spec2.frames_track;
+    const fallback = {
+      centroid: 0.5,
+      harmonicRatio: 0.5,
+      chromaStrength: 0,
+      rolloff: 0.5,
+      zcr: 0.3,
+      spectralContrast: 0.5,
+      pitchHeight: 0,
+      pitchClass: -1
+    };
+    if (!ft || ft.count === 0) return fallback;
+    const idxF = Math.max(0, Math.min(ft.count - 1, t / Math.max(1e-6, ft.interval)));
+    const i0 = Math.floor(idxF);
+    const i1 = Math.min(ft.count - 1, i0 + 1);
+    const u = idxF - i0;
+    const lerp2 = (arr, a, b) => (arr[a] ?? 0) + ((arr[b] ?? arr[a] ?? 0) - (arr[a] ?? 0)) * u;
+    const pcArr = ft.pitch_class || [];
+    const pc = (u < 0.5 ? pcArr[i0] : pcArr[i1]) ?? -1;
+    const pitchHeight = pc >= 0 ? pc / 11 * 2 - 1 : 0;
+    return {
+      centroid: lerp2(ft.centroid_norm, i0, i1),
+      harmonicRatio: lerp2(ft.harmonic_ratio, i0, i1),
+      chromaStrength: lerp2(ft.chroma_strength, i0, i1),
+      rolloff: lerp2(ft.rolloff, i0, i1),
+      zcr: lerp2(ft.zcr, i0, i1),
+      spectralContrast: lerp2(ft.spectral_contrast, i0, i1),
+      pitchHeight,
+      pitchClass: pc
+    };
+  }
   var BEAT_HALF_LIFE = 0.15;
   var ONSET_HALF_LIFE = 0.08;
   var DROP_DURATION = 1.3;
@@ -20401,6 +20778,7 @@ void main() {
       biomeWeights: biomeWeightsAt(spec2, t),
       vmSaturation: vm.sat,
       vmBrightness: vm.bri,
+      audio: audioFrameAt(spec2, t),
       beatPulse: pulseFromMostRecent(spec2.beat_track, t, BEAT_HALF_LIFE),
       downbeatPulse: pulseFromMostRecent(downbeats, t, BEAT_HALF_LIFE),
       onsetPulse: pulseFromMostRecent(spec2.onset_track, t, ONSET_HALF_LIFE),
@@ -20452,7 +20830,7 @@ void main() {
     const scene = makeSceneFor(spec, t);
     const ctx = buildContext(spec, t);
     applyCamera(scene, ctx);
-    scene.render(ctx);
+    scene.render(spec, ctx);
     renderer.render(scene.object3D, scene.camera);
   };
   window.__ready = true;

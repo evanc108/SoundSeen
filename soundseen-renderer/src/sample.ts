@@ -43,12 +43,21 @@ function syntheticSpec(durationSeconds: number, scene: SceneName): CompositionSp
       sharpness: 0.55,
       bass_intensity: downbeat ? 0.5 : 0.25,
     });
+    // Alternate two synthetic instruments: a snare (sharp) and a piano
+    // (soft) so the emitter's ADSR vocabulary is visibly exercised.
+    const isSnare = i % 2 === 0;
     onsets.push({
       t: t + 0.05,
-      intensity: 0.3,
-      sharpness: 0.6,
-      attack_strength: 0.4,
-      attack_slope: 0.7,
+      intensity: isSnare ? 0.55 : 0.40,
+      sharpness: isSnare ? 0.85 : 0.45,
+      attack_strength: isSnare ? 0.7 : 0.4,
+      attack_slope: isSnare ? 0.90 : 0.30,
+      attack_time_ms: isSnare ? 5 : 35,
+      decay_time_ms:  isSnare ? 60 : 220,
+      sustain_level:  isSnare ? 0.10 : 0.55,
+      // Synthetic pitch: piano onsets cycle through pitch classes,
+      // snare hits stay atonal.
+      pitch_class: isSnare ? -1 : (i * 5) % 12,
     });
   }
   const downbeats = beats.filter((b) => b.downbeat);
@@ -88,7 +97,7 @@ function syntheticSpec(durationSeconds: number, scene: SceneName): CompositionSp
   const dropT = durationSeconds / 2;
 
   return {
-    spec_version: 2,
+    spec_version: 3,
     preset: "default",
     song_id: "sample-synthetic",
     duration_seconds: durationSeconds,
@@ -108,12 +117,36 @@ function syntheticSpec(durationSeconds: number, scene: SceneName): CompositionSp
         tension: profile.tension,
         angularity: profile.angularity,
         hue_distance: profile.tension * 0.7 + arousal * 0.2,
+        // Synthetic mode: euphoric/serene → major, intense/melancholic → minor.
+        mode: valence > 0.5 ? "major" : "minor",
+        mode_strength: 0.6,
       },
     ],
     beat_track: beats,
     phrase_track: phrases,
     onset_track: onsets,
     drop_triggers: [{ t: dropT, type: "section" }],
+    // Synthetic frames_track: drift centroid up over time, hold harmonic
+    // ratio at the profile's angularity-derived value, etc. Just enough
+    // to exercise the renderer's per-frame interpolation.
+    frames_track: {
+      interval: 0.10,
+      count: Math.ceil(durationSeconds / 0.10),
+      centroid_norm:     Array.from({ length: Math.ceil(durationSeconds / 0.10) },
+                                    (_, i) => 0.3 + (i / Math.max(1, durationSeconds * 10 - 1)) * 0.4),
+      harmonic_ratio:    Array.from({ length: Math.ceil(durationSeconds / 0.10) },
+                                    () => 1 - profile.angularity),
+      chroma_strength:   Array.from({ length: Math.ceil(durationSeconds / 0.10) },
+                                    () => valence > 0.5 ? 0.65 : 0.35),
+      rolloff:           Array.from({ length: Math.ceil(durationSeconds / 0.10) },
+                                    () => 0.5),
+      zcr:               Array.from({ length: Math.ceil(durationSeconds / 0.10) },
+                                    () => profile.angularity * 0.6),
+      spectral_contrast: Array.from({ length: Math.ceil(durationSeconds / 0.10) },
+                                    () => 0.5),
+      pitch_class:       Array.from({ length: Math.ceil(durationSeconds / 0.10) },
+                                    (_, i) => valence > 0.5 ? (i * 7) % 12 : -1),
+    },
   };
 }
 
