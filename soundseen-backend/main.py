@@ -328,3 +328,197 @@ async def get_composition_version():
     """Cheap probe so the renderer can detect schema bumps without
     fetching a full spec."""
     return {"spec_version": SPEC_VERSION}
+
+
+# ---------------------------------------------------------------------------
+# Render dispatch — backend → Modal (soundseen-renderer)
+
+import json as _json
+try:
+    import modal as _modal  # optional dependency: backend can run without
+                            # the renderer wired up; /render returns
+                            # status="unavailable" in that case.
+except ImportError:
+    _modal = None  # type: ignore[assignment]
+
+_MODAL_APP_NAME = "soundseen-renderer"
+_MODAL_FUNCTION_NAME = "render_song"
+
+
+class RenderJobStatus(BaseModel):
+    job_id: str
+    song_id: str
+    status: str          # queued | rendering | complete | failed | unavailable
+    progress: float = 0.0
+    video_url: str | None = None
+    error: str | None = None
+
+
+# Maps modal call id → song_id so /render/:job_id can find the right
+# song to upload the rendered MP4 against. In-memory; production should
+# back this with Postgres so jobs survive container restarts.
+_render_jobs: dict[str, dict] = {}
+
+
+def _modal_render_function():
+    """Resolve the deployed Modal function. Returns None if Modal isn't
+    installed or the function hasn't been deployed yet."""
+    if _modal is None:
+        return None
+    try:
+        return _modal.Function.from_name(_MODAL_APP_NAME, _MODAL_FUNCTION_NAME)
+    except Exception:
+        logger.exception("Could not resolve Modal function %s.%s",
+                         _MODAL_APP_NAME, _MODAL_FUNCTION_NAME)
+        return None
+
+
+@app.post("/render", response_model=RenderJobStatus)
+async def start_render(song_id: str, preset: str = "default"):
+    """Kick off an MP4 render. Returns a job_id immediately; caller
+    polls GET /render/:job_id for status.
+
+    Cache hit fast-path: if a render already exists for (song, preset,
+    spec_version) tuple, returns status=complete with the video URL
+    without spawning a new Modal job."""
+    try:
+        analysis = await supabase_client.fetch_song(song_id)
+    except Exception:
+        logger.exception("Failed to fetch song %s", song_id)
+        raise HTTPException(status_code=500, detail="Database error")
+
+    if analysis is None:
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    payload = analysis.model_dump() if hasattr(analysis, "model_dump") else dict(analysis)
+    spec = build_composition_spec(payload, preset=preset)
+
+    # Cache hit fast-path. Spec_version invalidates when the layout
+    # bumps, so a v3-rendered MP4 is correctly skipped after a v4 bump.
+    cached = await supabase_client.get_video_url(song_id, SPEC_VERSION)
+    if cached:
+        job_id = f"cached-{song_id}-v{SPEC_VERSION}"
+        job = RenderJobStatus(
+            job_id=job_id, song_id=song_id, status="complete",
+            progress=1.0, video_url=cached,
+        )
+        _render_jobs[job_id] = {"song_id": song_id, "status": job.status, "video_url": cached}
+        return job
+
+    fn = _modal_render_function()
+    if fn is None:
+        return RenderJobStatus(
+            job_id="unavailable",
+            song_id=song_id,
+            status="unavailable",
+            error="Renderer not deployed (modal package missing or app not found)",
+        )
+
+    # Pull the audio bytes Modal will use to mux the final MP4.
+    storage_path = payload.get("storage_path")
+    if not storage_path:
+        raise HTTPException(status_code=500, detail="Song has no storage_path")
+    try:
+        audio_bytes = await supabase_client.download_audio(storage_path)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to fetch source audio")
+
+    audio_ext = "." + storage_path.rsplit(".", 1)[-1].lower() if "." in storage_path else ".mp3"
+
+    try:
+        call = fn.spawn(
+            song_id=song_id,
+            spec_json=_json.dumps(spec),
+            audio_bytes=audio_bytes,
+            audio_extension=audio_ext,
+        )
+    except Exception as e:
+        logger.exception("Failed to spawn Modal render for %s", song_id)
+        return RenderJobStatus(
+            job_id="failed-spawn",
+            song_id=song_id,
+            status="failed",
+            error=f"Modal spawn failed: {e}",
+        )
+
+    job_id = call.object_id
+    _render_jobs[job_id] = {"song_id": song_id, "status": "queued"}
+    logger.info("Spawned Modal render %s for song %s", job_id, song_id)
+    return RenderJobStatus(job_id=job_id, song_id=song_id, status="queued")
+
+
+@app.get("/render/{job_id}", response_model=RenderJobStatus)
+async def get_render_status(job_id: str):
+    """Poll a render job. Reconstructs the Modal FunctionCall by id,
+    probes for completion, and on success uploads the MP4 to Supabase
+    and returns the public URL."""
+    state = _render_jobs.get(job_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Render job not found")
+
+    # Cached hit — already returned a URL on /render. Just echo state.
+    if state.get("status") == "complete" and state.get("video_url"):
+        return RenderJobStatus(
+            job_id=job_id, song_id=state["song_id"], status="complete",
+            progress=1.0, video_url=state["video_url"],
+        )
+
+    if _modal is None:
+        return RenderJobStatus(
+            job_id=job_id, song_id=state["song_id"], status="unavailable",
+            error="Modal not installed on backend",
+        )
+
+    try:
+        call = _modal.FunctionCall.from_id(job_id)
+    except Exception as e:
+        return RenderJobStatus(
+            job_id=job_id, song_id=state["song_id"], status="failed",
+            error=f"Could not reconstitute Modal call: {e}",
+        )
+
+    # Probe with a tiny timeout — if the function is still running,
+    # this raises TimeoutError; if complete, it returns the bytes.
+    try:
+        result = call.get(timeout=0)
+    except Exception as e:
+        # Modal's actual exception class for "not done yet" varies by
+        # version (TimeoutError, FunctionTimeoutError). Treat any
+        # timeout-like exception as "still rendering".
+        msg = str(e).lower()
+        if "timeout" in msg or "not finished" in msg or "still running" in msg:
+            return RenderJobStatus(
+                job_id=job_id, song_id=state["song_id"], status="rendering",
+                progress=state.get("progress", 0.5),
+            )
+        # Anything else is a real failure.
+        logger.exception("Modal render %s failed", job_id)
+        state["status"] = "failed"
+        return RenderJobStatus(
+            job_id=job_id, song_id=state["song_id"], status="failed",
+            error=str(e),
+        )
+
+    # Result is bytes (the MP4). Upload to Supabase and return URL.
+    if not isinstance(result, (bytes, bytearray)):
+        return RenderJobStatus(
+            job_id=job_id, song_id=state["song_id"], status="failed",
+            error=f"Renderer returned non-bytes ({type(result).__name__})",
+        )
+
+    try:
+        url = await supabase_client.upload_video(state["song_id"], SPEC_VERSION, bytes(result))
+    except Exception as e:
+        logger.exception("Failed to upload rendered video for %s", state["song_id"])
+        return RenderJobStatus(
+            job_id=job_id, song_id=state["song_id"], status="failed",
+            error=f"Upload failed: {e}",
+        )
+
+    state["status"] = "complete"
+    state["video_url"] = url
+    logger.info("Render %s complete: %s", job_id, url)
+    return RenderJobStatus(
+        job_id=job_id, song_id=state["song_id"], status="complete",
+        progress=1.0, video_url=url,
+    )

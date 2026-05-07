@@ -33,11 +33,23 @@ image = (
         add_python="3.11",
     )
     .apt_install("ffmpeg")
-    .copy_local_dir("./", "/app", ignore=["node_modules", "dist", ".git"])
+    # Modal 1.x: copy_local_dir was renamed to add_local_dir.
+    # copy=True bakes the files into the image at build time so the
+    # subsequent run_commands can see them; without copy=True they'd
+    # be mounted only at function-invocation time.
+    .add_local_dir(
+        "./",
+        "/app",
+        ignore=["node_modules", "dist", ".git", "*.mp4", "venv", "__pycache__"],
+        copy=True,
+    )
     .run_commands(
         "cd /app && npm install --no-audit --no-fund",
+        # iife matches the local dev build (avoids file:// CORS for
+        # ES modules even though Modal serves the page differently;
+        # consistent dev/prod is worth the few KB).
         "cd /app && npx tsc -p .",
-        "cd /app && npx esbuild src/page/runtime.ts --bundle --format=esm "
+        "cd /app && npx esbuild src/page/runtime.ts --bundle --format=iife "
         "--outfile=dist/page/runtime.js",
         "cp /app/src/page/host.html /app/dist/page/host.html",
     )

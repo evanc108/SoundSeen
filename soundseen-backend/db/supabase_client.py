@@ -45,3 +45,62 @@ async def upload_audio(song_id: str, filename: str, file_bytes: bytes, content_t
         logger.exception("Failed to upload audio for song %s", song_id)
         raise
     return path
+
+
+async def download_audio(storage_path: str) -> bytes:
+    """Pull the original audio file back out of Supabase storage so we
+    can ship it to the renderer. The path is what `upload_audio` returned
+    and what's stored on the songs table."""
+    client = get_client()
+    try:
+        return client.storage.from_("audio-uploads").download(storage_path)
+    except Exception:
+        logger.exception("Failed to download audio at %s", storage_path)
+        raise
+
+
+# Bucket name for rendered MP4s. Must exist in Supabase storage —
+# create it with `public` access so the iOS client can stream from
+# the public URL without needing per-request auth.
+_VIDEO_BUCKET = "visualizations"
+
+
+async def upload_video(song_id: str, spec_version: int, mp4_bytes: bytes) -> str:
+    """Upload the rendered MP4 and return its public URL.
+
+    Path includes spec_version so a SPEC_VERSION bump auto-invalidates
+    the previous render at a different path — both old and new can
+    coexist while older devices are still on the prior spec.
+    """
+    client = get_client()
+    path = f"{song_id}/v{spec_version}.mp4"
+    try:
+        client.storage.from_(_VIDEO_BUCKET).upload(
+            path,
+            mp4_bytes,
+            {"content-type": "video/mp4", "upsert": "true"},
+        )
+    except Exception:
+        logger.exception("Failed to upload video for song %s", song_id)
+        raise
+    # Public URL — bucket must be configured for public reads for this
+    # to work without a signed URL per request.
+    return client.storage.from_(_VIDEO_BUCKET).get_public_url(path)
+
+
+async def get_video_url(song_id: str, spec_version: int) -> str | None:
+    """Return the public URL for a previously-rendered video, or None
+    if no render exists yet for this (song, spec_version) pair."""
+    client = get_client()
+    path = f"{song_id}/v{spec_version}.mp4"
+    try:
+        # Listing the song's prefix and checking for the file is the
+        # cheapest existence-probe. `head_object` would be cleaner if
+        # the supabase-py client exposed it.
+        listing = client.storage.from_(_VIDEO_BUCKET).list(song_id)
+        if not any(item.get("name") == f"v{spec_version}.mp4" for item in (listing or [])):
+            return None
+        return client.storage.from_(_VIDEO_BUCKET).get_public_url(path)
+    except Exception:
+        logger.exception("Failed to probe video for song %s", song_id)
+        return None
