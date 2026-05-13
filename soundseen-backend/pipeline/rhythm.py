@@ -137,4 +137,8 @@ def analyze_rhythm(y: np.ndarray, sr: int, spectral: dict) -> dict:
         "onsets": [round(float(t), 3) for t in onset_times],
         "beat_events": beat_events,
         "onset_events": onset_events,
+        # Continuous onset envelope (max-normalized) at spectral hop
+        # cadence. Surfaces the per-frame "transient pressure" stream the
+        # renderer uses for velocity-field modulation between onsets.
+        "onset_env_norm": [round(float(v), 4) for v in onset_env_norm],
     }
