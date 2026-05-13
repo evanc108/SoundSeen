@@ -58,7 +58,14 @@ image = (
 app = modal.App("soundseen-renderer", image=image)
 
 
-@app.function(gpu=GPU_KIND, timeout=600)
+# Function timeout: software-rendered WebGL screenshotting at 60fps
+# is ~130ms/frame, which means a 4-min song needs ~30min wall time
+# even on a GPU instance. (The A10G doesn't help much here because
+# headless Chrome's WebGL still uses swiftshader on Linux unless
+# you set up ANGLE/Vulkan, which is finicky.) 1800s gives headroom
+# for short clips; pass max_seconds to clamp the render length when
+# iterating.
+@app.function(gpu=GPU_KIND, timeout=1800)
 def render_song(
     song_id: str,
     spec_json: str,
@@ -92,8 +99,6 @@ def render_song(
             cmd.append(str(max_seconds))
 
         env = {**os.environ, "RENDERER_SONG_ID": song_id}
-        # ANGLE/EGL backed WebGL on the GPU instance.
-        env["GALLIUM_DRIVER"] = "llvmpipe"
 
         proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
         if proc.returncode != 0:

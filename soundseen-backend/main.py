@@ -161,6 +161,9 @@ def _run_pipeline(file_bytes: bytes, suffix: str) -> dict:
     sections = analyze_structure(y, sr, spectral)
     emotion = build_emotion_timeline(duration, emotion_segments)
     frames = build_frames(spectral, duration)
+    # Plumb the continuous onset-strength envelope onto frames so
+    # _build_frames_track can subsample it alongside the spectral signals.
+    frames["onset_env_norm"] = rhythm.get("onset_env_norm", [])
     return {
         "duration_seconds": round(duration, 1),
         "bpm": rhythm["bpm"],
@@ -374,9 +377,17 @@ def _modal_render_function():
 
 
 @app.post("/render", response_model=RenderJobStatus)
-async def start_render(song_id: str, preset: str = "default"):
+async def start_render(
+    song_id: str,
+    preset: str = "default",
+    max_seconds: float | None = None,
+):
     """Kick off an MP4 render. Returns a job_id immediately; caller
     polls GET /render/:job_id for status.
+
+    `max_seconds` clamps the rendered output length — handy for fast
+    smoke tests (e.g. ?max_seconds=15) before committing the GPU time
+    for a full track. None = render full duration.
 
     Cache hit fast-path: if a render already exists for (song, preset,
     spec_version) tuple, returns status=complete with the video URL
@@ -431,6 +442,7 @@ async def start_render(song_id: str, preset: str = "default"):
             spec_json=_json.dumps(spec),
             audio_bytes=audio_bytes,
             audio_extension=audio_ext,
+            max_seconds=max_seconds,
         )
     except Exception as e:
         logger.exception("Failed to spawn Modal render for %s", song_id)
@@ -477,26 +489,33 @@ async def get_render_status(job_id: str):
             error=f"Could not reconstitute Modal call: {e}",
         )
 
-    # Probe with a tiny timeout — if the function is still running,
-    # this raises TimeoutError; if complete, it returns the bytes.
+    # Probe with a tiny timeout. Modal raises stdlib TimeoutError when
+    # the function is still running; modal.exception.* covers the
+    # remote-failure cases. Any other exception is reported with its
+    # type name (str() can be empty on bare TimeoutError, etc.).
     try:
         result = call.get(timeout=0)
+    except TimeoutError:
+        # We don't have real progress from Modal (the function returns
+        # bytes at the end, no streaming). Report 0 so the client UI
+        # doesn't display a misleading "50%" forever.
+        return RenderJobStatus(
+            job_id=job_id, song_id=state["song_id"], status="rendering",
+            progress=0.0,
+        )
     except Exception as e:
-        # Modal's actual exception class for "not done yet" varies by
-        # version (TimeoutError, FunctionTimeoutError). Treat any
-        # timeout-like exception as "still rendering".
-        msg = str(e).lower()
-        if "timeout" in msg or "not finished" in msg or "still running" in msg:
+        name = type(e).__name__.lower()
+        if "timeout" in name or "pending" in name or "notready" in name:
             return RenderJobStatus(
                 job_id=job_id, song_id=state["song_id"], status="rendering",
-                progress=state.get("progress", 0.5),
+                progress=0.0,
             )
-        # Anything else is a real failure.
         logger.exception("Modal render %s failed", job_id)
         state["status"] = "failed"
+        msg = f"{type(e).__name__}: {e}".strip(": ")
         return RenderJobStatus(
             job_id=job_id, song_id=state["song_id"], status="failed",
-            error=str(e),
+            error=msg,
         )
 
     # Result is bytes (the MP4). Upload to Supabase and return URL.

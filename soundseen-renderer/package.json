@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "playwright": "^1.49.0",
+    "postprocessing": "6.36.7",
     "three": "^0.170.0"
   },
   "devDependencies": {

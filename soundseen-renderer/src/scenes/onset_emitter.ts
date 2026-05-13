@@ -20,6 +20,7 @@
 
 import * as THREE from "three";
 import type { CompositionSpec, FrameContext, OnsetDirective } from "../types.js";
+import { hash1, hash2 } from "./lib/deterministic_hash.js";
 
 // Per-particle attributes packed into typed arrays:
 //   position:   xyz spawn position
@@ -149,6 +150,10 @@ export class OnsetParticleEmitter {
   private slotEndTimes: Float32Array;  // when each slot's lifespan ends
   private nextSpawn = 0;
   private prevT = -1;
+  // Cadence gate for per-band continuous spawning. Each band tracks the
+  // last t at which it spawned so the host can call spawnBandPulse every
+  // render frame and the emitter throttles to ~10 Hz internally.
+  private lastBandSpawnT: Float32Array = new Float32Array(8).fill(-1000);
 
   private readonly poolSize: number;
   private readonly baseColor: THREE.Color;
@@ -209,18 +214,32 @@ export class OnsetParticleEmitter {
     this.prevT = ctx.t;
     if (lo < 0) return;  // first frame — skip retro-spawn
 
-    // Bind the most recent onsets in (lo, hi].
+    // Bind the most recent onsets in (lo, hi]. Each onset spawns a
+    // burst of N particles in a fan around the base position. N scales
+    // with intensity + spectral_contrast so soft piano hits stay at the
+    // floor (2) and peak snares cap at 7. Fan radius widens with
+    // spectral_contrast — peaky spectra burst out further.
+    const contrast = ctx.audio.spectralContrast;
     for (const onset of spec.onset_track) {
       if (onset.t <= lo) continue;
       if (onset.t > hi) break;
-      this.spawnFor(onset, ctx, accentTint);
+      const N = Math.max(
+        2,
+        Math.min(7, Math.round(2 + onset.intensity * 4 + contrast * 2)),
+      );
+      for (let b = 0; b < N; b++) {
+        this.spawnFor(onset, ctx, accentTint, b, N, contrast);
+      }
     }
   }
 
   private spawnFor(
     onset: OnsetDirective,
     ctx: FrameContext,
-    accentTint?: THREE.Color,
+    accentTint: THREE.Color | undefined,
+    b: number,
+    N: number,
+    contrast: number,
   ): void {
     // Pick a slot — round-robin. Most onsets fire fast enough that the
     // pool's natural rotation handles eviction gracefully.
@@ -237,20 +256,48 @@ export class OnsetParticleEmitter {
 
     this.slotEndTimes[slot] = onset.t + lifespan;
 
-    // Pitch → vertical placement (Pratt 1930). Atonal (-1) → center.
-    const pitchHeight =
-      onset.pitch_class >= 0 ? (onset.pitch_class / 11) * 2 - 1 : 0;
-    // Pitch → inverse size (Walker 2010). High pitch → smaller particle.
+    // Vertical placement: band-weighted (v4 mel_bands) + pitch_class
+    // fine-offset. Mel bands give every onset a y position — including
+    // drum hits where pitch_class is -1 (atonal). sub_bass → bottom of
+    // frame, ultra_high → top, with the 8 bands evenly distributed.
+    // Pitch class (when present) provides ±0.3 fine adjustment for
+    // tonal melody (Pratt 1930) on top of the band-derived altitude.
+    const bands = ctx.audio.melBands;
+    let bandY = 0;
+    if (bands && bands.length === 8) {
+      let totalE = 0;
+      let weightedSum = 0;
+      for (let k = 0; k < 8; k++) {
+        const e = bands[k] ?? 0;
+        totalE += e;
+        // Bin k=0 (sub_bass) at y=-1.8, k=7 (ultra_high) at y=+1.8
+        const bandPos = -1.8 + (k / 7) * 3.6;
+        weightedSum += bandPos * e;
+      }
+      if (totalE > 1e-4) bandY = weightedSum / totalE;
+    }
+    const pitchFine =
+      onset.pitch_class >= 0 ? ((onset.pitch_class / 11) * 2 - 1) * 0.3 : 0;
+    // Pitch → inverse size (Walker 2010) — still applies even when band
+    // drives the y position.
     const sizeFromPitch =
       onset.pitch_class >= 0 ? 1.4 - 0.7 * ((onset.pitch_class / 11)) : 1.0;
 
-    // Horizontal placement: slight randomness biased by pitch class so
-    // different pitches don't all stack on the same X line. Determ
-    // randomness: hash by onset time.
-    const hash = (onset.t * 13.7) % 1;
-    const x = (hash - 0.5) * 4.5;
-    const y = pitchHeight * 1.6;  // ±1.6 NDC vertical range
-    const z = -0.5 - hash * 1.5;
+    // Base placement: deterministic per onset (same x,y across burst
+    // members), then a fan offset per b separates burst particles into
+    // a ring around the base point. Fan radius scales with
+    // spectral_contrast — peaky spectra fan wider.
+    const baseHash = hash1(onset.t);
+    const baseX = (baseHash - 0.5) * 4.5;
+    const pitchHeight =
+      onset.pitch_class >= 0 ? (onset.pitch_class / 11) * 2 - 1 : 0;
+    const baseY = bandY !== 0 ? bandY + pitchFine : pitchHeight * 1.6;
+
+    const fanAngle = (b / Math.max(1, N)) * Math.PI * 2;
+    const fanR = 0.15 + contrast * 0.25 + hash2(onset.t, b) * 0.10;
+    const x = baseX + Math.cos(fanAngle) * fanR;
+    const y = baseY + Math.sin(fanAngle) * fanR;
+    const z = -0.5 - hash2(onset.t, b + 1) * 1.5;
 
     const ix3 = slot * 3;
     const ix4 = slot * 4;
@@ -285,6 +332,68 @@ export class OnsetParticleEmitter {
     this.baseSizes[slot] = this.maxSize * sizeFromPitch * angScale;
 
     // Mark all attribute buffers dirty.
+    const geo = this.object3D.geometry;
+    (geo.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
+    (geo.getAttribute("aSpawn")   as THREE.BufferAttribute).needsUpdate = true;
+    (geo.getAttribute("aADSR")    as THREE.BufferAttribute).needsUpdate = true;
+    (geo.getAttribute("aColor")   as THREE.BufferAttribute).needsUpdate = true;
+    (geo.getAttribute("aBaseSize")as THREE.BufferAttribute).needsUpdate = true;
+  }
+
+  /// Per-band continuous spawning. Called every render frame from the
+  /// host scene for each of the 8 mel bands. Internally throttled to a
+  /// 0.10s cadence per band; only fires when the band energy exceeds
+  /// 0.55. Spawned particle uses a pure-decay envelope (instant attack,
+  /// short decay, fade) instead of full ADSR — these are sparkles, not
+  /// articulated onsets.
+  spawnBandPulse(
+    bandIndex: number,
+    energy: number,
+    t: number,
+    _ctx: FrameContext,
+  ): void {
+    if (bandIndex < 0 || bandIndex > 7) return;
+    if (energy <= 0.55) return;
+    if (t - this.lastBandSpawnT[bandIndex]! < 0.10) return;
+    this.lastBandSpawnT[bandIndex] = t;
+
+    const slot = this.nextSpawn;
+    this.nextSpawn = (this.nextSpawn + 1) % this.poolSize;
+
+    const k = bandIndex;
+    const y = -1.8 + (k / 7) * 3.6;
+    const xScatter = (hash2(t, k) - 0.5) * 5.0;
+    const lifespan = 0.4 + hash2(t, k + 13) * 0.3;  // 0.4–0.7s
+    this.slotEndTimes[slot] = t + lifespan;
+
+    const ix3 = slot * 3;
+    const ix4 = slot * 4;
+
+    this.positions[ix3 + 0] = xScatter;
+    this.positions[ix3 + 1] = y;
+    this.positions[ix3 + 2] = -0.5 - hash2(t, k + 23) * 1.5;
+
+    // ADSR knobs that yield a pure-decay-style envelope. The shader's
+    // fixed 150ms release tail does most of the fade work.
+    this.spawn[ix4 + 0] = t;
+    this.spawn[ix4 + 1] = lifespan;
+    this.spawn[ix4 + 2] = 0.6;   // mid attack_slope — round, not snappy
+    this.spawn[ix4 + 3] = 0;
+
+    this.adsr[ix4 + 0] = 5;      // 5ms attack
+    this.adsr[ix4 + 1] = 50;     // 50ms decay
+    this.adsr[ix4 + 2] = 0.5;    // sustain at half
+    this.adsr[ix4 + 3] = energy; // band energy as per-particle intensity
+
+    // Tint by band: brighter at high bands. baseColor × [0.6 .. 1.4].
+    const tintScale = 0.6 + (k / 7) * 0.8;
+    this.colors[ix3 + 0] = this.baseColor.r * tintScale;
+    this.colors[ix3 + 1] = this.baseColor.g * tintScale;
+    this.colors[ix3 + 2] = this.baseColor.b * tintScale;
+
+    // Smaller than per-onset particles — sparkles, not punches.
+    this.baseSizes[slot] = this.maxSize * 0.6;
+
     const geo = this.object3D.geometry;
     (geo.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
     (geo.getAttribute("aSpawn")   as THREE.BufferAttribute).needsUpdate = true;

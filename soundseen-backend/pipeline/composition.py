@@ -31,7 +31,7 @@ from typing import Any
 # major/minor with strength). Surfaces the Pratt 1930 pitch-elevation,
 # Marks 1989 centroid-brightness, Itoh 2017 chroma-saturation, and
 # dynamic Bouba/Kiki mappings into the renderer's per-frame inputs.
-SPEC_VERSION = 3
+SPEC_VERSION = 5
 
 # ---------------------------------------------------------------------------
 # Biome model — a 4-quadrant emotion taxonomy.
@@ -386,11 +386,51 @@ def _build_emotion_timeline(emotion: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _audio_arousal_boost(
+    frames: dict[str, Any],
+    start: float,
+    end: float,
+    bpm: float,
+) -> float:
+    """Correct for cases where the V/A regression under-estimates
+    arousal on tracks the audio signature obviously says are high-energy.
+
+    Three additive contributions, each capped:
+      - spectral_flux avg     (transient density)
+      - sub_bass band avg     (kick/bass presence)
+      - tempo                 (BPM > 120 boosts; > 150 saturates)
+
+    Returns a non-negative scalar in [0, 0.30] to add to arousal.
+    """
+    flux_avg = _section_frame_average(frames, "flux", start, end, default=0.0)
+
+    # sub_bass = mel band index 0. _section_frame_average can't index
+    # into a list-of-list field, so compute directly.
+    times = frames.get("time") or []
+    bands = frames.get("bands") or []
+    sub_bass_total = 0.0
+    sub_bass_n = 0
+    for i, t in enumerate(times):
+        ft = float(t)
+        if ft < start or ft >= end:
+            continue
+        if i < len(bands) and bands[i]:
+            sub_bass_total += float(bands[i][0])
+            sub_bass_n += 1
+    sub_bass_avg = sub_bass_total / sub_bass_n if sub_bass_n else 0.0
+
+    tempo_factor = max(0.0, min(1.0, (bpm - 90.0) / 60.0))
+
+    boost = flux_avg * 0.18 + sub_bass_avg * 0.12 + tempo_factor * 0.10
+    return min(0.30, boost)
+
+
 def _build_section_script(
     sections: list[dict[str, Any]],
     emotion: dict[str, Any],
     frames: dict[str, Any],
     onsets: list[dict[str, Any]],
+    bpm: float = 0.0,
 ) -> list[dict[str, Any]]:
     """One directive per section: scene + camera + research-backed visual
     parameters (V&M palette, Schloss & Palmer hue distance, Bouba/Kiki
@@ -403,7 +443,11 @@ def _build_section_script(
         energy_profile = str(section.get("energy_profile", ""))
 
         v_avg, a_avg = _section_emotion_average(emotion, start, end)
-        weights = _biome_weights(v_avg, a_avg)
+        # Audio-arousal boost: nudge arousal upward when bpm/flux/bass
+        # indicate obvious high-energy that the V/A regression may have
+        # under-estimated (common on EDM with neutral-V vocals).
+        a_avg_corrected = min(1.0, a_avg + _audio_arousal_boost(frames, start, end, bpm))
+        weights = _biome_weights(v_avg, a_avg_corrected)
         biome = _dominant_biome(weights)
         scene = _BIOME_SCENE[biome]
 
@@ -593,15 +637,41 @@ def _build_frames_track(frames: dict[str, Any], target_hz: float = 10.0) -> dict
     for visuals (smoothing covers the rest) and keeps payload size sane.
 
     Surfaced fields and their visual mappings:
-      - centroid_norm:    Marks (1989) brightness ↔ visual luminance
-      - harmonic_ratio:   Bouba/Kiki shape vocabulary (per-frame, not
-                          just per-section)
-      - chroma_strength:  Itoh (2017) saturation lock-in factor
-      - rolloff:          high-frequency ceiling (sky-height proxy)
-      - zcr:              sibilance / grain density
-      - spectral_contrast:edge crispness (smeared vs peaky spectrum)
-      - pitch_class:      Pratt (1930) pitch-elevation, Walker (2010) pitch-size.
-                          Continuous (per-frame argmax of chroma).
+      - centroid_norm:           Marks (1989) brightness ↔ visual luminance
+      - harmonic_ratio:          Bouba/Kiki shape vocabulary
+      - chroma_strength:         Itoh (2017) saturation lock-in
+      - rolloff:                 high-frequency ceiling → particle altitude
+      - zcr:                     sibilance / grain density
+      - spectral_contrast:       edge crispness (smeared vs peaky)
+      - pitch_class:             Pratt (1930) pitch-elevation argmax
+    v4 additions:
+      - chroma_center_x/y:       2-vector centroid of the 12-bin chroma
+                                 distribution (Σ cos/sin bin × weight).
+                                 Renderer reconstructs a ±10° hue offset
+                                 via atan2 — chord-shape-aware without the
+                                 Itoh (2017) pitch→hue rainbow pitfall.
+      - mel_bands[8]:            sub_bass..ultra_high normalized energies.
+                                 Drive frequency-banded particle behavior.
+      - pitch_direction:         signed centroid-trend scalar in [-1, +1];
+                                 +1 = rising over a short window, -1 = falling.
+                                 Drives drift particle vertical bias.
+      - rms:                     per-frame loudness (Spence 2011 loudness↔
+                                 visual mass): bloom intensity, FOV push,
+                                 grain washout, particle scale.
+      - mfcc_warm:               one-pole low-pass of MFCC[1] (spectral
+                                 tilt); shifts biome anchor warmer/cooler
+                                 by ±8% based on instrumental timbre color.
+    v5 additions:
+      - spectral_flux:           per-frame spectral change rate (already
+                                 computed at frame cadence; surfaced for
+                                 the renderer's audio-reactive velocity
+                                 field — drives rain fall speed, particle
+                                 drift between onsets).
+      - onset_strength_env:      continuous max-normalized onset envelope
+                                 (max → 1.0). Stream of "transient pressure"
+                                 between discrete onset events; lets the
+                                 renderer modulate motion without waiting
+                                 for an onset to fire.
     """
     times = frames.get("time") or []
     energy = frames.get("energy") or []
@@ -609,7 +679,14 @@ def _build_frames_track(frames: dict[str, Any], target_hz: float = 10.0) -> dict
         return {"interval": 1.0 / target_hz, "count": 0,
                 "centroid_norm": [], "harmonic_ratio": [], "chroma_strength": [],
                 "rolloff": [], "zcr": [], "spectral_contrast": [],
-                "pitch_class": []}
+                "pitch_class": [],
+                "chroma_center_x": [], "chroma_center_y": [],
+                "mel_bands": [],
+                "pitch_direction": [],
+                "rms": [],
+                "mfcc_warm": [],
+                "spectral_flux": [],
+                "onset_strength_env": []}
 
     src_hz = 0.0
     if len(times) > 1:
@@ -630,6 +707,9 @@ def _build_frames_track(frames: dict[str, Any], target_hz: float = 10.0) -> dict
     zcr         = frames.get("zcr") or []
     contrast    = frames.get("spectral_contrast") or []
     chroma_vec  = frames.get("chroma") or []
+    bands_all   = frames.get("bands") or []
+    mfcc_all    = frames.get("mfcc") or []
+    onset_env   = frames.get("onset_env_norm") or []
 
     # Centroid is in raw Hz; normalize per-track to [0, 1] using p5/p95
     # so the renderer doesn't have to deal with absolute frequencies.
@@ -644,6 +724,12 @@ def _build_frames_track(frames: dict[str, Any], target_hz: float = 10.0) -> dict
     def _at(arr: list, i: int, default: float) -> float:
         return float(arr[i]) if i < len(arr) else default
 
+    # Precompute the circular basis for chroma center — 12 bins around
+    # the color wheel (Itoh-safe: a chord centroid, not a per-note hue).
+    BIN_ANGLES = [(2.0 * math.pi * j / 12.0) for j in range(12)]
+    BIN_COS = [math.cos(a) for a in BIN_ANGLES]
+    BIN_SIN = [math.sin(a) for a in BIN_ANGLES]
+
     out_centroid: list[float] = []
     out_harmonic: list[float] = []
     out_chromas:  list[float] = []
@@ -651,8 +737,24 @@ def _build_frames_track(frames: dict[str, Any], target_hz: float = 10.0) -> dict
     out_zcr:      list[float] = []
     out_contrast: list[float] = []
     out_pitch:    list[int]   = []
+    out_cx:       list[float] = []
+    out_cy:       list[float] = []
+    out_bands:    list[list[float]] = []
+    out_pdir:     list[float] = []
+    out_rms:      list[float] = []
+    out_mfcc_w:   list[float] = []
+    out_flux:     list[float] = []
+    out_onset_e:  list[float] = []
 
     n = len(times)
+    # One-pole low-pass state for mfcc_warm. τ ≈ 1.5s; α at target_hz
+    # gives the right smoothing window.
+    dt = 1.0 / target_hz
+    alpha = dt / (1.5 + dt)
+    mfcc_w_state = 0.0
+    # Pitch-direction smoothing window in subsampled frames (~0.5s).
+    pdir_window = max(1, int(round(0.5 * target_hz)))
+    last_centroids: list[float] = []
     for i in range(0, n, stride):
         c_norm = max(0.0, min(1.0, (_at(centroid, i, lo) - lo) / rng))
         out_centroid.append(round(c_norm, 4))
@@ -661,19 +763,64 @@ def _build_frames_track(frames: dict[str, Any], target_hz: float = 10.0) -> dict
         out_rolloff.append(round(_at(rolloff, i, 0.5), 4))
         out_zcr.append(round(_at(zcr, i, 0.3), 4))
         out_contrast.append(round(_at(contrast, i, 0.5), 4))
+        out_rms.append(round(_at(energy, i, 0.0), 4))
+        out_flux.append(round(_at(flux, i, 0.0), 4))
+        out_onset_e.append(round(_at(onset_env, i, 0.0), 4))
 
         pc = -1
+        cx = 0.0
+        cy = 0.0
         if i < len(chroma_vec):
             row = chroma_vec[i] or []
             best = -1
             best_v = -1.0
+            total = 0.0
             for j in range(min(12, len(row))):
                 v = float(row[j])
+                total += v
                 if v > best_v:
                     best_v = v
                     best = j
+                cx += BIN_COS[j] * v
+                cy += BIN_SIN[j] * v
             pc = best if best_v > 1e-6 else -1
+            # Normalize so cx,cy are weighted-mean direction in [-1, 1]
+            # (atan2 only cares about ratio, but length() conveys tonality).
+            if total > 1e-6:
+                cx /= total
+                cy /= total
         out_pitch.append(pc)
+        out_cx.append(round(cx, 4))
+        out_cy.append(round(cy, 4))
+
+        # 8-band mel — already normalized upstream. Fall back to zeros
+        # for old analyses without the bands array.
+        if i < len(bands_all) and bands_all[i] is not None:
+            row_b = bands_all[i]
+            band_row = [round(float(row_b[k]) if k < len(row_b) else 0.0, 4) for k in range(8)]
+        else:
+            band_row = [0.0] * 8
+        out_bands.append(band_row)
+
+        # Pitch direction: sign of centroid trend over last ~0.5s.
+        # Centroid trending up correlates well with rising melody for
+        # the visual purpose of "particles drift up on ascent."
+        if len(last_centroids) >= pdir_window:
+            delta = c_norm - last_centroids[-pdir_window]
+            out_pdir.append(round(max(-1.0, min(1.0, delta * 6.0)), 3))
+        else:
+            out_pdir.append(0.0)
+        last_centroids.append(c_norm)
+
+        # MFCC[1] low-pass — spectral tilt coefficient. MFCC arrays are
+        # normalized upstream to roughly [-1, 1]. Apply one-pole IIR.
+        mfcc_1 = 0.0
+        if i < len(mfcc_all) and mfcc_all[i] is not None:
+            row_m = mfcc_all[i]
+            if len(row_m) > 1:
+                mfcc_1 = float(row_m[1])
+        mfcc_w_state += alpha * (mfcc_1 - mfcc_w_state)
+        out_mfcc_w.append(round(mfcc_w_state, 4))
 
     return {
         "interval": round(stride / src_hz, 4),
@@ -685,6 +832,16 @@ def _build_frames_track(frames: dict[str, Any], target_hz: float = 10.0) -> dict
         "zcr":               out_zcr,
         "spectral_contrast": out_contrast,
         "pitch_class":       out_pitch,
+        # v4 additions.
+        "chroma_center_x":   out_cx,
+        "chroma_center_y":   out_cy,
+        "mel_bands":         out_bands,
+        "pitch_direction":   out_pdir,
+        "rms":               out_rms,
+        "mfcc_warm":         out_mfcc_w,
+        # v5 additions.
+        "spectral_flux":      out_flux,
+        "onset_strength_env": out_onset_e,
     }
 
 
@@ -710,7 +867,10 @@ def build_composition_spec(
         "duration_seconds": float(analysis.get("duration_seconds") or 0.0),
         "bpm": float(analysis.get("bpm") or 0.0),
         "emotion_timeline": _build_emotion_timeline(emotion),
-        "section_script": _build_section_script(sections, emotion, frames, onsets),
+        "section_script": _build_section_script(
+            sections, emotion, frames, onsets,
+            bpm=float(analysis.get("bpm") or 0.0),
+        ),
         "beat_track": _build_beat_track(beats),
         "phrase_track": _build_phrase_track(beats),
         "onset_track": _build_onset_track(onsets, frames),

@@ -24,6 +24,13 @@ env/
 *.mp3
 !SoundSeen/SoundSeen/Resources/*.mp3
 
+# Rendered videos — large MP4 outputs from the local renderer.
+# Keep them out of the repo (GitHub 100 MB limit, and they're
+# regeneratable from spec + audio anyway).
+renders/
+*.mp4
+*.mp4.video.mp4
+
 # IDE
 .idea/
 .vscode/

@@ -888,31 +888,31 @@
      * - https://www.russellcottrell.com/photo/matrixCalculator.htm
      */
     spaces: {},
-    convert: function(color, sourceColorSpace, targetColorSpace) {
+    convert: function(color2, sourceColorSpace, targetColorSpace) {
       if (this.enabled === false || sourceColorSpace === targetColorSpace || !sourceColorSpace || !targetColorSpace) {
-        return color;
+        return color2;
       }
       if (this.spaces[sourceColorSpace].transfer === SRGBTransfer) {
-        color.r = SRGBToLinear(color.r);
-        color.g = SRGBToLinear(color.g);
-        color.b = SRGBToLinear(color.b);
+        color2.r = SRGBToLinear(color2.r);
+        color2.g = SRGBToLinear(color2.g);
+        color2.b = SRGBToLinear(color2.b);
       }
       if (this.spaces[sourceColorSpace].primaries !== this.spaces[targetColorSpace].primaries) {
-        color.applyMatrix3(this.spaces[sourceColorSpace].toXYZ);
-        color.applyMatrix3(this.spaces[targetColorSpace].fromXYZ);
+        color2.applyMatrix3(this.spaces[sourceColorSpace].toXYZ);
+        color2.applyMatrix3(this.spaces[targetColorSpace].fromXYZ);
       }
       if (this.spaces[targetColorSpace].transfer === SRGBTransfer) {
-        color.r = LinearToSRGB(color.r);
-        color.g = LinearToSRGB(color.g);
-        color.b = LinearToSRGB(color.b);
+        color2.r = LinearToSRGB(color2.r);
+        color2.g = LinearToSRGB(color2.g);
+        color2.b = LinearToSRGB(color2.b);
       }
-      return color;
+      return color2;
     },
-    fromWorkingColorSpace: function(color, targetColorSpace) {
-      return this.convert(color, this.workingColorSpace, targetColorSpace);
+    fromWorkingColorSpace: function(color2, targetColorSpace) {
+      return this.convert(color2, this.workingColorSpace, targetColorSpace);
     },
-    toWorkingColorSpace: function(color, sourceColorSpace) {
-      return this.convert(color, sourceColorSpace, this.workingColorSpace);
+    toWorkingColorSpace: function(color2, sourceColorSpace) {
+      return this.convert(color2, sourceColorSpace, this.workingColorSpace);
     },
     getPrimaries: function(colorSpace) {
       return this.spaces[colorSpace].primaries;
@@ -5235,39 +5235,39 @@
       }
       let m;
       if (m = /^(\w+)\(([^\)]*)\)/.exec(style)) {
-        let color;
+        let color2;
         const name = m[1];
         const components = m[2];
         switch (name) {
           case "rgb":
           case "rgba":
-            if (color = /^\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec(components)) {
-              handleAlpha(color[4]);
+            if (color2 = /^\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec(components)) {
+              handleAlpha(color2[4]);
               return this.setRGB(
-                Math.min(255, parseInt(color[1], 10)) / 255,
-                Math.min(255, parseInt(color[2], 10)) / 255,
-                Math.min(255, parseInt(color[3], 10)) / 255,
+                Math.min(255, parseInt(color2[1], 10)) / 255,
+                Math.min(255, parseInt(color2[2], 10)) / 255,
+                Math.min(255, parseInt(color2[3], 10)) / 255,
                 colorSpace
               );
             }
-            if (color = /^\s*(\d+)\%\s*,\s*(\d+)\%\s*,\s*(\d+)\%\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec(components)) {
-              handleAlpha(color[4]);
+            if (color2 = /^\s*(\d+)\%\s*,\s*(\d+)\%\s*,\s*(\d+)\%\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec(components)) {
+              handleAlpha(color2[4]);
               return this.setRGB(
-                Math.min(100, parseInt(color[1], 10)) / 100,
-                Math.min(100, parseInt(color[2], 10)) / 100,
-                Math.min(100, parseInt(color[3], 10)) / 100,
+                Math.min(100, parseInt(color2[1], 10)) / 100,
+                Math.min(100, parseInt(color2[2], 10)) / 100,
+                Math.min(100, parseInt(color2[3], 10)) / 100,
                 colorSpace
               );
             }
             break;
           case "hsl":
           case "hsla":
-            if (color = /^\s*(\d*\.?\d+)\s*,\s*(\d*\.?\d+)\%\s*,\s*(\d*\.?\d+)\%\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec(components)) {
-              handleAlpha(color[4]);
+            if (color2 = /^\s*(\d*\.?\d+)\s*,\s*(\d*\.?\d+)\%\s*,\s*(\d*\.?\d+)\%\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec(components)) {
+              handleAlpha(color2[4]);
               return this.setHSL(
-                parseFloat(color[1]) / 360,
-                parseFloat(color[2]) / 100,
-                parseFloat(color[3]) / 100,
+                parseFloat(color2[1]) / 360,
+                parseFloat(color2[2]) / 100,
+                parseFloat(color2[3]) / 100,
                 colorSpace
               );
             }
@@ -5307,22 +5307,22 @@
     clone() {
       return new this.constructor(this.r, this.g, this.b);
     }
-    copy(color) {
-      this.r = color.r;
-      this.g = color.g;
-      this.b = color.b;
+    copy(color2) {
+      this.r = color2.r;
+      this.g = color2.g;
+      this.b = color2.b;
       return this;
     }
-    copySRGBToLinear(color) {
-      this.r = SRGBToLinear(color.r);
-      this.g = SRGBToLinear(color.g);
-      this.b = SRGBToLinear(color.b);
+    copySRGBToLinear(color2) {
+      this.r = SRGBToLinear(color2.r);
+      this.g = SRGBToLinear(color2.g);
+      this.b = SRGBToLinear(color2.b);
       return this;
     }
-    copyLinearToSRGB(color) {
-      this.r = LinearToSRGB(color.r);
-      this.g = LinearToSRGB(color.g);
-      this.b = LinearToSRGB(color.b);
+    copyLinearToSRGB(color2) {
+      this.r = LinearToSRGB(color2.r);
+      this.g = LinearToSRGB(color2.g);
+      this.b = LinearToSRGB(color2.b);
       return this;
     }
     convertSRGBToLinear() {
@@ -5390,10 +5390,10 @@
       this.getHSL(_hslA);
       return this.setHSL(_hslA.h + h, _hslA.s + s, _hslA.l + l);
     }
-    add(color) {
-      this.r += color.r;
-      this.g += color.g;
-      this.b += color.b;
+    add(color2) {
+      this.r += color2.r;
+      this.g += color2.g;
+      this.b += color2.b;
       return this;
     }
     addColors(color1, color2) {
@@ -5408,16 +5408,16 @@
       this.b += s;
       return this;
     }
-    sub(color) {
-      this.r = Math.max(0, this.r - color.r);
-      this.g = Math.max(0, this.g - color.g);
-      this.b = Math.max(0, this.b - color.b);
+    sub(color2) {
+      this.r = Math.max(0, this.r - color2.r);
+      this.g = Math.max(0, this.g - color2.g);
+      this.b = Math.max(0, this.b - color2.b);
       return this;
     }
-    multiply(color) {
-      this.r *= color.r;
-      this.g *= color.g;
-      this.b *= color.b;
+    multiply(color2) {
+      this.r *= color2.r;
+      this.g *= color2.g;
+      this.b *= color2.b;
       return this;
     }
     multiplyScalar(s) {
@@ -5426,10 +5426,10 @@
       this.b *= s;
       return this;
     }
-    lerp(color, alpha) {
-      this.r += (color.r - this.r) * alpha;
-      this.g += (color.g - this.g) * alpha;
-      this.b += (color.b - this.b) * alpha;
+    lerp(color2, alpha) {
+      this.r += (color2.r - this.r) * alpha;
+      this.g += (color2.g - this.g) * alpha;
+      this.b += (color2.b - this.b) * alpha;
       return this;
     }
     lerpColors(color1, color2, alpha) {
@@ -5438,9 +5438,9 @@
       this.b = color1.b + (color2.b - color1.b) * alpha;
       return this;
     }
-    lerpHSL(color, alpha) {
+    lerpHSL(color2, alpha) {
       this.getHSL(_hslA);
-      color.getHSL(_hslB);
+      color2.getHSL(_hslB);
       const h = lerp(_hslA.h, _hslB.h, alpha);
       const s = lerp(_hslA.s, _hslB.s, alpha);
       const l = lerp(_hslA.l, _hslB.l, alpha);
@@ -7553,11 +7553,11 @@
       mesh.material.dispose();
       return this;
     }
-    clear(renderer2, color, depth, stencil) {
+    clear(renderer2, color2, depth, stencil) {
       const currentRenderTarget = renderer2.getRenderTarget();
       for (let i = 0; i < 6; i++) {
         renderer2.setRenderTarget(this, i);
-        renderer2.clear(color, depth, stencil);
+        renderer2.clear(color2, depth, stencil);
       }
       renderer2.setRenderTarget(currentRenderTarget);
     }
@@ -8823,16 +8823,16 @@
         renderList.unshift(planeMesh, planeMesh.geometry, planeMesh.material, 0, 0, null);
       }
     }
-    function setClear(color, alpha2) {
-      color.getRGB(_rgb, getUnlitUniformColorSpace(renderer2));
+    function setClear(color2, alpha2) {
+      color2.getRGB(_rgb, getUnlitUniformColorSpace(renderer2));
       state.buffers.color.setClear(_rgb.r, _rgb.g, _rgb.b, alpha2, premultipliedAlpha);
     }
     return {
       getClearColor: function() {
         return clearColor;
       },
-      setClearColor: function(color, alpha2 = 1) {
-        clearColor.set(color);
+      setClearColor: function(color2, alpha2 = 1) {
+        clearColor.set(color2);
         clearAlpha = alpha2;
         setClear(clearColor, clearAlpha);
       },
@@ -12791,14 +12791,14 @@
       lights.sort(shadowCastingAndTexturingLightsFirst);
       for (let i = 0, l = lights.length; i < l; i++) {
         const light = lights[i];
-        const color = light.color;
+        const color2 = light.color;
         const intensity = light.intensity;
         const distance = light.distance;
         const shadowMap = light.shadow && light.shadow.map ? light.shadow.map.texture : null;
         if (light.isAmbientLight) {
-          r += color.r * intensity;
-          g += color.g * intensity;
-          b += color.b * intensity;
+          r += color2.r * intensity;
+          g += color2.g * intensity;
+          b += color2.b * intensity;
         } else if (light.isLightProbe) {
           for (let j = 0; j < 9; j++) {
             state.probe[j].addScaledVector(light.sh.coefficients[j], intensity);
@@ -12825,7 +12825,7 @@
         } else if (light.isSpotLight) {
           const uniforms = cache.get(light);
           uniforms.position.setFromMatrixPosition(light.matrixWorld);
-          uniforms.color.copy(color).multiplyScalar(intensity);
+          uniforms.color.copy(color2).multiplyScalar(intensity);
           uniforms.distance = distance;
           uniforms.coneCos = Math.cos(light.angle);
           uniforms.penumbraCos = Math.cos(light.angle * (1 - light.penumbra));
@@ -12853,7 +12853,7 @@
           spotLength++;
         } else if (light.isRectAreaLight) {
           const uniforms = cache.get(light);
-          uniforms.color.copy(color).multiplyScalar(intensity);
+          uniforms.color.copy(color2).multiplyScalar(intensity);
           uniforms.halfWidth.set(light.width * 0.5, 0, 0);
           uniforms.halfHeight.set(0, light.height * 0.5, 0);
           state.rectArea[rectAreaLength] = uniforms;
@@ -13344,7 +13344,7 @@
   function WebGLState(gl, extensions) {
     function ColorBuffer() {
       let locked = false;
-      const color = new Vector4();
+      const color2 = new Vector4();
       let currentColorMask = null;
       const currentColorClear = new Vector4(0, 0, 0, 0);
       return {
@@ -13363,10 +13363,10 @@
             g *= a;
             b *= a;
           }
-          color.set(r, g, b, a);
-          if (currentColorClear.equals(color) === false) {
+          color2.set(r, g, b, a);
+          if (currentColorClear.equals(color2) === false) {
             gl.clearColor(r, g, b, a);
-            currentColorClear.copy(color);
+            currentColorClear.copy(color2);
           }
         },
         reset: function() {
@@ -16962,9 +16962,9 @@ void main() {
       this.setClearAlpha = function() {
         background.setClearAlpha.apply(background, arguments);
       };
-      this.clear = function(color = true, depth2 = true, stencil2 = true) {
+      this.clear = function(color2 = true, depth2 = true, stencil2 = true) {
         let bits = 0;
-        if (color) {
+        if (color2) {
           let isIntegerFormat = false;
           if (_currentRenderTarget !== null) {
             const targetFormat = _currentRenderTarget.texture.format;
@@ -18219,6 +18219,34 @@ void main() {
       return data;
     }
   };
+  var DataTexture = class extends Texture {
+    constructor(data = null, width = 1, height = 1, format, type, mapping, wrapS, wrapT, magFilter = NearestFilter, minFilter = NearestFilter, anisotropy, colorSpace) {
+      super(null, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy, colorSpace);
+      this.isDataTexture = true;
+      this.image = { data, width, height };
+      this.generateMipmaps = false;
+      this.flipY = false;
+      this.unpackAlignment = 1;
+    }
+  };
+  var InstancedBufferAttribute = class extends BufferAttribute {
+    constructor(array, itemSize, normalized, meshPerAttribute = 1) {
+      super(array, itemSize, normalized);
+      this.isInstancedBufferAttribute = true;
+      this.meshPerAttribute = meshPerAttribute;
+    }
+    copy(source) {
+      super.copy(source);
+      this.meshPerAttribute = source.meshPerAttribute;
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.meshPerAttribute = this.meshPerAttribute;
+      data.isInstancedBufferAttribute = true;
+      return data;
+    }
+  };
   var LineBasicMaterial = class extends Material {
     static get type() {
       return "LineBasicMaterial";
@@ -19107,6 +19135,25 @@ void main() {
     }
   };
   Loader.DEFAULT_MATERIAL_NAME = "__DEFAULT";
+  var InstancedBufferGeometry = class extends BufferGeometry {
+    constructor() {
+      super();
+      this.isInstancedBufferGeometry = true;
+      this.type = "InstancedBufferGeometry";
+      this.instanceCount = Infinity;
+    }
+    copy(source) {
+      super.copy(source);
+      this.instanceCount = source.instanceCount;
+      return this;
+    }
+    toJSON() {
+      const data = super.toJSON();
+      data.instanceCount = this.instanceCount;
+      data.isInstancedBufferGeometry = true;
+      return data;
+    }
+  };
   var _RESERVED_CHARS_RE = "\\[\\]\\.:\\/";
   var _reservedRe = new RegExp("[" + _RESERVED_CHARS_RE + "]", "g");
   var _wordChar = "[^" + _RESERVED_CHARS_RE + "]";
@@ -19485,6 +19532,14 @@ void main() {
     ]
   ];
   var _controlInterpolantsResultBuffer = new Float32Array(1);
+  var Uniform = class _Uniform {
+    constructor(value) {
+      this.value = value;
+    }
+    clone() {
+      return new _Uniform(this.value.clone === void 0 ? this.value : this.value.clone());
+    }
+  };
   if (typeof __THREE_DEVTOOLS__ !== "undefined") {
     __THREE_DEVTOOLS__.dispatchEvent(new CustomEvent("register", { detail: {
       revision: REVISION
@@ -19496,6 +19551,5273 @@ void main() {
     } else {
       window.__THREE__ = REVISION;
     }
+  }
+
+  // node_modules/postprocessing/build/index.js
+  var MILLISECONDS_TO_SECONDS = 1 / 1e3;
+  var SECONDS_TO_MILLISECONDS = 1e3;
+  var Timer = class {
+    /**
+     * Constructs a new timer.
+     */
+    constructor() {
+      this.startTime = performance.now();
+      this.previousTime = 0;
+      this.currentTime = 0;
+      this._delta = 0;
+      this._elapsed = 0;
+      this._fixedDelta = 1e3 / 60;
+      this.timescale = 1;
+      this.useFixedDelta = false;
+      this._autoReset = false;
+    }
+    /**
+     * Enables or disables auto reset based on page visibility.
+     *
+     * If enabled, the timer will be reset when the page becomes visible. This effectively pauses the timer when the page
+     * is hidden. Has no effect if the API is not supported.
+     *
+     * @type {Boolean}
+     * @see https://developer.mozilla.org/en-US/docs/Web/API/Page_Visibility_API
+     */
+    get autoReset() {
+      return this._autoReset;
+    }
+    set autoReset(value) {
+      if (typeof document !== "undefined" && document.hidden !== void 0) {
+        if (value) {
+          document.addEventListener("visibilitychange", this);
+        } else {
+          document.removeEventListener("visibilitychange", this);
+        }
+        this._autoReset = value;
+      }
+    }
+    get delta() {
+      return this._delta * MILLISECONDS_TO_SECONDS;
+    }
+    get fixedDelta() {
+      return this._fixedDelta * MILLISECONDS_TO_SECONDS;
+    }
+    set fixedDelta(value) {
+      this._fixedDelta = value * SECONDS_TO_MILLISECONDS;
+    }
+    get elapsed() {
+      return this._elapsed * MILLISECONDS_TO_SECONDS;
+    }
+    /**
+     * Updates this timer.
+     *
+     * @param {Boolean} [timestamp] - The current time in milliseconds.
+     */
+    update(timestamp) {
+      if (this.useFixedDelta) {
+        this._delta = this.fixedDelta;
+      } else {
+        this.previousTime = this.currentTime;
+        this.currentTime = (timestamp !== void 0 ? timestamp : performance.now()) - this.startTime;
+        this._delta = this.currentTime - this.previousTime;
+      }
+      this._delta *= this.timescale;
+      this._elapsed += this._delta;
+    }
+    /**
+     * Resets this timer.
+     */
+    reset() {
+      this._delta = 0;
+      this._elapsed = 0;
+      this.currentTime = performance.now() - this.startTime;
+    }
+    getDelta() {
+      return this.delta;
+    }
+    getElapsed() {
+      return this.elapsed;
+    }
+    handleEvent(e) {
+      if (!document.hidden) {
+        this.currentTime = performance.now() - this.startTime;
+      }
+    }
+    dispose() {
+      this.autoReset = false;
+    }
+  };
+  var fullscreenGeometry = /* @__PURE__ */ (() => {
+    const vertices = new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]);
+    const uvs = new Float32Array([0, 0, 2, 0, 0, 2]);
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(vertices, 3));
+    geometry.setAttribute("uv", new BufferAttribute(uvs, 2));
+    return geometry;
+  })();
+  var Pass = class _Pass {
+    /**
+     * A shared fullscreen triangle.
+     *
+     * The screen size is 2x2 units (NDC). A triangle needs to be 4x4 units to fill the screen.
+     * @see https://michaldrobot.com/2014/04/01/gcn-execution-patterns-in-full-screen-passes/
+     * @type {BufferGeometry}
+     * @internal
+     */
+    static get fullscreenGeometry() {
+      return fullscreenGeometry;
+    }
+    /**
+     * Constructs a new pass.
+     *
+     * @param {String} [name] - The name of this pass. Does not have to be unique.
+     * @param {Scene} [scene] - The scene to render. The default scene contains a single mesh that fills the screen.
+     * @param {Camera} [camera] - A camera. Fullscreen effect passes don't require a camera.
+     */
+    constructor(name = "Pass", scene = new Scene(), camera = new Camera()) {
+      this.name = name;
+      this.renderer = null;
+      this.scene = scene;
+      this.camera = camera;
+      this.screen = null;
+      this.rtt = true;
+      this.needsSwap = true;
+      this.needsDepthTexture = false;
+      this.enabled = true;
+    }
+    /**
+     * Sets the render to screen flag.
+     *
+     * If this flag is changed, the fullscreen material will be updated as well.
+     *
+     * @type {Boolean}
+     */
+    get renderToScreen() {
+      return !this.rtt;
+    }
+    set renderToScreen(value) {
+      if (this.rtt === value) {
+        const material = this.fullscreenMaterial;
+        if (material !== null) {
+          material.needsUpdate = true;
+        }
+        this.rtt = !value;
+      }
+    }
+    /**
+     * Sets the main scene.
+     *
+     * @type {Scene}
+     */
+    set mainScene(value) {
+    }
+    /**
+     * Sets the main camera.
+     *
+     * @type {Camera}
+     */
+    set mainCamera(value) {
+    }
+    /**
+     * Sets the renderer
+     *
+     * @deprecated
+     * @param {WebGLRenderer} renderer - The renderer.
+     */
+    setRenderer(renderer2) {
+      this.renderer = renderer2;
+    }
+    /**
+     * Indicates whether this pass is enabled.
+     *
+     * @deprecated Use enabled instead.
+     * @return {Boolean} Whether this pass is enabled.
+     */
+    isEnabled() {
+      return this.enabled;
+    }
+    /**
+     * Enables or disables this pass.
+     *
+     * @deprecated Use enabled instead.
+     * @param {Boolean} value - Whether the pass should be enabled.
+     */
+    setEnabled(value) {
+      this.enabled = value;
+    }
+    /**
+     * The fullscreen material.
+     *
+     * @type {Material}
+     */
+    get fullscreenMaterial() {
+      return this.screen !== null ? this.screen.material : null;
+    }
+    set fullscreenMaterial(value) {
+      let screen = this.screen;
+      if (screen !== null) {
+        screen.material = value;
+      } else {
+        screen = new Mesh(_Pass.fullscreenGeometry, value);
+        screen.frustumCulled = false;
+        if (this.scene === null) {
+          this.scene = new Scene();
+        }
+        this.scene.add(screen);
+        this.screen = screen;
+      }
+    }
+    /**
+     * Returns the current fullscreen material.
+     *
+     * @deprecated Use fullscreenMaterial instead.
+     * @return {Material} The current fullscreen material, or null if there is none.
+     */
+    getFullscreenMaterial() {
+      return this.fullscreenMaterial;
+    }
+    /**
+     * Sets the fullscreen material.
+     *
+     * @deprecated Use fullscreenMaterial instead.
+     * @protected
+     * @param {Material} value - A fullscreen material.
+     */
+    setFullscreenMaterial(value) {
+      this.fullscreenMaterial = value;
+    }
+    /**
+     * Returns the current depth texture.
+     *
+     * @return {Texture} The current depth texture, or null if there is none.
+     */
+    getDepthTexture() {
+      return null;
+    }
+    /**
+     * Sets the depth texture.
+     *
+     * This method will be called automatically by the {@link EffectComposer}.
+     * You may override this method if your pass relies on the depth information of a preceding {@link RenderPass}.
+     *
+     * @param {Texture} depthTexture - A depth texture.
+     * @param {DepthPackingStrategy} [depthPacking=BasicDepthPacking] - The depth packing.
+     */
+    setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) {
+    }
+    /**
+     * Renders this pass.
+     *
+     * This is an abstract method that must be overridden.
+     *
+     * @abstract
+     * @throws {Error} An error is thrown if the method is not overridden.
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      throw new Error("Render method not implemented!");
+    }
+    /**
+     * Sets the size.
+     *
+     * You may override this method if you want to be informed about the size of the backbuffer/canvas.
+     * This method is called before {@link initialize} and every time the size of the {@link EffectComposer} changes.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * This method is called when this pass is added to an {@link EffectComposer}.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+    }
+    /**
+     * Performs a shallow search for disposable properties and deletes them.
+     *
+     * The {@link EffectComposer} calls this method when it is being destroyed. You can use it independently to free
+     * memory when you're certain that you don't need this pass anymore.
+     */
+    dispose() {
+      for (const key of Object.keys(this)) {
+        const property = this[key];
+        const isDisposable = property instanceof WebGLRenderTarget || property instanceof Material || property instanceof Texture || property instanceof _Pass;
+        if (isDisposable) {
+          this[key].dispose();
+        }
+      }
+      if (this.fullscreenMaterial !== null) {
+        this.fullscreenMaterial.dispose();
+      }
+    }
+  };
+  var ClearMaskPass = class extends Pass {
+    /**
+     * Constructs a new clear mask pass.
+     */
+    constructor() {
+      super("ClearMaskPass", null, null);
+      this.needsSwap = false;
+    }
+    /**
+     * Disables the global stencil test.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      const stencil = renderer2.state.buffers.stencil;
+      stencil.setLocked(false);
+      stencil.setTest(false);
+    }
+  };
+  var copy_default = "#include <common>\n#include <dithering_pars_fragment>\n#ifdef FRAMEBUFFER_PRECISION_HIGH\nuniform mediump sampler2D inputBuffer;\n#else\nuniform lowp sampler2D inputBuffer;\n#endif\nuniform float opacity;varying vec2 vUv;void main(){vec4 texel=texture2D(inputBuffer,vUv);gl_FragColor=opacity*texel;\n#include <colorspace_fragment>\n#include <dithering_fragment>\n}";
+  var common_default = "varying vec2 vUv;void main(){vUv=position.xy*0.5+0.5;gl_Position=vec4(position.xy,1.0,1.0);}";
+  var CopyMaterial = class extends ShaderMaterial {
+    /**
+     * Constructs a new copy material.
+     */
+    constructor() {
+      super({
+        name: "CopyMaterial",
+        uniforms: {
+          inputBuffer: new Uniform(null),
+          opacity: new Uniform(1)
+        },
+        blending: NoBlending,
+        toneMapped: false,
+        depthWrite: false,
+        depthTest: false,
+        fragmentShader: copy_default,
+        vertexShader: common_default
+      });
+    }
+    /**
+     * The input buffer.
+     *
+     * @type {Texture}
+     */
+    set inputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * Sets the input buffer.
+     *
+     * @deprecated Use inputBuffer instead.
+     * @param {Number} value - The buffer.
+     */
+    setInputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * Returns the opacity.
+     *
+     * @deprecated Use opacity instead.
+     * @return {Number} The opacity.
+     */
+    getOpacity(value) {
+      return this.uniforms.opacity.value;
+    }
+    /**
+     * Sets the opacity.
+     *
+     * @deprecated Use opacity instead.
+     * @param {Number} value - The opacity.
+     */
+    setOpacity(value) {
+      this.uniforms.opacity.value = value;
+    }
+  };
+  var CopyPass = class extends Pass {
+    /**
+     * Constructs a new save pass.
+     *
+     * @param {WebGLRenderTarget} [renderTarget] - A render target.
+     * @param {Boolean} [autoResize=true] - Whether the render target size should be updated automatically.
+     */
+    constructor(renderTarget, autoResize = true) {
+      super("CopyPass");
+      this.fullscreenMaterial = new CopyMaterial();
+      this.needsSwap = false;
+      this.renderTarget = renderTarget;
+      if (renderTarget === void 0) {
+        this.renderTarget = new WebGLRenderTarget(1, 1, {
+          minFilter: LinearFilter,
+          magFilter: LinearFilter,
+          stencilBuffer: false,
+          depthBuffer: false
+        });
+        this.renderTarget.texture.name = "CopyPass.Target";
+      }
+      this.autoResize = autoResize;
+    }
+    /**
+     * Enables or disables auto resizing of the render target.
+     *
+     * @deprecated Use autoResize instead.
+     * @type {Boolean}
+     */
+    get resize() {
+      return this.autoResize;
+    }
+    set resize(value) {
+      this.autoResize = value;
+    }
+    /**
+     * The output texture.
+     *
+     * @type {Texture}
+     */
+    get texture() {
+      return this.renderTarget.texture;
+    }
+    /**
+     * Returns the output texture.
+     *
+     * @deprecated Use texture instead.
+     * @return {Texture} The texture.
+     */
+    getTexture() {
+      return this.renderTarget.texture;
+    }
+    /**
+     * Enables or disables auto resizing of the render target.
+     *
+     * @deprecated Use autoResize instead.
+     * @param {Boolean} value - Whether the render target size should be updated automatically.
+     */
+    setAutoResizeEnabled(value) {
+      this.autoResize = value;
+    }
+    /**
+     * Saves the input buffer.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      this.fullscreenMaterial.inputBuffer = inputBuffer.texture;
+      renderer2.setRenderTarget(this.renderToScreen ? null : this.renderTarget);
+      renderer2.render(this.scene, this.camera);
+    }
+    /**
+     * Updates the size of this pass.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      if (this.autoResize) {
+        this.renderTarget.setSize(width, height);
+      }
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * @param {WebGLRenderer} renderer - A renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+      if (frameBufferType !== void 0) {
+        this.renderTarget.texture.type = frameBufferType;
+        if (frameBufferType !== UnsignedByteType) {
+          this.fullscreenMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
+        } else if (renderer2 !== null && renderer2.outputColorSpace === SRGBColorSpace) {
+          this.renderTarget.texture.colorSpace = SRGBColorSpace;
+        }
+      }
+    }
+  };
+  var color = /* @__PURE__ */ new Color();
+  var ClearPass = class extends Pass {
+    /**
+     * Constructs a new clear pass.
+     *
+     * @param {Boolean} [color=true] - Determines whether the color buffer should be cleared.
+     * @param {Boolean} [depth=true] - Determines whether the depth buffer should be cleared.
+     * @param {Boolean} [stencil=false] - Determines whether the stencil buffer should be cleared.
+     */
+    constructor(color2 = true, depth = true, stencil = false) {
+      super("ClearPass", null, null);
+      this.needsSwap = false;
+      this.color = color2;
+      this.depth = depth;
+      this.stencil = stencil;
+      this.overrideClearColor = null;
+      this.overrideClearAlpha = -1;
+    }
+    /**
+     * Sets the clear flags.
+     *
+     * @param {Boolean} color - Whether the color buffer should be cleared.
+     * @param {Boolean} depth - Whether the depth buffer should be cleared.
+     * @param {Boolean} stencil - Whether the stencil buffer should be cleared.
+     */
+    setClearFlags(color2, depth, stencil) {
+      this.color = color2;
+      this.depth = depth;
+      this.stencil = stencil;
+    }
+    /**
+     * Returns the override clear color. Default is null.
+     *
+     * @deprecated Use overrideClearColor instead.
+     * @return {Color} The clear color.
+     */
+    getOverrideClearColor() {
+      return this.overrideClearColor;
+    }
+    /**
+     * Sets the override clear color.
+     *
+     * @deprecated Use overrideClearColor instead.
+     * @param {Color} value - The clear color.
+     */
+    setOverrideClearColor(value) {
+      this.overrideClearColor = value;
+    }
+    /**
+     * Returns the override clear alpha. Default is -1.
+     *
+     * @deprecated Use overrideClearAlpha instead.
+     * @return {Number} The clear alpha.
+     */
+    getOverrideClearAlpha() {
+      return this.overrideClearAlpha;
+    }
+    /**
+     * Sets the override clear alpha.
+     *
+     * @deprecated Use overrideClearAlpha instead.
+     * @param {Number} value - The clear alpha.
+     */
+    setOverrideClearAlpha(value) {
+      this.overrideClearAlpha = value;
+    }
+    /**
+     * Clears the input buffer or the screen.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      const overrideClearColor = this.overrideClearColor;
+      const overrideClearAlpha = this.overrideClearAlpha;
+      const clearAlpha = renderer2.getClearAlpha();
+      const hasOverrideClearColor = overrideClearColor !== null;
+      const hasOverrideClearAlpha = overrideClearAlpha >= 0;
+      if (hasOverrideClearColor) {
+        renderer2.getClearColor(color);
+        renderer2.setClearColor(overrideClearColor, hasOverrideClearAlpha ? overrideClearAlpha : clearAlpha);
+      } else if (hasOverrideClearAlpha) {
+        renderer2.setClearAlpha(overrideClearAlpha);
+      }
+      renderer2.setRenderTarget(this.renderToScreen ? null : inputBuffer);
+      renderer2.clear(this.color, this.depth, this.stencil);
+      if (hasOverrideClearColor) {
+        renderer2.setClearColor(color, clearAlpha);
+      } else if (hasOverrideClearAlpha) {
+        renderer2.setClearAlpha(clearAlpha);
+      }
+    }
+  };
+  var MaskPass = class extends Pass {
+    /**
+     * Constructs a new mask pass.
+     *
+     * @param {Scene} scene - The scene to render.
+     * @param {Camera} camera - The camera to use.
+     */
+    constructor(scene, camera) {
+      super("MaskPass", scene, camera);
+      this.needsSwap = false;
+      this.clearPass = new ClearPass(false, false, true);
+      this.inverse = false;
+    }
+    set mainScene(value) {
+      this.scene = value;
+    }
+    set mainCamera(value) {
+      this.camera = value;
+    }
+    /**
+     * Indicates whether the mask should be inverted.
+     *
+     * @type {Boolean}
+     */
+    get inverted() {
+      return this.inverse;
+    }
+    set inverted(value) {
+      this.inverse = value;
+    }
+    /**
+     * Indicates whether this pass should clear the stencil buffer.
+     *
+     * @type {Boolean}
+     * @deprecated Use clearPass.enabled instead.
+     */
+    get clear() {
+      return this.clearPass.enabled;
+    }
+    set clear(value) {
+      this.clearPass.enabled = value;
+    }
+    /**
+     * Returns the internal clear pass.
+     *
+     * @deprecated Use clearPass.enabled instead.
+     * @return {ClearPass} The clear pass.
+     */
+    getClearPass() {
+      return this.clearPass;
+    }
+    /**
+     * Indicates whether the mask is inverted.
+     *
+     * @deprecated Use inverted instead.
+     * @return {Boolean} Whether the mask is inverted.
+     */
+    isInverted() {
+      return this.inverted;
+    }
+    /**
+     * Enables or disable mask inversion.
+     *
+     * @deprecated Use inverted instead.
+     * @param {Boolean} value - Whether the mask should be inverted.
+     */
+    setInverted(value) {
+      this.inverted = value;
+    }
+    /**
+     * Renders the effect.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      const context = renderer2.getContext();
+      const buffers = renderer2.state.buffers;
+      const scene = this.scene;
+      const camera = this.camera;
+      const clearPass = this.clearPass;
+      const writeValue = this.inverted ? 0 : 1;
+      const clearValue = 1 - writeValue;
+      buffers.color.setMask(false);
+      buffers.depth.setMask(false);
+      buffers.color.setLocked(true);
+      buffers.depth.setLocked(true);
+      buffers.stencil.setTest(true);
+      buffers.stencil.setOp(context.REPLACE, context.REPLACE, context.REPLACE);
+      buffers.stencil.setFunc(context.ALWAYS, writeValue, 4294967295);
+      buffers.stencil.setClear(clearValue);
+      buffers.stencil.setLocked(true);
+      if (this.clearPass.enabled) {
+        if (this.renderToScreen) {
+          clearPass.render(renderer2, null);
+        } else {
+          clearPass.render(renderer2, inputBuffer);
+          clearPass.render(renderer2, outputBuffer);
+        }
+      }
+      if (this.renderToScreen) {
+        renderer2.setRenderTarget(null);
+        renderer2.render(scene, camera);
+      } else {
+        renderer2.setRenderTarget(inputBuffer);
+        renderer2.render(scene, camera);
+        renderer2.setRenderTarget(outputBuffer);
+        renderer2.render(scene, camera);
+      }
+      buffers.color.setLocked(false);
+      buffers.depth.setLocked(false);
+      buffers.stencil.setLocked(false);
+      buffers.stencil.setFunc(context.EQUAL, 1, 4294967295);
+      buffers.stencil.setOp(context.KEEP, context.KEEP, context.KEEP);
+      buffers.stencil.setLocked(true);
+    }
+  };
+  var EffectComposer = class {
+    /**
+     * Constructs a new effect composer.
+     *
+     * @param {WebGLRenderer} renderer - The renderer that should be used.
+     * @param {Object} [options] - The options.
+     * @param {Boolean} [options.depthBuffer=true] - Whether the main render targets should have a depth buffer.
+     * @param {Boolean} [options.stencilBuffer=false] - Whether the main render targets should have a stencil buffer.
+     * @param {Boolean} [options.alpha] - Deprecated. Buffers are always RGBA since three r137.
+     * @param {Number} [options.multisampling=0] - The number of samples used for multisample antialiasing. Requires WebGL 2.
+     * @param {Number} [options.frameBufferType] - The type of the internal frame buffers. It's recommended to use HalfFloatType if possible.
+     */
+    constructor(renderer2 = null, {
+      depthBuffer = true,
+      stencilBuffer = false,
+      multisampling = 0,
+      frameBufferType
+    } = {}) {
+      this.renderer = null;
+      this.inputBuffer = this.createBuffer(depthBuffer, stencilBuffer, frameBufferType, multisampling);
+      this.outputBuffer = this.inputBuffer.clone();
+      this.copyPass = new CopyPass();
+      this.depthTexture = null;
+      this.passes = [];
+      this.timer = new Timer();
+      this.autoRenderToScreen = true;
+      this.setRenderer(renderer2);
+    }
+    /**
+     * The current amount of samples used for multisample anti-aliasing.
+     *
+     * @type {Number}
+     */
+    get multisampling() {
+      return this.inputBuffer.samples || 0;
+    }
+    /**
+     * Sets the amount of MSAA samples.
+     *
+     * Requires WebGL 2. Set to zero to disable multisampling.
+     *
+     * @type {Number}
+     */
+    set multisampling(value) {
+      const buffer = this.inputBuffer;
+      const multisampling = this.multisampling;
+      if (multisampling > 0 && value > 0) {
+        this.inputBuffer.samples = value;
+        this.outputBuffer.samples = value;
+        this.inputBuffer.dispose();
+        this.outputBuffer.dispose();
+      } else if (multisampling !== value) {
+        this.inputBuffer.dispose();
+        this.outputBuffer.dispose();
+        this.inputBuffer = this.createBuffer(
+          buffer.depthBuffer,
+          buffer.stencilBuffer,
+          buffer.texture.type,
+          value
+        );
+        this.inputBuffer.depthTexture = this.depthTexture;
+        this.outputBuffer = this.inputBuffer.clone();
+      }
+    }
+    /**
+     * Returns the internal timer.
+     *
+     * @return {Timer} The timer.
+     */
+    getTimer() {
+      return this.timer;
+    }
+    /**
+     * Returns the renderer.
+     *
+     * @return {WebGLRenderer} The renderer.
+     */
+    getRenderer() {
+      return this.renderer;
+    }
+    /**
+     * Sets the renderer.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     */
+    setRenderer(renderer2) {
+      this.renderer = renderer2;
+      if (renderer2 !== null) {
+        const size = renderer2.getSize(new Vector2());
+        const alpha = renderer2.getContext().getContextAttributes().alpha;
+        const frameBufferType = this.inputBuffer.texture.type;
+        if (frameBufferType === UnsignedByteType && renderer2.outputColorSpace === SRGBColorSpace) {
+          this.inputBuffer.texture.colorSpace = SRGBColorSpace;
+          this.outputBuffer.texture.colorSpace = SRGBColorSpace;
+          this.inputBuffer.dispose();
+          this.outputBuffer.dispose();
+        }
+        renderer2.autoClear = false;
+        this.setSize(size.width, size.height);
+        for (const pass of this.passes) {
+          pass.initialize(renderer2, alpha, frameBufferType);
+        }
+      }
+    }
+    /**
+     * Replaces the current renderer with the given one.
+     *
+     * The auto clear mechanism of the provided renderer will be disabled. If the new render size differs from the
+     * previous one, all passes will be updated.
+     *
+     * By default, the DOM element of the current renderer will automatically be removed from its parent node and the DOM
+     * element of the new renderer will take its place.
+     *
+     * @deprecated Use setRenderer instead.
+     * @param {WebGLRenderer} renderer - The new renderer.
+     * @param {Boolean} updateDOM - Indicates whether the old canvas should be replaced by the new one in the DOM.
+     * @return {WebGLRenderer} The old renderer.
+     */
+    replaceRenderer(renderer2, updateDOM = true) {
+      const oldRenderer = this.renderer;
+      const parent = oldRenderer.domElement.parentNode;
+      this.setRenderer(renderer2);
+      if (updateDOM && parent !== null) {
+        parent.removeChild(oldRenderer.domElement);
+        parent.appendChild(renderer2.domElement);
+      }
+      return oldRenderer;
+    }
+    /**
+     * Creates a depth texture attachment that will be provided to all passes.
+     *
+     * Note: When a shader reads from a depth texture and writes to a render target that uses the same depth texture
+     * attachment, the depth information will be lost. This happens even if `depthWrite` is disabled.
+     *
+     * @private
+     * @return {DepthTexture} The depth texture.
+     */
+    createDepthTexture() {
+      const depthTexture = this.depthTexture = new DepthTexture();
+      this.inputBuffer.depthTexture = depthTexture;
+      this.inputBuffer.dispose();
+      if (this.inputBuffer.stencilBuffer) {
+        depthTexture.format = DepthStencilFormat;
+        depthTexture.type = UnsignedInt248Type;
+      } else {
+        depthTexture.type = UnsignedIntType;
+      }
+      return depthTexture;
+    }
+    /**
+     * Deletes the current depth texture.
+     *
+     * @private
+     */
+    deleteDepthTexture() {
+      if (this.depthTexture !== null) {
+        this.depthTexture.dispose();
+        this.depthTexture = null;
+        this.inputBuffer.depthTexture = null;
+        this.inputBuffer.dispose();
+        for (const pass of this.passes) {
+          pass.setDepthTexture(null);
+        }
+      }
+    }
+    /**
+     * Creates a new render target.
+     *
+     * @deprecated Create buffers manually via WebGLRenderTarget instead.
+     * @param {Boolean} depthBuffer - Whether the render target should have a depth buffer.
+     * @param {Boolean} stencilBuffer - Whether the render target should have a stencil buffer.
+     * @param {Number} type - The frame buffer type.
+     * @param {Number} multisampling - The number of samples to use for antialiasing.
+     * @return {WebGLRenderTarget} A new render target that equals the renderer's canvas.
+     */
+    createBuffer(depthBuffer, stencilBuffer, type, multisampling) {
+      const renderer2 = this.renderer;
+      const size = renderer2 === null ? new Vector2() : renderer2.getDrawingBufferSize(new Vector2());
+      const options = {
+        minFilter: LinearFilter,
+        magFilter: LinearFilter,
+        stencilBuffer,
+        depthBuffer,
+        type
+      };
+      const renderTarget = new WebGLRenderTarget(size.width, size.height, options);
+      if (multisampling > 0) {
+        renderTarget.ignoreDepthForMultisampleCopy = false;
+        renderTarget.samples = multisampling;
+      }
+      if (type === UnsignedByteType && renderer2 !== null && renderer2.outputColorSpace === SRGBColorSpace) {
+        renderTarget.texture.colorSpace = SRGBColorSpace;
+      }
+      renderTarget.texture.name = "EffectComposer.Buffer";
+      renderTarget.texture.generateMipmaps = false;
+      return renderTarget;
+    }
+    /**
+     * Can be used to change the main scene for all registered passes and effects.
+     *
+     * @param {Scene} scene - The scene.
+     */
+    setMainScene(scene) {
+      for (const pass of this.passes) {
+        pass.mainScene = scene;
+      }
+    }
+    /**
+     * Can be used to change the main camera for all registered passes and effects.
+     *
+     * @param {Camera} camera - The camera.
+     */
+    setMainCamera(camera) {
+      for (const pass of this.passes) {
+        pass.mainCamera = camera;
+      }
+    }
+    /**
+     * Adds a pass, optionally at a specific index.
+     *
+     * @param {Pass} pass - A new pass.
+     * @param {Number} [index] - An index at which the pass should be inserted.
+     */
+    addPass(pass, index) {
+      const passes = this.passes;
+      const renderer2 = this.renderer;
+      const drawingBufferSize = renderer2.getDrawingBufferSize(new Vector2());
+      const alpha = renderer2.getContext().getContextAttributes().alpha;
+      const frameBufferType = this.inputBuffer.texture.type;
+      pass.setRenderer(renderer2);
+      pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
+      pass.initialize(renderer2, alpha, frameBufferType);
+      if (this.autoRenderToScreen) {
+        if (passes.length > 0) {
+          passes[passes.length - 1].renderToScreen = false;
+        }
+        if (pass.renderToScreen) {
+          this.autoRenderToScreen = false;
+        }
+      }
+      if (index !== void 0) {
+        passes.splice(index, 0, pass);
+      } else {
+        passes.push(pass);
+      }
+      if (this.autoRenderToScreen) {
+        passes[passes.length - 1].renderToScreen = true;
+      }
+      if (pass.needsDepthTexture || this.depthTexture !== null) {
+        if (this.depthTexture === null) {
+          const depthTexture = this.createDepthTexture();
+          for (pass of passes) {
+            pass.setDepthTexture(depthTexture);
+          }
+        } else {
+          pass.setDepthTexture(this.depthTexture);
+        }
+      }
+    }
+    /**
+     * Removes a pass.
+     *
+     * @param {Pass} pass - The pass.
+     */
+    removePass(pass) {
+      const passes = this.passes;
+      const index = passes.indexOf(pass);
+      const exists = index !== -1;
+      const removed = exists && passes.splice(index, 1).length > 0;
+      if (removed) {
+        if (this.depthTexture !== null) {
+          const reducer = (a, b) => a || b.needsDepthTexture;
+          const depthTextureRequired = passes.reduce(reducer, false);
+          if (!depthTextureRequired) {
+            if (pass.getDepthTexture() === this.depthTexture) {
+              pass.setDepthTexture(null);
+            }
+            this.deleteDepthTexture();
+          }
+        }
+        if (this.autoRenderToScreen) {
+          if (index === passes.length) {
+            pass.renderToScreen = false;
+            if (passes.length > 0) {
+              passes[passes.length - 1].renderToScreen = true;
+            }
+          }
+        }
+      }
+    }
+    /**
+     * Removes all passes.
+     */
+    removeAllPasses() {
+      const passes = this.passes;
+      this.deleteDepthTexture();
+      if (passes.length > 0) {
+        if (this.autoRenderToScreen) {
+          passes[passes.length - 1].renderToScreen = false;
+        }
+        this.passes = [];
+      }
+    }
+    /**
+     * Renders all enabled passes in the order in which they were added.
+     *
+     * @param {Number} [deltaTime] - The time since the last frame in seconds.
+     */
+    render(deltaTime) {
+      const renderer2 = this.renderer;
+      const copyPass = this.copyPass;
+      let inputBuffer = this.inputBuffer;
+      let outputBuffer = this.outputBuffer;
+      let stencilTest = false;
+      let context, stencil, buffer;
+      if (deltaTime === void 0) {
+        this.timer.update();
+        deltaTime = this.timer.getDelta();
+      }
+      for (const pass of this.passes) {
+        if (pass.enabled) {
+          pass.render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest);
+          if (pass.needsSwap) {
+            if (stencilTest) {
+              copyPass.renderToScreen = pass.renderToScreen;
+              context = renderer2.getContext();
+              stencil = renderer2.state.buffers.stencil;
+              stencil.setFunc(context.NOTEQUAL, 1, 4294967295);
+              copyPass.render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest);
+              stencil.setFunc(context.EQUAL, 1, 4294967295);
+            }
+            buffer = inputBuffer;
+            inputBuffer = outputBuffer;
+            outputBuffer = buffer;
+          }
+          if (pass instanceof MaskPass) {
+            stencilTest = true;
+          } else if (pass instanceof ClearMaskPass) {
+            stencilTest = false;
+          }
+        }
+      }
+    }
+    /**
+     * Sets the size of the buffers, passes and the renderer.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     * @param {Boolean} [updateStyle] - Determines whether the style of the canvas should be updated.
+     */
+    setSize(width, height, updateStyle) {
+      const renderer2 = this.renderer;
+      const currentSize = renderer2.getSize(new Vector2());
+      if (width === void 0 || height === void 0) {
+        width = currentSize.width;
+        height = currentSize.height;
+      }
+      if (currentSize.width !== width || currentSize.height !== height) {
+        renderer2.setSize(width, height, updateStyle);
+      }
+      const drawingBufferSize = renderer2.getDrawingBufferSize(new Vector2());
+      this.inputBuffer.setSize(drawingBufferSize.width, drawingBufferSize.height);
+      this.outputBuffer.setSize(drawingBufferSize.width, drawingBufferSize.height);
+      for (const pass of this.passes) {
+        pass.setSize(drawingBufferSize.width, drawingBufferSize.height);
+      }
+    }
+    /**
+     * Resets this composer by deleting all passes and creating new buffers.
+     */
+    reset() {
+      this.dispose();
+      this.autoRenderToScreen = true;
+    }
+    /**
+     * Disposes this composer and all passes.
+     */
+    dispose() {
+      for (const pass of this.passes) {
+        pass.dispose();
+      }
+      this.passes = [];
+      if (this.inputBuffer !== null) {
+        this.inputBuffer.dispose();
+      }
+      if (this.outputBuffer !== null) {
+        this.outputBuffer.dispose();
+      }
+      this.deleteDepthTexture();
+      this.copyPass.dispose();
+      this.timer.dispose();
+      Pass.fullscreenGeometry.dispose();
+    }
+  };
+  var EffectAttribute = {
+    NONE: 0,
+    DEPTH: 1,
+    CONVOLUTION: 2
+  };
+  var EffectShaderSection = {
+    FRAGMENT_HEAD: "FRAGMENT_HEAD",
+    FRAGMENT_MAIN_UV: "FRAGMENT_MAIN_UV",
+    FRAGMENT_MAIN_IMAGE: "FRAGMENT_MAIN_IMAGE",
+    VERTEX_HEAD: "VERTEX_HEAD",
+    VERTEX_MAIN_SUPPORT: "VERTEX_MAIN_SUPPORT"
+  };
+  var EffectShaderData = class {
+    /**
+     * Constructs new shader data.
+     */
+    constructor() {
+      this.shaderParts = /* @__PURE__ */ new Map([
+        [EffectShaderSection.FRAGMENT_HEAD, null],
+        [EffectShaderSection.FRAGMENT_MAIN_UV, null],
+        [EffectShaderSection.FRAGMENT_MAIN_IMAGE, null],
+        [EffectShaderSection.VERTEX_HEAD, null],
+        [EffectShaderSection.VERTEX_MAIN_SUPPORT, null]
+      ]);
+      this.defines = /* @__PURE__ */ new Map();
+      this.uniforms = /* @__PURE__ */ new Map();
+      this.blendModes = /* @__PURE__ */ new Map();
+      this.extensions = /* @__PURE__ */ new Set();
+      this.attributes = EffectAttribute.NONE;
+      this.varyings = /* @__PURE__ */ new Set();
+      this.uvTransformation = false;
+      this.readDepth = false;
+      this.colorSpace = LinearSRGBColorSpace;
+    }
+  };
+  var workaroundEnabled = false;
+  var OverrideMaterialManager = class {
+    /**
+     * Constructs a new override material manager.
+     *
+     * @param {Material} [material=null] - An override material.
+     */
+    constructor(material = null) {
+      this.originalMaterials = /* @__PURE__ */ new Map();
+      this.material = null;
+      this.materials = null;
+      this.materialsBackSide = null;
+      this.materialsDoubleSide = null;
+      this.materialsFlatShaded = null;
+      this.materialsFlatShadedBackSide = null;
+      this.materialsFlatShadedDoubleSide = null;
+      this.setMaterial(material);
+      this.meshCount = 0;
+      this.replaceMaterial = (node) => {
+        if (node.isMesh) {
+          let materials;
+          if (node.material.flatShading) {
+            switch (node.material.side) {
+              case DoubleSide:
+                materials = this.materialsFlatShadedDoubleSide;
+                break;
+              case BackSide:
+                materials = this.materialsFlatShadedBackSide;
+                break;
+              default:
+                materials = this.materialsFlatShaded;
+                break;
+            }
+          } else {
+            switch (node.material.side) {
+              case DoubleSide:
+                materials = this.materialsDoubleSide;
+                break;
+              case BackSide:
+                materials = this.materialsBackSide;
+                break;
+              default:
+                materials = this.materials;
+                break;
+            }
+          }
+          this.originalMaterials.set(node, node.material);
+          if (node.isSkinnedMesh) {
+            node.material = materials[2];
+          } else if (node.isInstancedMesh) {
+            node.material = materials[1];
+          } else {
+            node.material = materials[0];
+          }
+          ++this.meshCount;
+        }
+      };
+    }
+    /**
+     * Clones the given material.
+     *
+     * @private
+     * @param {Material} material - The material.
+     * @return {Material} The cloned material.
+     */
+    cloneMaterial(material) {
+      if (!(material instanceof ShaderMaterial)) {
+        return material.clone();
+      }
+      const uniforms = material.uniforms;
+      const textureUniforms = /* @__PURE__ */ new Map();
+      for (const key in uniforms) {
+        const value = uniforms[key].value;
+        if (value.isRenderTargetTexture) {
+          uniforms[key].value = null;
+          textureUniforms.set(key, value);
+        }
+      }
+      const clone = material.clone();
+      for (const entry of textureUniforms) {
+        uniforms[entry[0]].value = entry[1];
+        clone.uniforms[entry[0]].value = entry[1];
+      }
+      return clone;
+    }
+    /**
+     * Sets the override material.
+     *
+     * @param {Material} material - The material.
+     */
+    setMaterial(material) {
+      this.disposeMaterials();
+      this.material = material;
+      if (material !== null) {
+        const materials = this.materials = [
+          this.cloneMaterial(material),
+          this.cloneMaterial(material),
+          this.cloneMaterial(material)
+        ];
+        for (const m2 of materials) {
+          m2.uniforms = Object.assign({}, material.uniforms);
+          m2.side = FrontSide;
+        }
+        materials[2].skinning = true;
+        this.materialsBackSide = materials.map((m2) => {
+          const c2 = this.cloneMaterial(m2);
+          c2.uniforms = Object.assign({}, material.uniforms);
+          c2.side = BackSide;
+          return c2;
+        });
+        this.materialsDoubleSide = materials.map((m2) => {
+          const c2 = this.cloneMaterial(m2);
+          c2.uniforms = Object.assign({}, material.uniforms);
+          c2.side = DoubleSide;
+          return c2;
+        });
+        this.materialsFlatShaded = materials.map((m2) => {
+          const c2 = this.cloneMaterial(m2);
+          c2.uniforms = Object.assign({}, material.uniforms);
+          c2.flatShading = true;
+          return c2;
+        });
+        this.materialsFlatShadedBackSide = materials.map((m2) => {
+          const c2 = this.cloneMaterial(m2);
+          c2.uniforms = Object.assign({}, material.uniforms);
+          c2.flatShading = true;
+          c2.side = BackSide;
+          return c2;
+        });
+        this.materialsFlatShadedDoubleSide = materials.map((m2) => {
+          const c2 = this.cloneMaterial(m2);
+          c2.uniforms = Object.assign({}, material.uniforms);
+          c2.flatShading = true;
+          c2.side = DoubleSide;
+          return c2;
+        });
+      }
+    }
+    /**
+     * Renders the scene with the override material.
+     *
+     * @private
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {Scene} scene - A scene.
+     * @param {Camera} camera - A camera.
+     */
+    render(renderer2, scene, camera) {
+      const shadowMapEnabled = renderer2.shadowMap.enabled;
+      renderer2.shadowMap.enabled = false;
+      if (workaroundEnabled) {
+        const originalMaterials = this.originalMaterials;
+        this.meshCount = 0;
+        scene.traverse(this.replaceMaterial);
+        renderer2.render(scene, camera);
+        for (const entry of originalMaterials) {
+          entry[0].material = entry[1];
+        }
+        if (this.meshCount !== originalMaterials.size) {
+          originalMaterials.clear();
+        }
+      } else {
+        const overrideMaterial = scene.overrideMaterial;
+        scene.overrideMaterial = this.material;
+        renderer2.render(scene, camera);
+        scene.overrideMaterial = overrideMaterial;
+      }
+      renderer2.shadowMap.enabled = shadowMapEnabled;
+    }
+    /**
+     * Deletes cloned override materials.
+     *
+     * @private
+     */
+    disposeMaterials() {
+      if (this.material !== null) {
+        const materials = this.materials.concat(this.materialsBackSide).concat(this.materialsDoubleSide).concat(this.materialsFlatShaded).concat(this.materialsFlatShadedBackSide).concat(this.materialsFlatShadedDoubleSide);
+        for (const m2 of materials) {
+          m2.dispose();
+        }
+      }
+    }
+    /**
+     * Performs cleanup tasks.
+     */
+    dispose() {
+      this.originalMaterials.clear();
+      this.disposeMaterials();
+    }
+    /**
+     * Indicates whether the override material workaround is enabled.
+     *
+     * @type {Boolean}
+     */
+    static get workaroundEnabled() {
+      return workaroundEnabled;
+    }
+    /**
+     * Enables or disables the override material workaround globally.
+     *
+     * This only affects post processing passes and effects.
+     *
+     * @type {Boolean}
+     */
+    static set workaroundEnabled(value) {
+      workaroundEnabled = value;
+    }
+  };
+  var AUTO_SIZE = -1;
+  var Resolution = class extends EventDispatcher {
+    /**
+     * Constructs a new resolution.
+     *
+     * TODO Remove resizable param.
+     * @param {Resizable} resizable - A resizable object.
+     * @param {Number} [width=Resolution.AUTO_SIZE] - The preferred width.
+     * @param {Number} [height=Resolution.AUTO_SIZE] - The preferred height.
+     * @param {Number} [scale=1.0] - A resolution scale.
+     */
+    constructor(resizable, width = AUTO_SIZE, height = AUTO_SIZE, scale = 1) {
+      super();
+      this.resizable = resizable;
+      this.baseSize = new Vector2(1, 1);
+      this.preferredSize = new Vector2(width, height);
+      this.target = this.preferredSize;
+      this.s = scale;
+      this.effectiveSize = new Vector2();
+      this.addEventListener("change", () => this.updateEffectiveSize());
+      this.updateEffectiveSize();
+    }
+    /**
+     * Calculates the effective size.
+     *
+     * @private
+     */
+    updateEffectiveSize() {
+      const base = this.baseSize;
+      const preferred = this.preferredSize;
+      const effective = this.effectiveSize;
+      const scale = this.scale;
+      if (preferred.width !== AUTO_SIZE) {
+        effective.width = preferred.width;
+      } else if (preferred.height !== AUTO_SIZE) {
+        effective.width = Math.round(preferred.height * (base.width / Math.max(base.height, 1)));
+      } else {
+        effective.width = Math.round(base.width * scale);
+      }
+      if (preferred.height !== AUTO_SIZE) {
+        effective.height = preferred.height;
+      } else if (preferred.width !== AUTO_SIZE) {
+        effective.height = Math.round(preferred.width / Math.max(base.width / Math.max(base.height, 1), 1));
+      } else {
+        effective.height = Math.round(base.height * scale);
+      }
+    }
+    /**
+     * The effective width.
+     *
+     * If the preferred width and height are set to {@link Resizer.AUTO_SIZE}, the base width will be returned.
+     *
+     * @type {Number}
+     */
+    get width() {
+      return this.effectiveSize.width;
+    }
+    set width(value) {
+      this.preferredWidth = value;
+    }
+    /**
+     * The effective height.
+     *
+     * If the preferred width and height are set to {@link Resizer.AUTO_SIZE}, the base height will be returned.
+     *
+     * @type {Number}
+     */
+    get height() {
+      return this.effectiveSize.height;
+    }
+    set height(value) {
+      this.preferredHeight = value;
+    }
+    /**
+     * Returns the effective width.
+     *
+     * If the preferred width and height are set to {@link Resizer.AUTO_SIZE}, the base width will be returned.
+     *
+     * @deprecated Use width instead.
+     * @return {Number} The effective width.
+     */
+    getWidth() {
+      return this.width;
+    }
+    /**
+     * Returns the effective height.
+     *
+     * If the preferred width and height are set to {@link Resizer.AUTO_SIZE}, the base height will be returned.
+     *
+     * @deprecated Use height instead.
+     * @return {Number} The effective height.
+     */
+    getHeight() {
+      return this.height;
+    }
+    /**
+     * The resolution scale.
+     *
+     * @type {Number}
+     */
+    get scale() {
+      return this.s;
+    }
+    set scale(value) {
+      if (this.s !== value) {
+        this.s = value;
+        this.preferredSize.setScalar(AUTO_SIZE);
+        this.dispatchEvent({ type: "change" });
+        this.resizable.setSize(this.baseSize.width, this.baseSize.height);
+      }
+    }
+    /**
+     * Returns the current resolution scale.
+     *
+     * @deprecated Use scale instead.
+     * @return {Number} The scale.
+     */
+    getScale() {
+      return this.scale;
+    }
+    /**
+     * Sets the resolution scale.
+     *
+     * Also sets the preferred resolution to {@link Resizer.AUTO_SIZE}.
+     *
+     * @deprecated Use scale instead.
+     * @param {Number} value - The scale.
+     */
+    setScale(value) {
+      this.scale = value;
+    }
+    /**
+     * The base width.
+     *
+     * @type {Number}
+     */
+    get baseWidth() {
+      return this.baseSize.width;
+    }
+    set baseWidth(value) {
+      if (this.baseSize.width !== value) {
+        this.baseSize.width = value;
+        this.dispatchEvent({ type: "change" });
+        this.resizable.setSize(this.baseSize.width, this.baseSize.height);
+      }
+    }
+    /**
+     * Returns the base width.
+     *
+     * @deprecated Use baseWidth instead.
+     * @return {Number} The base width.
+     */
+    getBaseWidth() {
+      return this.baseWidth;
+    }
+    /**
+     * Sets the base width.
+     *
+     * @deprecated Use baseWidth instead.
+     * @param {Number} value - The width.
+     */
+    setBaseWidth(value) {
+      this.baseWidth = value;
+    }
+    /**
+     * The base height.
+     *
+     * @type {Number}
+     */
+    get baseHeight() {
+      return this.baseSize.height;
+    }
+    set baseHeight(value) {
+      if (this.baseSize.height !== value) {
+        this.baseSize.height = value;
+        this.dispatchEvent({ type: "change" });
+        this.resizable.setSize(this.baseSize.width, this.baseSize.height);
+      }
+    }
+    /**
+     * Returns the base height.
+     *
+     * @deprecated Use baseHeight instead.
+     * @return {Number} The base height.
+     */
+    getBaseHeight() {
+      return this.baseHeight;
+    }
+    /**
+     * Sets the base height.
+     *
+     * @deprecated Use baseHeight instead.
+     * @param {Number} value - The height.
+     */
+    setBaseHeight(value) {
+      this.baseHeight = value;
+    }
+    /**
+     * Sets the base size.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setBaseSize(width, height) {
+      if (this.baseSize.width !== width || this.baseSize.height !== height) {
+        this.baseSize.set(width, height);
+        this.dispatchEvent({ type: "change" });
+        this.resizable.setSize(this.baseSize.width, this.baseSize.height);
+      }
+    }
+    /**
+     * The preferred width.
+     *
+     * @type {Number}
+     */
+    get preferredWidth() {
+      return this.preferredSize.width;
+    }
+    set preferredWidth(value) {
+      if (this.preferredSize.width !== value) {
+        this.preferredSize.width = value;
+        this.dispatchEvent({ type: "change" });
+        this.resizable.setSize(this.baseSize.width, this.baseSize.height);
+      }
+    }
+    /**
+     * Returns the preferred width.
+     *
+     * @deprecated Use preferredWidth instead.
+     * @return {Number} The preferred width.
+     */
+    getPreferredWidth() {
+      return this.preferredWidth;
+    }
+    /**
+     * Sets the preferred width.
+     *
+     * Use {@link Resizer.AUTO_SIZE} to automatically calculate the width based on the height and aspect ratio.
+     *
+     * @deprecated Use preferredWidth instead.
+     * @param {Number} value - The width.
+     */
+    setPreferredWidth(value) {
+      this.preferredWidth = value;
+    }
+    /**
+     * The preferred height.
+     *
+     * @type {Number}
+     */
+    get preferredHeight() {
+      return this.preferredSize.height;
+    }
+    set preferredHeight(value) {
+      if (this.preferredSize.height !== value) {
+        this.preferredSize.height = value;
+        this.dispatchEvent({ type: "change" });
+        this.resizable.setSize(this.baseSize.width, this.baseSize.height);
+      }
+    }
+    /**
+     * Returns the preferred height.
+     *
+     * @deprecated Use preferredHeight instead.
+     * @return {Number} The preferred height.
+     */
+    getPreferredHeight() {
+      return this.preferredHeight;
+    }
+    /**
+     * Sets the preferred height.
+     *
+     * Use {@link Resizer.AUTO_SIZE} to automatically calculate the height based on the width and aspect ratio.
+     *
+     * @deprecated Use preferredHeight instead.
+     * @param {Number} value - The height.
+     */
+    setPreferredHeight(value) {
+      this.preferredHeight = value;
+    }
+    /**
+     * Sets the preferred size.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setPreferredSize(width, height) {
+      if (this.preferredSize.width !== width || this.preferredSize.height !== height) {
+        this.preferredSize.set(width, height);
+        this.dispatchEvent({ type: "change" });
+        this.resizable.setSize(this.baseSize.width, this.baseSize.height);
+      }
+    }
+    /**
+     * Copies the given resolution.
+     *
+     * @param {Resolution} resolution - The resolution.
+     */
+    copy(resolution) {
+      this.s = resolution.scale;
+      this.baseSize.set(resolution.baseWidth, resolution.baseHeight);
+      this.preferredSize.set(resolution.preferredWidth, resolution.preferredHeight);
+      this.dispatchEvent({ type: "change" });
+      this.resizable.setSize(this.baseSize.width, this.baseSize.height);
+    }
+    /**
+     * An auto sizing constant.
+     *
+     * Can be used to automatically calculate the width or height based on the original aspect ratio.
+     *
+     * @type {Number}
+     */
+    static get AUTO_SIZE() {
+      return AUTO_SIZE;
+    }
+  };
+  var BlendFunction = {
+    SKIP: 9,
+    SET: 30,
+    ADD: 0,
+    ALPHA: 1,
+    AVERAGE: 2,
+    COLOR: 3,
+    COLOR_BURN: 4,
+    COLOR_DODGE: 5,
+    DARKEN: 6,
+    DIFFERENCE: 7,
+    DIVIDE: 8,
+    DST: 9,
+    EXCLUSION: 10,
+    HARD_LIGHT: 11,
+    HARD_MIX: 12,
+    HUE: 13,
+    INVERT: 14,
+    INVERT_RGB: 15,
+    LIGHTEN: 16,
+    LINEAR_BURN: 17,
+    LINEAR_DODGE: 18,
+    LINEAR_LIGHT: 19,
+    LUMINOSITY: 20,
+    MULTIPLY: 21,
+    NEGATION: 22,
+    NORMAL: 23,
+    OVERLAY: 24,
+    PIN_LIGHT: 25,
+    REFLECT: 26,
+    SATURATION: 27,
+    SCREEN: 28,
+    SOFT_LIGHT: 29,
+    SRC: 30,
+    SUBTRACT: 31,
+    VIVID_LIGHT: 32
+  };
+  var add_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,x+y,opacity);}";
+  var alpha_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,y,min(y.a,opacity));}";
+  var average_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,(x+y)*0.5,opacity);}";
+  var color_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec3 xHSL=RGBToHSL(x.rgb);vec3 yHSL=RGBToHSL(y.rgb);vec3 z=HSLToRGB(vec3(yHSL.rg,xHSL.b));return vec4(mix(x.rgb,z,opacity),y.a);}";
+  var color_burn_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec4 z=mix(step(0.0,y)*(1.0-min(vec4(1.0),(1.0-x)/y)),vec4(1.0),step(1.0,x));return mix(x,z,opacity);}";
+  var color_dodge_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec4 z=step(0.0,x)*mix(min(vec4(1.0),x/max(1.0-y,1e-9)),vec4(1.0),step(1.0,y));return mix(x,z,opacity);}";
+  var darken_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,min(x,y),opacity);}";
+  var difference_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,abs(x-y),opacity);}";
+  var divide_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,x/max(y,1e-12),opacity);}";
+  var exclusion_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,(x+y-2.0*x*y),opacity);}";
+  var hard_light_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec4 a=min(x,1.0),b=min(y,1.0);vec4 z=mix(2.0*a*b,1.0-2.0*(1.0-a)*(1.0-b),step(0.5,y));return mix(x,z,opacity);}";
+  var hard_mix_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,step(1.0,x+y),opacity);}";
+  var hue_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec3 xHSL=RGBToHSL(x.rgb);vec3 yHSL=RGBToHSL(y.rgb);vec3 z=HSLToRGB(vec3(yHSL.r,xHSL.gb));return vec4(mix(x.rgb,z,opacity),y.a);}";
+  var invert_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,1.0-y,opacity);}";
+  var invert_rgb_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,y*(1.0-x),opacity);}";
+  var lighten_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,max(x,y),opacity);}";
+  var linear_burn_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,clamp(y+x-1.0,0.0,1.0),opacity);}";
+  var linear_dodge_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,min(x+y,1.0),opacity);}";
+  var linear_light_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,clamp(2.0*y+x-1.0,0.0,1.0),opacity);}";
+  var luminosity_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec3 xHSL=RGBToHSL(x.rgb);vec3 yHSL=RGBToHSL(y.rgb);vec3 z=HSLToRGB(vec3(xHSL.rg,yHSL.b));return vec4(mix(x.rgb,z,opacity),y.a);}";
+  var multiply_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,x*y,opacity);}";
+  var negation_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,1.0-abs(1.0-x-y),opacity);}";
+  var normal_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,y,opacity);}";
+  var overlay_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec4 z=mix(2.0*y*x,1.0-2.0*(1.0-y)*(1.0-x),step(0.5,x));return mix(x,z,opacity);}";
+  var pin_light_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec4 y2=2.0*y;vec4 z=mix(mix(y2,x,step(0.5*x,y)),max(vec4(0.0),y2-1.0),step(x,(y2-1.0)));return mix(x,z,opacity);}";
+  var reflect_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec4 z=mix(min(x*x/max(1.0-y,1e-12),1.0),y,step(1.0,y));return mix(x,z,opacity);}";
+  var saturation_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec3 xHSL=RGBToHSL(x.rgb);vec3 yHSL=RGBToHSL(y.rgb);vec3 z=HSLToRGB(vec3(xHSL.r,yHSL.g,xHSL.b));return vec4(mix(x.rgb,z,opacity),y.a);}";
+  var screen_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,x+y-min(x*y,1.0),opacity);}";
+  var soft_light_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec4 y2=2.0*y;vec4 w=step(0.5,y);vec4 z=mix(x-(1.0-y2)*x*(1.0-x),mix(x+(y2-1.0)*(sqrt(x)-x),x+(y2-1.0)*x*((16.0*x-12.0)*x+3.0),w*(1.0-step(0.25,x))),w);return mix(x,z,opacity);}";
+  var src_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return y;}";
+  var subtract_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){return mix(x,max(x+y-1.0,0.0),opacity);}";
+  var vivid_light_default = "vec4 blend(const in vec4 x,const in vec4 y,const in float opacity){vec4 z=mix(max(1.0-min((1.0-x)/(2.0*y),1.0),0.0),min(x/(2.0*(1.0-y)),1.0),step(0.5,y));return mix(x,z,opacity);}";
+  var blendFunctions = /* @__PURE__ */ new Map([
+    [BlendFunction.ADD, add_default],
+    [BlendFunction.ALPHA, alpha_default],
+    [BlendFunction.AVERAGE, average_default],
+    [BlendFunction.COLOR, color_default],
+    [BlendFunction.COLOR_BURN, color_burn_default],
+    [BlendFunction.COLOR_DODGE, color_dodge_default],
+    [BlendFunction.DARKEN, darken_default],
+    [BlendFunction.DIFFERENCE, difference_default],
+    [BlendFunction.DIVIDE, divide_default],
+    [BlendFunction.DST, null],
+    [BlendFunction.EXCLUSION, exclusion_default],
+    [BlendFunction.HARD_LIGHT, hard_light_default],
+    [BlendFunction.HARD_MIX, hard_mix_default],
+    [BlendFunction.HUE, hue_default],
+    [BlendFunction.INVERT, invert_default],
+    [BlendFunction.INVERT_RGB, invert_rgb_default],
+    [BlendFunction.LIGHTEN, lighten_default],
+    [BlendFunction.LINEAR_BURN, linear_burn_default],
+    [BlendFunction.LINEAR_DODGE, linear_dodge_default],
+    [BlendFunction.LINEAR_LIGHT, linear_light_default],
+    [BlendFunction.LUMINOSITY, luminosity_default],
+    [BlendFunction.MULTIPLY, multiply_default],
+    [BlendFunction.NEGATION, negation_default],
+    [BlendFunction.NORMAL, normal_default],
+    [BlendFunction.OVERLAY, overlay_default],
+    [BlendFunction.PIN_LIGHT, pin_light_default],
+    [BlendFunction.REFLECT, reflect_default],
+    [BlendFunction.SATURATION, saturation_default],
+    [BlendFunction.SCREEN, screen_default],
+    [BlendFunction.SOFT_LIGHT, soft_light_default],
+    [BlendFunction.SRC, src_default],
+    [BlendFunction.SUBTRACT, subtract_default],
+    [BlendFunction.VIVID_LIGHT, vivid_light_default]
+  ]);
+  var BlendMode = class extends EventDispatcher {
+    /**
+     * Constructs a new blend mode.
+     *
+     * @param {BlendFunction} blendFunction - The blend function.
+     * @param {Number} opacity - The opacity of the color that will be blended with the base color.
+     */
+    constructor(blendFunction, opacity = 1) {
+      super();
+      this._blendFunction = blendFunction;
+      this.opacity = new Uniform(opacity);
+    }
+    /**
+     * Returns the opacity.
+     *
+     * @return {Number} The opacity.
+     */
+    getOpacity() {
+      return this.opacity.value;
+    }
+    /**
+     * Sets the opacity.
+     *
+     * @param {Number} value - The opacity.
+     */
+    setOpacity(value) {
+      this.opacity.value = value;
+    }
+    /**
+     * The blend function.
+     *
+     * @type {BlendFunction}
+     */
+    get blendFunction() {
+      return this._blendFunction;
+    }
+    set blendFunction(value) {
+      this._blendFunction = value;
+      this.dispatchEvent({ type: "change" });
+    }
+    /**
+     * Returns the blend function.
+     *
+     * @deprecated Use blendFunction instead.
+     * @return {BlendFunction} The blend function.
+     */
+    getBlendFunction() {
+      return this.blendFunction;
+    }
+    /**
+     * Sets the blend function.
+     *
+     * @deprecated Use blendFunction instead.
+     * @param {BlendFunction} value - The blend function.
+     */
+    setBlendFunction(value) {
+      this.blendFunction = value;
+    }
+    /**
+     * Returns the blend function shader code.
+     *
+     * @return {String} The blend function shader code.
+     */
+    getShaderCode() {
+      return blendFunctions.get(this.blendFunction);
+    }
+  };
+  var KernelSize = {
+    VERY_SMALL: 0,
+    SMALL: 1,
+    MEDIUM: 2,
+    LARGE: 3,
+    VERY_LARGE: 4,
+    HUGE: 5
+  };
+  var convolution_kawase_default = "#ifdef FRAMEBUFFER_PRECISION_HIGH\nuniform mediump sampler2D inputBuffer;\n#else\nuniform lowp sampler2D inputBuffer;\n#endif\nvarying vec2 vUv0;varying vec2 vUv1;varying vec2 vUv2;varying vec2 vUv3;void main(){vec4 sum=texture2D(inputBuffer,vUv0);sum+=texture2D(inputBuffer,vUv1);sum+=texture2D(inputBuffer,vUv2);sum+=texture2D(inputBuffer,vUv3);gl_FragColor=sum*0.25;\n#include <colorspace_fragment>\n}";
+  var convolution_kawase_default2 = "uniform vec4 texelSize;uniform float kernel;uniform float scale;varying vec2 vUv0;varying vec2 vUv1;varying vec2 vUv2;varying vec2 vUv3;void main(){vec2 uv=position.xy*0.5+0.5;vec2 dUv=(texelSize.xy*vec2(kernel)+texelSize.zw)*scale;vUv0=vec2(uv.x-dUv.x,uv.y+dUv.y);vUv1=vec2(uv.x+dUv.x,uv.y+dUv.y);vUv2=vec2(uv.x+dUv.x,uv.y-dUv.y);vUv3=vec2(uv.x-dUv.x,uv.y-dUv.y);gl_Position=vec4(position.xy,1.0,1.0);}";
+  var kernelPresets = [
+    new Float32Array([0, 0]),
+    new Float32Array([0, 1, 1]),
+    new Float32Array([0, 1, 1, 2]),
+    new Float32Array([0, 1, 2, 2, 3]),
+    new Float32Array([0, 1, 2, 3, 4, 4, 5]),
+    new Float32Array([0, 1, 2, 3, 4, 5, 7, 8, 9, 10])
+  ];
+  var KawaseBlurMaterial = class extends ShaderMaterial {
+    /**
+     * Constructs a new convolution material.
+     *
+     * TODO Remove texelSize param.
+     * @param {Vector4} [texelSize] - Deprecated.
+     */
+    constructor(texelSize = new Vector4()) {
+      super({
+        name: "KawaseBlurMaterial",
+        uniforms: {
+          inputBuffer: new Uniform(null),
+          texelSize: new Uniform(new Vector4()),
+          scale: new Uniform(1),
+          kernel: new Uniform(0)
+        },
+        blending: NoBlending,
+        toneMapped: false,
+        depthWrite: false,
+        depthTest: false,
+        fragmentShader: convolution_kawase_default,
+        vertexShader: convolution_kawase_default2
+      });
+      this.setTexelSize(texelSize.x, texelSize.y);
+      this.kernelSize = KernelSize.MEDIUM;
+    }
+    /**
+     * The input buffer.
+     *
+     * @type {Texture}
+     */
+    set inputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * Sets the input buffer.
+     *
+     * @deprecated Use inputBuffer instead.
+     * @param {Texture} value - The input buffer.
+     */
+    setInputBuffer(value) {
+      this.inputBuffer = value;
+    }
+    /**
+     * The kernel sequence for the current kernel size.
+     *
+     * @type {Float32Array}
+     */
+    get kernelSequence() {
+      return kernelPresets[this.kernelSize];
+    }
+    /**
+     * The blur scale.
+     *
+     * @type {Number}
+     */
+    get scale() {
+      return this.uniforms.scale.value;
+    }
+    set scale(value) {
+      this.uniforms.scale.value = value;
+    }
+    /**
+     * Returns the blur scale.
+     *
+     * @deprecated Use scale instead.
+     * @return {Number} The scale.
+     */
+    getScale() {
+      return this.uniforms.scale.value;
+    }
+    /**
+     * Sets the blur scale.
+     *
+     * @deprecated Use scale instead.
+     * @return {Number} value - The scale.
+     */
+    setScale(value) {
+      this.uniforms.scale.value = value;
+    }
+    /**
+     * Returns the kernel.
+     *
+     * @return {Float32Array} The kernel.
+     * @deprecated Implementation detail, removed with no replacement.
+     */
+    getKernel() {
+      return null;
+    }
+    /**
+     * The current kernel.
+     *
+     * @type {Number}
+     */
+    get kernel() {
+      return this.uniforms.kernel.value;
+    }
+    set kernel(value) {
+      this.uniforms.kernel.value = value;
+    }
+    /**
+     * Sets the current kernel.
+     *
+     * @deprecated Use kernel instead.
+     * @param {Number} value - The kernel.
+     */
+    setKernel(value) {
+      this.kernel = value;
+    }
+    /**
+     * Sets the texel size.
+     *
+     * @deprecated Use setSize() instead.
+     * @param {Number} x - The texel width.
+     * @param {Number} y - The texel height.
+     */
+    setTexelSize(x, y) {
+      this.uniforms.texelSize.value.set(x, y, x * 0.5, y * 0.5);
+    }
+    /**
+     * Sets the size of this object.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      const x = 1 / width, y = 1 / height;
+      this.uniforms.texelSize.value.set(x, y, x * 0.5, y * 0.5);
+    }
+  };
+  var KawaseBlurPass = class extends Pass {
+    /**
+     * Constructs a new Kawase blur pass.
+     *
+     * @param {Object} [options] - The options.
+     * @param {KernelSize} [options.kernelSize=KernelSize.MEDIUM] - The blur kernel size.
+     * @param {Number} [options.resolutionScale=0.5] - The resolution scale.
+     * @param {Number} [options.resolutionX=Resolution.AUTO_SIZE] - The horizontal resolution.
+     * @param {Number} [options.resolutionY=Resolution.AUTO_SIZE] - The vertical resolution.
+     * @param {Number} [options.width=Resolution.AUTO_SIZE] - Deprecated. Use resolutionX instead.
+     * @param {Number} [options.height=Resolution.AUTO_SIZE] - Deprecated. Use resolutionY instead.
+     */
+    constructor({
+      kernelSize = KernelSize.MEDIUM,
+      resolutionScale = 0.5,
+      width = Resolution.AUTO_SIZE,
+      height = Resolution.AUTO_SIZE,
+      resolutionX = width,
+      resolutionY = height
+    } = {}) {
+      super("KawaseBlurPass");
+      this.renderTargetA = new WebGLRenderTarget(1, 1, { depthBuffer: false });
+      this.renderTargetA.texture.name = "Blur.Target.A";
+      this.renderTargetB = this.renderTargetA.clone();
+      this.renderTargetB.texture.name = "Blur.Target.B";
+      const resolution = this.resolution = new Resolution(this, resolutionX, resolutionY, resolutionScale);
+      resolution.addEventListener("change", (e) => this.setSize(resolution.baseWidth, resolution.baseHeight));
+      this._blurMaterial = new KawaseBlurMaterial();
+      this._blurMaterial.kernelSize = kernelSize;
+      this.copyMaterial = new CopyMaterial();
+    }
+    /**
+     * Returns the resolution settings.
+     *
+     * @deprecated Use resolution instead.
+     * @return {Resolution} The resolution.
+     */
+    getResolution() {
+      return this.resolution;
+    }
+    /**
+     * The blur material.
+     *
+     * @type {KawaseBlurMaterial}
+     */
+    get blurMaterial() {
+      return this._blurMaterial;
+    }
+    /**
+     * The blur material.
+     *
+     * @type {KawaseBlurMaterial}
+     * @protected
+     */
+    set blurMaterial(value) {
+      this._blurMaterial = value;
+    }
+    /**
+     * Indicates whether dithering is enabled.
+     *
+     * @type {Boolean}
+     * @deprecated Use copyMaterial.dithering instead.
+     */
+    get dithering() {
+      return this.copyMaterial.dithering;
+    }
+    set dithering(value) {
+      this.copyMaterial.dithering = value;
+    }
+    /**
+     * The kernel size.
+     *
+     * @type {KernelSize}
+     * @deprecated Use blurMaterial.kernelSize instead.
+     */
+    get kernelSize() {
+      return this.blurMaterial.kernelSize;
+    }
+    set kernelSize(value) {
+      this.blurMaterial.kernelSize = value;
+    }
+    /**
+     * The current width of the internal render targets.
+     *
+     * @type {Number}
+     * @deprecated Use resolution.width instead.
+     */
+    get width() {
+      return this.resolution.width;
+    }
+    /**
+     * Sets the render width.
+     *
+     * @type {Number}
+     * @deprecated Use resolution.preferredWidth instead.
+     */
+    set width(value) {
+      this.resolution.preferredWidth = value;
+    }
+    /**
+     * The current height of the internal render targets.
+     *
+     * @type {Number}
+     * @deprecated Use resolution.height instead.
+     */
+    get height() {
+      return this.resolution.height;
+    }
+    /**
+     * Sets the render height.
+     *
+     * @type {Number}
+     * @deprecated Use resolution.preferredHeight instead.
+     */
+    set height(value) {
+      this.resolution.preferredHeight = value;
+    }
+    /**
+     * The current blur scale.
+     *
+     * @type {Number}
+     * @deprecated Use blurMaterial.scale instead.
+     */
+    get scale() {
+      return this.blurMaterial.scale;
+    }
+    set scale(value) {
+      this.blurMaterial.scale = value;
+    }
+    /**
+     * Returns the current blur scale.
+     *
+     * @deprecated Use blurMaterial.scale instead.
+     * @return {Number} The scale.
+     */
+    getScale() {
+      return this.blurMaterial.scale;
+    }
+    /**
+     * Sets the blur scale.
+     *
+     * @deprecated Use blurMaterial.scale instead.
+     * @param {Number} value - The scale.
+     */
+    setScale(value) {
+      this.blurMaterial.scale = value;
+    }
+    /**
+     * Returns the kernel size.
+     *
+     * @deprecated Use blurMaterial.kernelSize instead.
+     * @return {KernelSize} The kernel size.
+     */
+    getKernelSize() {
+      return this.kernelSize;
+    }
+    /**
+     * Sets the kernel size.
+     *
+     * Larger kernels require more processing power but scale well with larger render resolutions.
+     *
+     * @deprecated Use blurMaterial.kernelSize instead.
+     * @param {KernelSize} value - The kernel size.
+     */
+    setKernelSize(value) {
+      this.kernelSize = value;
+    }
+    /**
+     * Returns the current resolution scale.
+     *
+     * @return {Number} The resolution scale.
+     * @deprecated Use resolution instead.
+     */
+    getResolutionScale() {
+      return this.resolution.scale;
+    }
+    /**
+     * Sets the resolution scale.
+     *
+     * @param {Number} scale - The new resolution scale.
+     * @deprecated Use resolution instead.
+     */
+    setResolutionScale(scale) {
+      this.resolution.scale = scale;
+    }
+    /**
+     * Renders the blur.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      const scene = this.scene;
+      const camera = this.camera;
+      const renderTargetA = this.renderTargetA;
+      const renderTargetB = this.renderTargetB;
+      const material = this.blurMaterial;
+      const kernelSequence = material.kernelSequence;
+      let previousBuffer = inputBuffer;
+      this.fullscreenMaterial = material;
+      for (let i = 0, l = kernelSequence.length; i < l; ++i) {
+        const buffer = (i & 1) === 0 ? renderTargetA : renderTargetB;
+        material.kernel = kernelSequence[i];
+        material.inputBuffer = previousBuffer.texture;
+        renderer2.setRenderTarget(buffer);
+        renderer2.render(scene, camera);
+        previousBuffer = buffer;
+      }
+      this.fullscreenMaterial = this.copyMaterial;
+      this.copyMaterial.inputBuffer = previousBuffer.texture;
+      renderer2.setRenderTarget(this.renderToScreen ? null : outputBuffer);
+      renderer2.render(scene, camera);
+    }
+    /**
+     * Updates the size of this pass.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      const resolution = this.resolution;
+      resolution.setBaseSize(width, height);
+      const w = resolution.width, h = resolution.height;
+      this.renderTargetA.setSize(w, h);
+      this.renderTargetB.setSize(w, h);
+      this.blurMaterial.setSize(width, height);
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+      if (frameBufferType !== void 0) {
+        this.renderTargetA.texture.type = frameBufferType;
+        this.renderTargetB.texture.type = frameBufferType;
+        if (frameBufferType !== UnsignedByteType) {
+          this.blurMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
+          this.copyMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
+        } else if (renderer2 !== null && renderer2.outputColorSpace === SRGBColorSpace) {
+          this.renderTargetA.texture.colorSpace = SRGBColorSpace;
+          this.renderTargetB.texture.colorSpace = SRGBColorSpace;
+        }
+      }
+    }
+    /**
+     * An auto sizing flag.
+     *
+     * @type {Number}
+     * @deprecated Use {@link Resolution.AUTO_SIZE} instead.
+     */
+    static get AUTO_SIZE() {
+      return Resolution.AUTO_SIZE;
+    }
+  };
+  var luminance_default = "#include <common>\n#ifdef FRAMEBUFFER_PRECISION_HIGH\nuniform mediump sampler2D inputBuffer;\n#else\nuniform lowp sampler2D inputBuffer;\n#endif\n#ifdef RANGE\nuniform vec2 range;\n#elif defined(THRESHOLD)\nuniform float threshold;uniform float smoothing;\n#endif\nvarying vec2 vUv;void main(){vec4 texel=texture2D(inputBuffer,vUv);float l=luminance(texel.rgb);\n#ifdef RANGE\nfloat low=step(range.x,l);float high=step(l,range.y);l*=low*high;\n#elif defined(THRESHOLD)\nl=smoothstep(threshold,threshold+smoothing,l)*l;\n#endif\n#ifdef COLOR\ngl_FragColor=vec4(texel.rgb*clamp(l,0.0,1.0),l);\n#else\ngl_FragColor=vec4(l);\n#endif\n}";
+  var LuminanceMaterial = class extends ShaderMaterial {
+    /**
+     * Constructs a new luminance material.
+     *
+     * @param {Boolean} [colorOutput=false] - Defines whether the shader should output colors scaled with their luminance value.
+     * @param {Vector2} [luminanceRange] - If provided, the shader will mask out texels that aren't in the specified luminance range.
+     */
+    constructor(colorOutput = false, luminanceRange = null) {
+      super({
+        name: "LuminanceMaterial",
+        defines: {
+          THREE_REVISION: REVISION.replace(/\D+/g, "")
+        },
+        uniforms: {
+          inputBuffer: new Uniform(null),
+          threshold: new Uniform(0),
+          smoothing: new Uniform(1),
+          range: new Uniform(null)
+        },
+        blending: NoBlending,
+        toneMapped: false,
+        depthWrite: false,
+        depthTest: false,
+        fragmentShader: luminance_default,
+        vertexShader: common_default
+      });
+      this.colorOutput = colorOutput;
+      this.luminanceRange = luminanceRange;
+    }
+    /**
+     * The input buffer.
+     *
+     * @type {Texture}
+     */
+    set inputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * Sets the input buffer.
+     *
+     * @deprecated Use inputBuffer instead.
+     * @param {Texture} value - The input buffer.
+     */
+    setInputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * The luminance threshold.
+     *
+     * @type {Number}
+     */
+    get threshold() {
+      return this.uniforms.threshold.value;
+    }
+    set threshold(value) {
+      if (this.smoothing > 0 || value > 0) {
+        this.defines.THRESHOLD = "1";
+      } else {
+        delete this.defines.THRESHOLD;
+      }
+      this.uniforms.threshold.value = value;
+    }
+    /**
+     * Returns the luminance threshold.
+     *
+     * @deprecated Use threshold instead.
+     * @return {Number} The threshold.
+     */
+    getThreshold() {
+      return this.threshold;
+    }
+    /**
+     * Sets the luminance threshold.
+     *
+     * @deprecated Use threshold instead.
+     * @param {Number} value - The threshold.
+     */
+    setThreshold(value) {
+      this.threshold = value;
+    }
+    /**
+     * The luminance threshold smoothing.
+     *
+     * @type {Number}
+     */
+    get smoothing() {
+      return this.uniforms.smoothing.value;
+    }
+    set smoothing(value) {
+      if (this.threshold > 0 || value > 0) {
+        this.defines.THRESHOLD = "1";
+      } else {
+        delete this.defines.THRESHOLD;
+      }
+      this.uniforms.smoothing.value = value;
+    }
+    /**
+     * Returns the luminance threshold smoothing factor.
+     *
+     * @deprecated Use smoothing instead.
+     * @return {Number} The smoothing factor.
+     */
+    getSmoothingFactor() {
+      return this.smoothing;
+    }
+    /**
+     * Sets the luminance threshold smoothing factor.
+     *
+     * @deprecated Use smoothing instead.
+     * @param {Number} value - The smoothing factor.
+     */
+    setSmoothingFactor(value) {
+      this.smoothing = value;
+    }
+    /**
+     * Indicates whether the luminance threshold is enabled.
+     *
+     * @type {Boolean}
+     * @deprecated Adjust the threshold or smoothing factor instead.
+     */
+    get useThreshold() {
+      return this.threshold > 0 || this.smoothing > 0;
+    }
+    set useThreshold(value) {
+    }
+    /**
+     * Indicates whether color output is enabled.
+     *
+     * @type {Boolean}
+     */
+    get colorOutput() {
+      return this.defines.COLOR !== void 0;
+    }
+    set colorOutput(value) {
+      if (value) {
+        this.defines.COLOR = "1";
+      } else {
+        delete this.defines.COLOR;
+      }
+      this.needsUpdate = true;
+    }
+    /**
+     * Indicates whether color output is enabled.
+     *
+     * @deprecated Use colorOutput instead.
+     * @return {Boolean} Whether color output is enabled.
+     */
+    isColorOutputEnabled(value) {
+      return this.colorOutput;
+    }
+    /**
+     * Enables or disables color output.
+     *
+     * @deprecated Use colorOutput instead.
+     * @param {Boolean} value - Whether color output should be enabled.
+     */
+    setColorOutputEnabled(value) {
+      this.colorOutput = value;
+    }
+    /**
+     * Indicates whether luminance masking is enabled.
+     *
+     * @type {Boolean}
+     * @deprecated
+     */
+    get useRange() {
+      return this.luminanceRange !== null;
+    }
+    set useRange(value) {
+      this.luminanceRange = null;
+    }
+    /**
+     * The luminance range. Set to null to disable.
+     *
+     * @type {Boolean}
+     */
+    get luminanceRange() {
+      return this.uniforms.range.value;
+    }
+    set luminanceRange(value) {
+      if (value !== null) {
+        this.defines.RANGE = "1";
+      } else {
+        delete this.defines.RANGE;
+      }
+      this.uniforms.range.value = value;
+      this.needsUpdate = true;
+    }
+    /**
+     * Returns the current luminance range.
+     *
+     * @deprecated Use luminanceRange instead.
+     * @return {Vector2} The luminance range.
+     */
+    getLuminanceRange() {
+      return this.luminanceRange;
+    }
+    /**
+     * Sets a luminance range. Set to null to disable.
+     *
+     * @deprecated Use luminanceRange instead.
+     * @param {Vector2} value - The luminance range.
+     */
+    setLuminanceRange(value) {
+      this.luminanceRange = value;
+    }
+  };
+  var LuminancePass = class extends Pass {
+    /**
+     * Constructs a new luminance pass.
+     *
+     * @param {Object} [options] - The options. See {@link LuminanceMaterial} for additional options.
+     * @param {WebGLRenderTarget} [options.renderTarget] - A custom render target.
+     * @param {Number} [options.resolutionScale=1.0] - The resolution scale.
+     * @param {Number} [options.resolutionX=Resolution.AUTO_SIZE] - The horizontal resolution.
+     * @param {Number} [options.resolutionY=Resolution.AUTO_SIZE] - The vertical resolution.
+     * @param {Number} [options.width=Resolution.AUTO_SIZE] - Deprecated. Use resolutionX instead.
+     * @param {Number} [options.height=Resolution.AUTO_SIZE] - Deprecated. Use resolutionY instead.
+     */
+    constructor({
+      renderTarget,
+      luminanceRange,
+      colorOutput,
+      resolutionScale = 1,
+      width = Resolution.AUTO_SIZE,
+      height = Resolution.AUTO_SIZE,
+      resolutionX = width,
+      resolutionY = height
+    } = {}) {
+      super("LuminancePass");
+      this.fullscreenMaterial = new LuminanceMaterial(colorOutput, luminanceRange);
+      this.needsSwap = false;
+      this.renderTarget = renderTarget;
+      if (this.renderTarget === void 0) {
+        this.renderTarget = new WebGLRenderTarget(1, 1, { depthBuffer: false });
+        this.renderTarget.texture.name = "LuminancePass.Target";
+      }
+      const resolution = this.resolution = new Resolution(this, resolutionX, resolutionY, resolutionScale);
+      resolution.addEventListener("change", (e) => this.setSize(resolution.baseWidth, resolution.baseHeight));
+    }
+    /**
+     * The luminance texture.
+     *
+     * @type {Texture}
+     */
+    get texture() {
+      return this.renderTarget.texture;
+    }
+    /**
+     * Returns the luminance texture.
+     *
+     * @deprecated Use texture instead.
+     * @return {Texture} The texture.
+     */
+    getTexture() {
+      return this.renderTarget.texture;
+    }
+    /**
+     * Returns the resolution settings.
+     *
+     * @deprecated Use resolution instead.
+     * @return {Resolution} The resolution.
+     */
+    getResolution() {
+      return this.resolution;
+    }
+    /**
+     * Renders the luminance.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      const material = this.fullscreenMaterial;
+      material.inputBuffer = inputBuffer.texture;
+      renderer2.setRenderTarget(this.renderToScreen ? null : this.renderTarget);
+      renderer2.render(this.scene, this.camera);
+    }
+    /**
+     * Updates the size of this pass.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      const resolution = this.resolution;
+      resolution.setBaseSize(width, height);
+      this.renderTarget.setSize(resolution.width, resolution.height);
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * @param {WebGLRenderer} renderer - A renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+      if (frameBufferType !== void 0 && frameBufferType !== UnsignedByteType) {
+        this.renderTarget.texture.type = frameBufferType;
+        this.fullscreenMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
+      }
+    }
+  };
+  var convolution_downsampling_default = "#ifdef FRAMEBUFFER_PRECISION_HIGH\nuniform mediump sampler2D inputBuffer;\n#else\nuniform lowp sampler2D inputBuffer;\n#endif\n#define WEIGHT_INNER 0.125\n#define WEIGHT_OUTER 0.0555555\nvarying vec2 vUv;varying vec2 vUv00;varying vec2 vUv01;varying vec2 vUv02;varying vec2 vUv03;varying vec2 vUv04;varying vec2 vUv05;varying vec2 vUv06;varying vec2 vUv07;varying vec2 vUv08;varying vec2 vUv09;varying vec2 vUv10;varying vec2 vUv11;float clampToBorder(const in vec2 uv){return float(uv.s>=0.0&&uv.s<=1.0&&uv.t>=0.0&&uv.t<=1.0);}void main(){vec4 c=vec4(0.0);vec4 w=WEIGHT_INNER*vec4(clampToBorder(vUv00),clampToBorder(vUv01),clampToBorder(vUv02),clampToBorder(vUv03));c+=w.x*texture2D(inputBuffer,vUv00);c+=w.y*texture2D(inputBuffer,vUv01);c+=w.z*texture2D(inputBuffer,vUv02);c+=w.w*texture2D(inputBuffer,vUv03);w=WEIGHT_OUTER*vec4(clampToBorder(vUv04),clampToBorder(vUv05),clampToBorder(vUv06),clampToBorder(vUv07));c+=w.x*texture2D(inputBuffer,vUv04);c+=w.y*texture2D(inputBuffer,vUv05);c+=w.z*texture2D(inputBuffer,vUv06);c+=w.w*texture2D(inputBuffer,vUv07);w=WEIGHT_OUTER*vec4(clampToBorder(vUv08),clampToBorder(vUv09),clampToBorder(vUv10),clampToBorder(vUv11));c+=w.x*texture2D(inputBuffer,vUv08);c+=w.y*texture2D(inputBuffer,vUv09);c+=w.z*texture2D(inputBuffer,vUv10);c+=w.w*texture2D(inputBuffer,vUv11);c+=WEIGHT_OUTER*texture2D(inputBuffer,vUv);gl_FragColor=c;\n#include <colorspace_fragment>\n}";
+  var convolution_downsampling_default2 = "uniform vec2 texelSize;varying vec2 vUv;varying vec2 vUv00;varying vec2 vUv01;varying vec2 vUv02;varying vec2 vUv03;varying vec2 vUv04;varying vec2 vUv05;varying vec2 vUv06;varying vec2 vUv07;varying vec2 vUv08;varying vec2 vUv09;varying vec2 vUv10;varying vec2 vUv11;void main(){vUv=position.xy*0.5+0.5;vUv00=vUv+texelSize*vec2(-1.0,1.0);vUv01=vUv+texelSize*vec2(1.0,1.0);vUv02=vUv+texelSize*vec2(-1.0,-1.0);vUv03=vUv+texelSize*vec2(1.0,-1.0);vUv04=vUv+texelSize*vec2(-2.0,2.0);vUv05=vUv+texelSize*vec2(0.0,2.0);vUv06=vUv+texelSize*vec2(2.0,2.0);vUv07=vUv+texelSize*vec2(-2.0,0.0);vUv08=vUv+texelSize*vec2(2.0,0.0);vUv09=vUv+texelSize*vec2(-2.0,-2.0);vUv10=vUv+texelSize*vec2(0.0,-2.0);vUv11=vUv+texelSize*vec2(2.0,-2.0);gl_Position=vec4(position.xy,1.0,1.0);}";
+  var DownsamplingMaterial = class extends ShaderMaterial {
+    /**
+     * Constructs a new downsampling material.
+     */
+    constructor() {
+      super({
+        name: "DownsamplingMaterial",
+        uniforms: {
+          inputBuffer: new Uniform(null),
+          texelSize: new Uniform(new Vector2())
+        },
+        blending: NoBlending,
+        toneMapped: false,
+        depthWrite: false,
+        depthTest: false,
+        fragmentShader: convolution_downsampling_default,
+        vertexShader: convolution_downsampling_default2
+      });
+    }
+    /**
+     * The input buffer.
+     *
+     * @type {Texture}
+     */
+    set inputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * Sets the size of this object.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      this.uniforms.texelSize.value.set(1 / width, 1 / height);
+    }
+  };
+  var convolution_upsampling_default = "#ifdef FRAMEBUFFER_PRECISION_HIGH\nuniform mediump sampler2D inputBuffer;uniform mediump sampler2D supportBuffer;\n#else\nuniform lowp sampler2D inputBuffer;uniform lowp sampler2D supportBuffer;\n#endif\nuniform float radius;varying vec2 vUv;varying vec2 vUv0;varying vec2 vUv1;varying vec2 vUv2;varying vec2 vUv3;varying vec2 vUv4;varying vec2 vUv5;varying vec2 vUv6;varying vec2 vUv7;void main(){vec4 c=vec4(0.0);c+=texture2D(inputBuffer,vUv0)*0.0625;c+=texture2D(inputBuffer,vUv1)*0.125;c+=texture2D(inputBuffer,vUv2)*0.0625;c+=texture2D(inputBuffer,vUv3)*0.125;c+=texture2D(inputBuffer,vUv)*0.25;c+=texture2D(inputBuffer,vUv4)*0.125;c+=texture2D(inputBuffer,vUv5)*0.0625;c+=texture2D(inputBuffer,vUv6)*0.125;c+=texture2D(inputBuffer,vUv7)*0.0625;vec4 baseColor=texture2D(supportBuffer,vUv);gl_FragColor=mix(baseColor,c,radius);\n#include <colorspace_fragment>\n}";
+  var convolution_upsampling_default2 = "uniform vec2 texelSize;varying vec2 vUv;varying vec2 vUv0;varying vec2 vUv1;varying vec2 vUv2;varying vec2 vUv3;varying vec2 vUv4;varying vec2 vUv5;varying vec2 vUv6;varying vec2 vUv7;void main(){vUv=position.xy*0.5+0.5;vUv0=vUv+texelSize*vec2(-1.0,1.0);vUv1=vUv+texelSize*vec2(0.0,1.0);vUv2=vUv+texelSize*vec2(1.0,1.0);vUv3=vUv+texelSize*vec2(-1.0,0.0);vUv4=vUv+texelSize*vec2(1.0,0.0);vUv5=vUv+texelSize*vec2(-1.0,-1.0);vUv6=vUv+texelSize*vec2(0.0,-1.0);vUv7=vUv+texelSize*vec2(1.0,-1.0);gl_Position=vec4(position.xy,1.0,1.0);}";
+  var UpsamplingMaterial = class extends ShaderMaterial {
+    /**
+     * Constructs a new upsampling material.
+     */
+    constructor() {
+      super({
+        name: "UpsamplingMaterial",
+        uniforms: {
+          inputBuffer: new Uniform(null),
+          supportBuffer: new Uniform(null),
+          texelSize: new Uniform(new Vector2()),
+          radius: new Uniform(0.85)
+        },
+        blending: NoBlending,
+        toneMapped: false,
+        depthWrite: false,
+        depthTest: false,
+        fragmentShader: convolution_upsampling_default,
+        vertexShader: convolution_upsampling_default2
+      });
+    }
+    /**
+     * The input buffer.
+     *
+     * @type {Texture}
+     */
+    set inputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * A support buffer.
+     *
+     * @type {Texture}
+     */
+    set supportBuffer(value) {
+      this.uniforms.supportBuffer.value = value;
+    }
+    /**
+     * The blur radius.
+     *
+     * @type {Number}
+     */
+    get radius() {
+      return this.uniforms.radius.value;
+    }
+    set radius(value) {
+      this.uniforms.radius.value = value;
+    }
+    /**
+     * Sets the size of this object.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      this.uniforms.texelSize.value.set(1 / width, 1 / height);
+    }
+  };
+  var MipmapBlurPass = class extends Pass {
+    /**
+     * Constructs a new mipmap blur pass.
+     *
+     * @param {Object} [options] - The options.
+     */
+    constructor() {
+      super("MipmapBlurPass");
+      this.needsSwap = false;
+      this.renderTarget = new WebGLRenderTarget(1, 1, { depthBuffer: false });
+      this.renderTarget.texture.name = "Upsampling.Mipmap0";
+      this.downsamplingMipmaps = [];
+      this.upsamplingMipmaps = [];
+      this.downsamplingMaterial = new DownsamplingMaterial();
+      this.upsamplingMaterial = new UpsamplingMaterial();
+      this.resolution = new Vector2();
+    }
+    /**
+     * A texture that contains the blurred result.
+     *
+     * @type {Texture}
+     */
+    get texture() {
+      return this.renderTarget.texture;
+    }
+    /**
+     * The MIP levels. Default is 8.
+     *
+     * @type {Number}
+     */
+    get levels() {
+      return this.downsamplingMipmaps.length;
+    }
+    set levels(value) {
+      if (this.levels !== value) {
+        const renderTarget = this.renderTarget;
+        this.dispose();
+        this.downsamplingMipmaps = [];
+        this.upsamplingMipmaps = [];
+        for (let i = 0; i < value; ++i) {
+          const mipmap = renderTarget.clone();
+          mipmap.texture.name = "Downsampling.Mipmap" + i;
+          this.downsamplingMipmaps.push(mipmap);
+        }
+        this.upsamplingMipmaps.push(renderTarget);
+        for (let i = 1, l = value - 1; i < l; ++i) {
+          const mipmap = renderTarget.clone();
+          mipmap.texture.name = "Upsampling.Mipmap" + i;
+          this.upsamplingMipmaps.push(mipmap);
+        }
+        this.setSize(this.resolution.x, this.resolution.y);
+      }
+    }
+    /**
+     * The blur radius.
+     *
+     * @type {Number}
+     */
+    get radius() {
+      return this.upsamplingMaterial.radius;
+    }
+    set radius(value) {
+      this.upsamplingMaterial.radius = value;
+    }
+    /**
+     * Renders the blur.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      const { scene, camera } = this;
+      const { downsamplingMaterial, upsamplingMaterial } = this;
+      const { downsamplingMipmaps, upsamplingMipmaps } = this;
+      let previousBuffer = inputBuffer;
+      this.fullscreenMaterial = downsamplingMaterial;
+      for (let i = 0, l = downsamplingMipmaps.length; i < l; ++i) {
+        const mipmap = downsamplingMipmaps[i];
+        downsamplingMaterial.setSize(previousBuffer.width, previousBuffer.height);
+        downsamplingMaterial.inputBuffer = previousBuffer.texture;
+        renderer2.setRenderTarget(mipmap);
+        renderer2.render(scene, camera);
+        previousBuffer = mipmap;
+      }
+      this.fullscreenMaterial = upsamplingMaterial;
+      for (let i = upsamplingMipmaps.length - 1; i >= 0; --i) {
+        const mipmap = upsamplingMipmaps[i];
+        upsamplingMaterial.setSize(previousBuffer.width, previousBuffer.height);
+        upsamplingMaterial.inputBuffer = previousBuffer.texture;
+        upsamplingMaterial.supportBuffer = downsamplingMipmaps[i].texture;
+        renderer2.setRenderTarget(mipmap);
+        renderer2.render(scene, camera);
+        previousBuffer = mipmap;
+      }
+    }
+    /**
+     * Updates the size of this pass.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      const resolution = this.resolution;
+      resolution.set(width, height);
+      let w = resolution.width, h = resolution.height;
+      for (let i = 0, l = this.downsamplingMipmaps.length; i < l; ++i) {
+        w = Math.round(w * 0.5);
+        h = Math.round(h * 0.5);
+        this.downsamplingMipmaps[i].setSize(w, h);
+        if (i < this.upsamplingMipmaps.length) {
+          this.upsamplingMipmaps[i].setSize(w, h);
+        }
+      }
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+      if (frameBufferType !== void 0) {
+        const mipmaps = this.downsamplingMipmaps.concat(this.upsamplingMipmaps);
+        for (const mipmap of mipmaps) {
+          mipmap.texture.type = frameBufferType;
+        }
+        if (frameBufferType !== UnsignedByteType) {
+          this.downsamplingMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
+          this.upsamplingMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
+        } else if (renderer2 !== null && renderer2.outputColorSpace === SRGBColorSpace) {
+          for (const mipmap of mipmaps) {
+            mipmap.texture.colorSpace = SRGBColorSpace;
+          }
+        }
+      }
+    }
+    /**
+     * Deletes internal render targets and textures.
+     */
+    dispose() {
+      super.dispose();
+      for (const mipmap of this.downsamplingMipmaps.concat(this.upsamplingMipmaps)) {
+        mipmap.dispose();
+      }
+    }
+  };
+  var Effect = class extends EventDispatcher {
+    /**
+     * Constructs a new effect.
+     *
+     * @param {String} name - The name of this effect. Doesn't have to be unique.
+     * @param {String} fragmentShader - The fragment shader. This shader is required.
+     * @param {Object} [options] - Additional options.
+     * @param {EffectAttribute} [options.attributes=EffectAttribute.NONE] - The effect attributes that determine the execution priority and resource requirements.
+     * @param {BlendFunction} [options.blendFunction=BlendFunction.NORMAL] - The blend function of this effect.
+     * @param {Map<String, String>} [options.defines] - Custom preprocessor macro definitions. Keys are names and values are code.
+     * @param {Map<String, Uniform>} [options.uniforms] - Custom shader uniforms. Keys are names and values are uniforms.
+     * @param {Set<WebGLExtension>} [options.extensions] - WebGL extensions.
+     * @param {String} [options.vertexShader=null] - The vertex shader. Most effects don't need one.
+     */
+    constructor(name, fragmentShader, {
+      attributes = EffectAttribute.NONE,
+      blendFunction = BlendFunction.NORMAL,
+      defines = /* @__PURE__ */ new Map(),
+      uniforms = /* @__PURE__ */ new Map(),
+      extensions = null,
+      vertexShader = null
+    } = {}) {
+      super();
+      this.name = name;
+      this.renderer = null;
+      this.attributes = attributes;
+      this.fragmentShader = fragmentShader;
+      this.vertexShader = vertexShader;
+      this.defines = defines;
+      this.uniforms = uniforms;
+      this.extensions = extensions;
+      this.blendMode = new BlendMode(blendFunction);
+      this.blendMode.addEventListener("change", (event) => this.setChanged());
+      this._inputColorSpace = LinearSRGBColorSpace;
+      this._outputColorSpace = NoColorSpace;
+    }
+    /**
+     * The input color space.
+     *
+     * @type {ColorSpace}
+     * @experimental
+     */
+    get inputColorSpace() {
+      return this._inputColorSpace;
+    }
+    /**
+     * @type {ColorSpace}
+     * @protected
+     * @experimental
+     */
+    set inputColorSpace(value) {
+      this._inputColorSpace = value;
+      this.setChanged();
+    }
+    /**
+     * The output color space.
+     *
+     * Should only be changed if this effect converts the input colors to a different color space.
+     *
+     * @type {ColorSpace}
+     * @experimental
+     */
+    get outputColorSpace() {
+      return this._outputColorSpace;
+    }
+    /**
+     * @type {ColorSpace}
+     * @protected
+     * @experimental
+     */
+    set outputColorSpace(value) {
+      this._outputColorSpace = value;
+      this.setChanged();
+    }
+    /**
+     * Sets the main scene.
+     *
+     * @type {Scene}
+     */
+    set mainScene(value) {
+    }
+    /**
+     * Sets the main camera.
+     *
+     * @type {Camera}
+     */
+    set mainCamera(value) {
+    }
+    /**
+     * Returns the name of this effect.
+     *
+     * @deprecated Use name instead.
+     * @return {String} The name.
+     */
+    getName() {
+      return this.name;
+    }
+    /**
+     * Sets the renderer.
+     *
+     * @deprecated
+     * @param {WebGLRenderer} renderer - The renderer.
+     */
+    setRenderer(renderer2) {
+      this.renderer = renderer2;
+    }
+    /**
+     * Returns the preprocessor macro definitions.
+     *
+     * @deprecated Use defines instead.
+     * @return {Map<String, String>} The extensions.
+     */
+    getDefines() {
+      return this.defines;
+    }
+    /**
+     * Returns the uniforms of this effect.
+     *
+     * @deprecated Use uniforms instead.
+     * @return {Map<String, Uniform>} The extensions.
+     */
+    getUniforms() {
+      return this.uniforms;
+    }
+    /**
+     * Returns the WebGL extensions that are required by this effect.
+     *
+     * @deprecated Use extensions instead.
+     * @return {Set<WebGLExtension>} The extensions.
+     */
+    getExtensions() {
+      return this.extensions;
+    }
+    /**
+     * Returns the blend mode.
+     *
+     * The result of this effect will be blended with the result of the previous effect using this blend mode.
+     *
+     * @deprecated Use blendMode instead.
+     * @return {BlendMode} The blend mode.
+     */
+    getBlendMode() {
+      return this.blendMode;
+    }
+    /**
+     * Returns the effect attributes.
+     *
+     * @return {EffectAttribute} The attributes.
+     */
+    getAttributes() {
+      return this.attributes;
+    }
+    /**
+     * Sets the effect attributes.
+     *
+     * Effects that have the same attributes will be executed in the order in which they were registered. Some attributes
+     * imply a higher priority.
+     *
+     * @protected
+     * @param {EffectAttribute} attributes - The attributes.
+     */
+    setAttributes(attributes) {
+      this.attributes = attributes;
+      this.setChanged();
+    }
+    /**
+     * Returns the fragment shader.
+     *
+     * @return {String} The fragment shader.
+     */
+    getFragmentShader() {
+      return this.fragmentShader;
+    }
+    /**
+     * Sets the fragment shader.
+     *
+     * @protected
+     * @param {String} fragmentShader - The fragment shader.
+     */
+    setFragmentShader(fragmentShader) {
+      this.fragmentShader = fragmentShader;
+      this.setChanged();
+    }
+    /**
+     * Returns the vertex shader.
+     *
+     * @return {String} The vertex shader.
+     */
+    getVertexShader() {
+      return this.vertexShader;
+    }
+    /**
+     * Sets the vertex shader.
+     *
+     * @protected
+     * @param {String} vertexShader - The vertex shader.
+     */
+    setVertexShader(vertexShader) {
+      this.vertexShader = vertexShader;
+      this.setChanged();
+    }
+    /**
+     * Informs the associated {@link EffectPass} that this effect requires a shader recompilation.
+     *
+     * Should be called after changing macros or extensions and after adding/removing uniforms.
+     *
+     * @protected
+     */
+    setChanged() {
+      this.dispatchEvent({ type: "change" });
+    }
+    /**
+     * Sets the depth texture.
+     *
+     * You may override this method if your effect requires direct access to the depth texture that is bound to the
+     * associated {@link EffectPass}.
+     *
+     * @param {Texture} depthTexture - A depth texture.
+     * @param {DepthPackingStrategies} [depthPacking=BasicDepthPacking] - The depth packing.
+     */
+    setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) {
+    }
+    /**
+     * Updates this effect by performing supporting operations.
+     *
+     * This method is called by the {@link EffectPass} right before the main fullscreen render operation, even if the
+     * blend function is set to `SKIP`.
+     *
+     * You may override this method if you need to update custom uniforms or render additional off-screen textures.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     */
+    update(renderer2, inputBuffer, deltaTime) {
+    }
+    /**
+     * Updates the size of this effect.
+     *
+     * You may override this method if you want to be informed about the size of the backbuffer/canvas.
+     * This method is called before {@link initialize} and every time the size of the {@link EffectComposer} changes.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * This method is called when the associated {@link EffectPass} is added to an {@link EffectComposer}.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     * @example if(!alpha && frameBufferType === UnsignedByteType) { this.myRenderTarget.texture.format = RGBFormat; }
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+    }
+    /**
+     * Performs a shallow search for properties that define a dispose method and deletes them.
+     *
+     * The {@link EffectComposer} calls this method when it is being destroyed.
+     */
+    dispose() {
+      for (const key of Object.keys(this)) {
+        const property = this[key];
+        const isDisposable = property instanceof WebGLRenderTarget || property instanceof Material || property instanceof Texture || property instanceof Pass;
+        if (isDisposable) {
+          this[key].dispose();
+        }
+      }
+    }
+  };
+  var bloom_default = "#ifdef FRAMEBUFFER_PRECISION_HIGH\nuniform mediump sampler2D map;\n#else\nuniform lowp sampler2D map;\n#endif\nuniform float intensity;void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){vec4 texel=texture2D(map,uv);outputColor=vec4(texel.rgb*intensity,texel.a);}";
+  var BloomEffect = class extends Effect {
+    /**
+     * Constructs a new bloom effect.
+     *
+     * @param {Object} [options] - The options.
+     * @param {BlendFunction} [options.blendFunction=BlendFunction.SCREEN] - The blend function of this effect.
+     * @param {Number} [options.luminanceThreshold=0.9] - The luminance threshold. Raise this value to mask out darker elements in the scene.
+     * @param {Number} [options.luminanceSmoothing=0.025] - Controls the smoothness of the luminance threshold.
+     * @param {Boolean} [options.mipmapBlur=false] - Enables or disables mipmap blur.
+     * @param {Number} [options.intensity=1.0] - The bloom intensity.
+     * @param {Number} [options.radius=0.85] - The blur radius. Only applies to mipmap blur.
+     * @param {Number} [options.levels=8] - The amount of MIP levels. Only applies to mipmap blur.
+     * @param {KernelSize} [options.kernelSize=KernelSize.LARGE] - Deprecated. Use mipmapBlur instead.
+     * @param {Number} [options.resolutionScale=0.5] - Deprecated. Use mipmapBlur instead.
+     * @param {Number} [options.resolutionX=Resolution.AUTO_SIZE] - Deprecated. Use mipmapBlur instead.
+     * @param {Number} [options.resolutionY=Resolution.AUTO_SIZE] - Deprecated. Use mipmapBlur instead.
+     * @param {Number} [options.width=Resolution.AUTO_SIZE] - Deprecated. Use mipmapBlur instead.
+     * @param {Number} [options.height=Resolution.AUTO_SIZE] - Deprecated. Use mipmapBlur instead.
+     */
+    constructor({
+      blendFunction = BlendFunction.SCREEN,
+      luminanceThreshold = 0.9,
+      luminanceSmoothing = 0.025,
+      mipmapBlur = false,
+      intensity = 1,
+      radius = 0.85,
+      levels = 8,
+      kernelSize = KernelSize.LARGE,
+      resolutionScale = 0.5,
+      width = Resolution.AUTO_SIZE,
+      height = Resolution.AUTO_SIZE,
+      resolutionX = width,
+      resolutionY = height
+    } = {}) {
+      super("BloomEffect", bloom_default, {
+        blendFunction,
+        uniforms: /* @__PURE__ */ new Map([
+          ["map", new Uniform(null)],
+          ["intensity", new Uniform(intensity)]
+        ])
+      });
+      this.renderTarget = new WebGLRenderTarget(1, 1, { depthBuffer: false });
+      this.renderTarget.texture.name = "Bloom.Target";
+      this.blurPass = new KawaseBlurPass({ kernelSize });
+      this.luminancePass = new LuminancePass({ colorOutput: true });
+      this.luminanceMaterial.threshold = luminanceThreshold;
+      this.luminanceMaterial.smoothing = luminanceSmoothing;
+      this.mipmapBlurPass = new MipmapBlurPass();
+      this.mipmapBlurPass.enabled = mipmapBlur;
+      this.mipmapBlurPass.radius = radius;
+      this.mipmapBlurPass.levels = levels;
+      this.uniforms.get("map").value = mipmapBlur ? this.mipmapBlurPass.texture : this.renderTarget.texture;
+      const resolution = this.resolution = new Resolution(this, resolutionX, resolutionY, resolutionScale);
+      resolution.addEventListener("change", (e) => this.setSize(resolution.baseWidth, resolution.baseHeight));
+    }
+    /**
+     * A texture that contains the intermediate result of this effect.
+     *
+     * @type {Texture}
+     */
+    get texture() {
+      return this.mipmapBlurPass.enabled ? this.mipmapBlurPass.texture : this.renderTarget.texture;
+    }
+    /**
+     * Returns the generated bloom texture.
+     *
+     * @deprecated Use texture instead.
+     * @return {Texture} The texture.
+     */
+    getTexture() {
+      return this.texture;
+    }
+    /**
+     * Returns the resolution settings.
+     *
+     * @deprecated Use resolution instead.
+     * @return {Resolution} The resolution.
+     */
+    getResolution() {
+      return this.resolution;
+    }
+    /**
+     * Returns the blur pass.
+     *
+     * @deprecated
+     * @return {KawaseBlurPass} The blur pass.
+     */
+    getBlurPass() {
+      return this.blurPass;
+    }
+    /**
+     * Returns the luminance pass.
+     *
+     * @deprecated Use luminancePass instead.
+     * @return {LuminancePass} The luminance pass.
+     */
+    getLuminancePass() {
+      return this.luminancePass;
+    }
+    /**
+     * The luminance material.
+     *
+     * @type {LuminanceMaterial}
+     */
+    get luminanceMaterial() {
+      return this.luminancePass.fullscreenMaterial;
+    }
+    /**
+     * Returns the luminance material.
+     *
+     * @deprecated Use luminanceMaterial instead.
+     * @return {LuminanceMaterial} The material.
+     */
+    getLuminanceMaterial() {
+      return this.luminancePass.fullscreenMaterial;
+    }
+    /**
+     * The current width of the internal render targets.
+     *
+     * @type {Number}
+     * @deprecated
+     */
+    get width() {
+      return this.resolution.width;
+    }
+    set width(value) {
+      this.resolution.preferredWidth = value;
+    }
+    /**
+     * The current height of the internal render targets.
+     *
+     * @type {Number}
+     * @deprecated
+     */
+    get height() {
+      return this.resolution.height;
+    }
+    set height(value) {
+      this.resolution.preferredHeight = value;
+    }
+    /**
+     * Indicates whether dithering is enabled.
+     *
+     * @type {Boolean}
+     * @deprecated Use EffectPass.dithering instead.
+     */
+    get dithering() {
+      return this.blurPass.dithering;
+    }
+    set dithering(value) {
+      this.blurPass.dithering = value;
+    }
+    /**
+     * The blur kernel size.
+     *
+     * @type {KernelSize}
+     * @deprecated
+     */
+    get kernelSize() {
+      return this.blurPass.kernelSize;
+    }
+    set kernelSize(value) {
+      this.blurPass.kernelSize = value;
+    }
+    /**
+     * @type {Number}
+     * @deprecated
+     */
+    get distinction() {
+      console.warn(this.name, "distinction was removed");
+      return 1;
+    }
+    set distinction(value) {
+      console.warn(this.name, "distinction was removed");
+    }
+    /**
+     * The bloom intensity.
+     *
+     * @type {Number}
+     */
+    get intensity() {
+      return this.uniforms.get("intensity").value;
+    }
+    set intensity(value) {
+      this.uniforms.get("intensity").value = value;
+    }
+    /**
+     * The bloom intensity.
+     *
+     * @deprecated Use intensity instead.
+     * @return {Number} The intensity.
+     */
+    getIntensity() {
+      return this.intensity;
+    }
+    /**
+     * Sets the bloom intensity.
+     *
+     * @deprecated Use intensity instead.
+     * @param {Number} value - The intensity.
+     */
+    setIntensity(value) {
+      this.intensity = value;
+    }
+    /**
+     * Returns the current resolution scale.
+     *
+     * @return {Number} The resolution scale.
+     * @deprecated
+     */
+    getResolutionScale() {
+      return this.resolution.scale;
+    }
+    /**
+     * Sets the resolution scale.
+     *
+     * @param {Number} scale - The new resolution scale.
+     * @deprecated
+     */
+    setResolutionScale(scale) {
+      this.resolution.scale = scale;
+    }
+    /**
+     * Updates this effect.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     */
+    update(renderer2, inputBuffer, deltaTime) {
+      const renderTarget = this.renderTarget;
+      const luminancePass = this.luminancePass;
+      if (luminancePass.enabled) {
+        luminancePass.render(renderer2, inputBuffer);
+        if (this.mipmapBlurPass.enabled) {
+          this.mipmapBlurPass.render(renderer2, luminancePass.renderTarget);
+        } else {
+          this.blurPass.render(renderer2, luminancePass.renderTarget, renderTarget);
+        }
+      } else {
+        if (this.mipmapBlurPass.enabled) {
+          this.mipmapBlurPass.render(renderer2, inputBuffer);
+        } else {
+          this.blurPass.render(renderer2, inputBuffer, renderTarget);
+        }
+      }
+    }
+    /**
+     * Updates the size of internal render targets.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      const resolution = this.resolution;
+      resolution.setBaseSize(width, height);
+      this.renderTarget.setSize(resolution.width, resolution.height);
+      this.blurPass.resolution.copy(resolution);
+      this.luminancePass.setSize(width, height);
+      this.mipmapBlurPass.setSize(width, height);
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+      this.blurPass.initialize(renderer2, alpha, frameBufferType);
+      this.luminancePass.initialize(renderer2, alpha, frameBufferType);
+      this.mipmapBlurPass.initialize(renderer2, alpha, frameBufferType);
+      if (frameBufferType !== void 0) {
+        this.renderTarget.texture.type = frameBufferType;
+        if (renderer2 !== null && renderer2.outputColorSpace === SRGBColorSpace) {
+          this.renderTarget.texture.colorSpace = SRGBColorSpace;
+        }
+      }
+    }
+  };
+  var brightness_contrast_default = "uniform float brightness;uniform float contrast;void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){vec3 color=inputColor.rgb+vec3(brightness-0.5);if(contrast>0.0){color/=vec3(1.0-contrast);}else{color*=vec3(1.0+contrast);}outputColor=vec4(color+vec3(0.5),inputColor.a);}";
+  var BrightnessContrastEffect = class extends Effect {
+    /**
+     * Constructs a new brightness/contrast effect.
+     *
+     * @param {Object} [options] - The options.
+     * @param {BlendFunction} [options.blendFunction=BlendFunction.SRC] - The blend function of this effect.
+     * @param {Number} [options.brightness=0.0] - The brightness factor, ranging from -1 to 1, where 0 means no change.
+     * @param {Number} [options.contrast=0.0] - The contrast factor, ranging from -1 to 1, where 0 means no change.
+     */
+    constructor({ blendFunction = BlendFunction.SRC, brightness = 0, contrast = 0 } = {}) {
+      super("BrightnessContrastEffect", brightness_contrast_default, {
+        blendFunction,
+        uniforms: /* @__PURE__ */ new Map([
+          ["brightness", new Uniform(brightness)],
+          ["contrast", new Uniform(contrast)]
+        ])
+      });
+      this.inputColorSpace = SRGBColorSpace;
+    }
+    /**
+     * The brightness.
+     *
+     * @type {Number}
+     */
+    get brightness() {
+      return this.uniforms.get("brightness").value;
+    }
+    set brightness(value) {
+      this.uniforms.get("brightness").value = value;
+    }
+    /**
+     * Returns the brightness.
+     *
+     * @deprecated Use brightness instead.
+     * @return {Number} The brightness.
+     */
+    getBrightness() {
+      return this.brightness;
+    }
+    /**
+     * Sets the brightness.
+     *
+     * @deprecated Use brightness instead.
+     * @param {Number} value - The brightness.
+     */
+    setBrightness(value) {
+      this.brightness = value;
+    }
+    /**
+     * The contrast.
+     *
+     * @type {Number}
+     */
+    get contrast() {
+      return this.uniforms.get("contrast").value;
+    }
+    set contrast(value) {
+      this.uniforms.get("contrast").value = value;
+    }
+    /**
+     * Returns the contrast.
+     *
+     * @deprecated Use contrast instead.
+     * @return {Number} The contrast.
+     */
+    getContrast() {
+      return this.contrast;
+    }
+    /**
+     * Sets the contrast.
+     *
+     * @deprecated Use contrast instead.
+     * @param {Number} value - The contrast.
+     */
+    setContrast(value) {
+      this.contrast = value;
+    }
+  };
+  var chromatic_aberration_default = "#ifdef RADIAL_MODULATION\nuniform float modulationOffset;\n#endif\nvarying float vActive;varying vec2 vUvR;varying vec2 vUvB;void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){vec2 ra=inputColor.ra;vec2 ba=inputColor.ba;\n#ifdef RADIAL_MODULATION\nconst vec2 center=vec2(0.5);float d=distance(uv,center)*2.0;d=max(d-modulationOffset,0.0);if(vActive>0.0&&d>0.0){ra=texture2D(inputBuffer,mix(uv,vUvR,d)).ra;ba=texture2D(inputBuffer,mix(uv,vUvB,d)).ba;}\n#else\nif(vActive>0.0){ra=texture2D(inputBuffer,vUvR).ra;ba=texture2D(inputBuffer,vUvB).ba;}\n#endif\noutputColor=vec4(ra.x,inputColor.g,ba.x,max(max(ra.y,ba.y),inputColor.a));}";
+  var chromatic_aberration_default2 = "uniform vec2 offset;varying float vActive;varying vec2 vUvR;varying vec2 vUvB;void mainSupport(const in vec2 uv){vec2 shift=offset*vec2(1.0,aspect);vActive=(shift.x!=0.0||shift.y!=0.0)?1.0:0.0;vUvR=uv+shift;vUvB=uv-shift;}";
+  var ChromaticAberrationEffect = class extends Effect {
+    /**
+     * Constructs a new chromatic aberration effect.
+     *
+     * @param {Object} [options] - The options.
+     * @param {Vector2} [options.offset] - The color offset.
+     * @param {Boolean} [options.radialModulation=false] - Whether the effect should be modulated with a radial gradient.
+     * @param {Number} [options.modulationOffset=0.15] - The modulation offset. Only applies if `radialModulation` is enabled.
+     */
+    constructor({
+      offset = new Vector2(1e-3, 5e-4),
+      radialModulation = false,
+      modulationOffset = 0.15
+    } = {}) {
+      super("ChromaticAberrationEffect", chromatic_aberration_default, {
+        vertexShader: chromatic_aberration_default2,
+        attributes: EffectAttribute.CONVOLUTION,
+        uniforms: /* @__PURE__ */ new Map([
+          ["offset", new Uniform(offset)],
+          ["modulationOffset", new Uniform(modulationOffset)]
+        ])
+      });
+      this.radialModulation = radialModulation;
+    }
+    /**
+     * The color offset.
+     *
+     * @type {Vector2}
+     */
+    get offset() {
+      return this.uniforms.get("offset").value;
+    }
+    set offset(value) {
+      this.uniforms.get("offset").value = value;
+    }
+    /**
+     * Indicates whether radial modulation is enabled.
+     *
+     * When enabled, the effect will be weaker in the middle and stronger towards the screen edges.
+     *
+     * @type {Boolean}
+     */
+    get radialModulation() {
+      return this.defines.has("RADIAL_MODULATION");
+    }
+    set radialModulation(value) {
+      if (value) {
+        this.defines.set("RADIAL_MODULATION", "1");
+      } else {
+        this.defines.delete("RADIAL_MODULATION");
+      }
+      this.setChanged();
+    }
+    /**
+     * The modulation offset.
+     *
+     * @type {Number}
+     */
+    get modulationOffset() {
+      return this.uniforms.get("modulationOffset").value;
+    }
+    set modulationOffset(value) {
+      this.uniforms.get("modulationOffset").value = value;
+    }
+    /**
+     * Returns the color offset vector.
+     *
+     * @deprecated Use offset instead.
+     * @return {Vector2} The offset.
+     */
+    getOffset() {
+      return this.offset;
+    }
+    /**
+     * Sets the color offset vector.
+     *
+     * @deprecated Use offset instead.
+     * @param {Vector2} value - The offset.
+     */
+    setOffset(value) {
+      this.offset = value;
+    }
+  };
+  var RenderPass = class extends Pass {
+    /**
+     * Constructs a new render pass.
+     *
+     * @param {Scene} scene - The scene to render.
+     * @param {Camera} camera - The camera to use to render the scene.
+     * @param {Material} [overrideMaterial=null] - An override material.
+     */
+    constructor(scene, camera, overrideMaterial = null) {
+      super("RenderPass", scene, camera);
+      this.needsSwap = false;
+      this.clearPass = new ClearPass();
+      this.overrideMaterialManager = overrideMaterial === null ? null : new OverrideMaterialManager(overrideMaterial);
+      this.ignoreBackground = false;
+      this.skipShadowMapUpdate = false;
+      this.selection = null;
+    }
+    set mainScene(value) {
+      this.scene = value;
+    }
+    set mainCamera(value) {
+      this.camera = value;
+    }
+    get renderToScreen() {
+      return super.renderToScreen;
+    }
+    set renderToScreen(value) {
+      super.renderToScreen = value;
+      this.clearPass.renderToScreen = value;
+    }
+    /**
+     * The current override material.
+     *
+     * @type {Material}
+     */
+    get overrideMaterial() {
+      const manager = this.overrideMaterialManager;
+      return manager !== null ? manager.material : null;
+    }
+    set overrideMaterial(value) {
+      const manager = this.overrideMaterialManager;
+      if (value !== null) {
+        if (manager !== null) {
+          manager.setMaterial(value);
+        } else {
+          this.overrideMaterialManager = new OverrideMaterialManager(value);
+        }
+      } else if (manager !== null) {
+        manager.dispose();
+        this.overrideMaterialManager = null;
+      }
+    }
+    /**
+     * Returns the current override material.
+     *
+     * @deprecated Use overrideMaterial instead.
+     * @return {Material} The material.
+     */
+    getOverrideMaterial() {
+      return this.overrideMaterial;
+    }
+    /**
+     * Sets the override material.
+     *
+     * @deprecated Use overrideMaterial instead.
+     * @return {Material} value - The material.
+     */
+    setOverrideMaterial(value) {
+      this.overrideMaterial = value;
+    }
+    /**
+     * Indicates whether the target buffer should be cleared before rendering.
+     *
+     * @type {Boolean}
+     * @deprecated Use clearPass.enabled instead.
+     */
+    get clear() {
+      return this.clearPass.enabled;
+    }
+    set clear(value) {
+      this.clearPass.enabled = value;
+    }
+    /**
+     * Returns the selection. Default is `null` (no restriction).
+     *
+     * @deprecated Use selection instead.
+     * @return {Selection} The selection.
+     */
+    getSelection() {
+      return this.selection;
+    }
+    /**
+     * Sets the selection. Set to `null` to disable.
+     *
+     * @deprecated Use selection instead.
+     * @param {Selection} value - The selection.
+     */
+    setSelection(value) {
+      this.selection = value;
+    }
+    /**
+     * Indicates whether the scene background is disabled.
+     *
+     * @deprecated Use ignoreBackground instead.
+     * @return {Boolean} Whether the scene background is disabled.
+     */
+    isBackgroundDisabled() {
+      return this.ignoreBackground;
+    }
+    /**
+     * Enables or disables the scene background.
+     *
+     * @deprecated Use ignoreBackground instead.
+     * @param {Boolean} value - Whether the scene background should be disabled.
+     */
+    setBackgroundDisabled(value) {
+      this.ignoreBackground = value;
+    }
+    /**
+     * Indicates whether the shadow map auto update is disabled.
+     *
+     * @deprecated Use skipShadowMapUpdate instead.
+     * @return {Boolean} Whether the shadow map update is disabled.
+     */
+    isShadowMapDisabled() {
+      return this.skipShadowMapUpdate;
+    }
+    /**
+     * Enables or disables the shadow map auto update.
+     *
+     * @deprecated Use skipShadowMapUpdate instead.
+     * @param {Boolean} value - Whether the shadow map auto update should be disabled.
+     */
+    setShadowMapDisabled(value) {
+      this.skipShadowMapUpdate = value;
+    }
+    /**
+     * Returns the clear pass.
+     *
+     * @deprecated Use clearPass.enabled instead.
+     * @return {ClearPass} The clear pass.
+     */
+    getClearPass() {
+      return this.clearPass;
+    }
+    /**
+     * Renders the scene.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      const scene = this.scene;
+      const camera = this.camera;
+      const selection = this.selection;
+      const mask = camera.layers.mask;
+      const background = scene.background;
+      const shadowMapAutoUpdate = renderer2.shadowMap.autoUpdate;
+      const renderTarget = this.renderToScreen ? null : inputBuffer;
+      if (selection !== null) {
+        camera.layers.set(selection.getLayer());
+      }
+      if (this.skipShadowMapUpdate) {
+        renderer2.shadowMap.autoUpdate = false;
+      }
+      if (this.ignoreBackground || this.clearPass.overrideClearColor !== null) {
+        scene.background = null;
+      }
+      if (this.clearPass.enabled) {
+        this.clearPass.render(renderer2, inputBuffer);
+      }
+      renderer2.setRenderTarget(renderTarget);
+      if (this.overrideMaterialManager !== null) {
+        this.overrideMaterialManager.render(renderer2, scene, camera);
+      } else {
+        renderer2.render(scene, camera);
+      }
+      camera.layers.mask = mask;
+      scene.background = background;
+      renderer2.shadowMap.autoUpdate = shadowMapAutoUpdate;
+    }
+  };
+  var hue_saturation_default = "uniform vec3 hue;uniform float saturation;void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){vec3 color=vec3(dot(inputColor.rgb,hue.xyz),dot(inputColor.rgb,hue.zxy),dot(inputColor.rgb,hue.yzx));float average=(color.r+color.g+color.b)/3.0;vec3 diff=average-color;if(saturation>0.0){color+=diff*(1.0-1.0/(1.001-saturation));}else{color+=diff*-saturation;}outputColor=vec4(min(color,1.0),inputColor.a);}";
+  var HueSaturationEffect = class extends Effect {
+    /**
+     * Constructs a new hue/saturation effect.
+     *
+     * @param {Object} [options] - The options.
+     * @param {BlendFunction} [options.blendFunction=BlendFunction.SRC] - The blend function of this effect.
+     * @param {Number} [options.hue=0.0] - The hue in radians.
+     * @param {Number} [options.saturation=0.0] - The saturation factor, ranging from -1 to 1, where 0 means no change.
+     */
+    constructor({ blendFunction = BlendFunction.SRC, hue = 0, saturation = 0 } = {}) {
+      super("HueSaturationEffect", hue_saturation_default, {
+        blendFunction,
+        uniforms: /* @__PURE__ */ new Map([
+          ["hue", new Uniform(new Vector3())],
+          ["saturation", new Uniform(saturation)]
+        ])
+      });
+      this.hue = hue;
+    }
+    /**
+     * The saturation.
+     *
+     * @type {Number}
+     */
+    get saturation() {
+      return this.uniforms.get("saturation").value;
+    }
+    set saturation(value) {
+      this.uniforms.get("saturation").value = value;
+    }
+    /**
+     * Returns the saturation.
+     *
+     * @deprecated Use saturation instead.
+     * @return {Number} The saturation.
+     */
+    getSaturation() {
+      return this.saturation;
+    }
+    /**
+     * Sets the saturation.
+     *
+     * @deprecated Use saturation instead.
+     * @param {Number} value - The saturation.
+     */
+    setSaturation(value) {
+      this.saturation = value;
+    }
+    /**
+     * The hue.
+     *
+     * @type {Number}
+     */
+    get hue() {
+      const hue = this.uniforms.get("hue").value;
+      return Math.acos((hue.x * 3 - 1) / 2);
+    }
+    set hue(value) {
+      const s = Math.sin(value), c2 = Math.cos(value);
+      this.uniforms.get("hue").value.set(
+        (2 * c2 + 1) / 3,
+        (-Math.sqrt(3) * s - c2 + 1) / 3,
+        (Math.sqrt(3) * s - c2 + 1) / 3
+      );
+    }
+    /**
+     * Returns the hue.
+     *
+     * @deprecated Use hue instead.
+     * @return {Number} The hue in radians.
+     */
+    getHue() {
+      return this.hue;
+    }
+    /**
+     * Sets the hue.
+     *
+     * @deprecated Use hue instead.
+     * @param {Number} value - The hue in radians.
+     */
+    setHue(value) {
+      this.hue = value;
+    }
+  };
+  var ToneMappingMode = {
+    LINEAR: 0,
+    REINHARD: 1,
+    REINHARD2: 2,
+    REINHARD2_ADAPTIVE: 3,
+    UNCHARTED2: 4,
+    OPTIMIZED_CINEON: 5,
+    CINEON: 5,
+    ACES_FILMIC: 6,
+    AGX: 7,
+    NEUTRAL: 8
+  };
+  var VignetteTechnique = {
+    DEFAULT: 0,
+    ESKIL: 1
+  };
+  var noise_default = "void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){vec3 noise=vec3(rand(uv*(1.0+time)));\n#ifdef PREMULTIPLY\noutputColor=vec4(min(inputColor.rgb*noise,vec3(1.0)),inputColor.a);\n#else\noutputColor=vec4(noise,inputColor.a);\n#endif\n}";
+  var NoiseEffect = class extends Effect {
+    /**
+     * Constructs a new noise effect.
+     *
+     * @param {Object} [options] - The options.
+     * @param {BlendFunction} [options.blendFunction=BlendFunction.SCREEN] - The blend function of this effect.
+     * @param {Boolean} [options.premultiply=false] - Whether the noise should be multiplied with the input colors prior to blending.
+     */
+    constructor({ blendFunction = BlendFunction.SCREEN, premultiply = false } = {}) {
+      super("NoiseEffect", noise_default, { blendFunction });
+      this.premultiply = premultiply;
+    }
+    /**
+     * Indicates whether noise will be multiplied with the input colors prior to blending.
+     *
+     * @type {Boolean}
+     */
+    get premultiply() {
+      return this.defines.has("PREMULTIPLY");
+    }
+    set premultiply(value) {
+      if (this.premultiply !== value) {
+        if (value) {
+          this.defines.set("PREMULTIPLY", "1");
+        } else {
+          this.defines.delete("PREMULTIPLY");
+        }
+        this.setChanged();
+      }
+    }
+    /**
+     * Indicates whether noise will be multiplied with the input colors prior to blending.
+     *
+     * @deprecated Use premultiply instead.
+     * @return {Boolean} Whether noise is premultiplied.
+     */
+    isPremultiplied() {
+      return this.premultiply;
+    }
+    /**
+     * Controls whether noise should be multiplied with the input colors prior to blending.
+     *
+     * @deprecated Use premultiply instead.
+     * @param {Boolean} value - Whether noise should be premultiplied.
+     */
+    setPremultiplied(value) {
+      this.premultiply = value;
+    }
+  };
+  var HALF_PI = Math.PI * 0.5;
+  var adaptive_luminance_default = "#include <packing>\n#define packFloatToRGBA(v) packDepthToRGBA(v)\n#define unpackRGBAToFloat(v) unpackRGBAToDepth(v)\nuniform lowp sampler2D luminanceBuffer0;uniform lowp sampler2D luminanceBuffer1;uniform float minLuminance;uniform float deltaTime;uniform float tau;varying vec2 vUv;void main(){float l0=unpackRGBAToFloat(texture2D(luminanceBuffer0,vUv));\n#if __VERSION__ < 300\nfloat l1=texture2DLodEXT(luminanceBuffer1,vUv,MIP_LEVEL_1X1).r;\n#else\nfloat l1=textureLod(luminanceBuffer1,vUv,MIP_LEVEL_1X1).r;\n#endif\nl0=max(minLuminance,l0);l1=max(minLuminance,l1);float adaptedLum=l0+(l1-l0)*(1.0-exp(-deltaTime*tau));gl_FragColor=(adaptedLum==1.0)?vec4(1.0):packFloatToRGBA(adaptedLum);}";
+  var AdaptiveLuminanceMaterial = class extends ShaderMaterial {
+    /**
+     * Constructs a new adaptive luminance material.
+     */
+    constructor() {
+      super({
+        name: "AdaptiveLuminanceMaterial",
+        defines: {
+          MIP_LEVEL_1X1: "0.0"
+        },
+        uniforms: {
+          luminanceBuffer0: new Uniform(null),
+          luminanceBuffer1: new Uniform(null),
+          minLuminance: new Uniform(0.01),
+          deltaTime: new Uniform(0),
+          tau: new Uniform(1)
+        },
+        extensions: {
+          shaderTextureLOD: true
+        },
+        blending: NoBlending,
+        toneMapped: false,
+        depthWrite: false,
+        depthTest: false,
+        fragmentShader: adaptive_luminance_default,
+        vertexShader: common_default
+      });
+    }
+    /**
+     * The primary luminance buffer that contains the downsampled average luminance.
+     *
+     * @type {Texture}
+     */
+    set luminanceBuffer0(value) {
+      this.uniforms.luminanceBuffer0.value = value;
+    }
+    /**
+     * Sets the primary luminance buffer that contains the downsampled average luminance.
+     *
+     * @deprecated Use luminanceBuffer0 instead.
+     * @param {Texture} value - The buffer.
+     */
+    setLuminanceBuffer0(value) {
+      this.uniforms.luminanceBuffer0.value = value;
+    }
+    /**
+     * The secondary luminance buffer.
+     *
+     * @type {Texture}
+     */
+    set luminanceBuffer1(value) {
+      this.uniforms.luminanceBuffer1.value = value;
+    }
+    /**
+     * Sets the secondary luminance buffer.
+     *
+     * @deprecated Use luminanceBuffer1 instead.
+     * @param {Texture} value - The buffer.
+     */
+    setLuminanceBuffer1(value) {
+      this.uniforms.luminanceBuffer1.value = value;
+    }
+    /**
+     * The 1x1 mipmap level.
+     *
+     * This level is used to identify the smallest mipmap of the primary luminance buffer.
+     *
+     * @type {Number}
+     */
+    set mipLevel1x1(value) {
+      this.defines.MIP_LEVEL_1X1 = value.toFixed(1);
+      this.needsUpdate = true;
+    }
+    /**
+     * Sets the 1x1 mipmap level.
+     *
+     * @deprecated Use mipLevel1x1 instead.
+     * @param {Number} value - The level.
+     */
+    setMipLevel1x1(value) {
+      this.mipLevel1x1 = value;
+    }
+    /**
+     * The delta time.
+     *
+     * @type {Number}
+     */
+    set deltaTime(value) {
+      this.uniforms.deltaTime.value = value;
+    }
+    /**
+     * Sets the delta time.
+     *
+     * @deprecated Use deltaTime instead.
+     * @param {Number} value - The delta time.
+     */
+    setDeltaTime(value) {
+      this.uniforms.deltaTime.value = value;
+    }
+    /**
+     * The lowest possible luminance value.
+     *
+     * @type {Number}
+     */
+    get minLuminance() {
+      return this.uniforms.minLuminance.value;
+    }
+    set minLuminance(value) {
+      this.uniforms.minLuminance.value = value;
+    }
+    /**
+     * Returns the lowest possible luminance value.
+     *
+     * @deprecated Use minLuminance instead.
+     * @return {Number} The minimum luminance.
+     */
+    getMinLuminance() {
+      return this.uniforms.minLuminance.value;
+    }
+    /**
+     * Sets the minimum luminance.
+     *
+     * @deprecated Use minLuminance instead.
+     * @param {Number} value - The minimum luminance.
+     */
+    setMinLuminance(value) {
+      this.uniforms.minLuminance.value = value;
+    }
+    /**
+     * The luminance adaptation rate.
+     *
+     * @type {Number}
+     */
+    get adaptationRate() {
+      return this.uniforms.tau.value;
+    }
+    set adaptationRate(value) {
+      this.uniforms.tau.value = value;
+    }
+    /**
+     * Returns the luminance adaptation rate.
+     *
+     * @deprecated Use adaptationRate instead.
+     * @return {Number} The adaptation rate.
+     */
+    getAdaptationRate() {
+      return this.uniforms.tau.value;
+    }
+    /**
+     * Sets the luminance adaptation rate.
+     *
+     * @deprecated Use adaptationRate instead.
+     * @param {Number} value - The adaptation rate.
+     */
+    setAdaptationRate(value) {
+      this.uniforms.tau.value = value;
+    }
+  };
+  var AdaptiveLuminancePass = class extends Pass {
+    /**
+     * Constructs a new adaptive luminance pass.
+     *
+     * @param {Texture} luminanceBuffer - A buffer that contains the current scene luminance.
+     * @param {Object} [options] - The options.
+     * @param {Number} [options.minLuminance=0.01] - The minimum luminance.
+     * @param {Number} [options.adaptationRate=1.0] - The luminance adaptation rate.
+     */
+    constructor(luminanceBuffer, { minLuminance = 0.01, adaptationRate = 1 } = {}) {
+      super("AdaptiveLuminancePass");
+      this.fullscreenMaterial = new AdaptiveLuminanceMaterial();
+      this.needsSwap = false;
+      this.renderTargetPrevious = new WebGLRenderTarget(1, 1, {
+        minFilter: NearestFilter,
+        magFilter: NearestFilter,
+        depthBuffer: false
+      });
+      this.renderTargetPrevious.texture.name = "Luminance.Previous";
+      const material = this.fullscreenMaterial;
+      material.luminanceBuffer0 = this.renderTargetPrevious.texture;
+      material.luminanceBuffer1 = luminanceBuffer;
+      material.minLuminance = minLuminance;
+      material.adaptationRate = adaptationRate;
+      this.renderTargetAdapted = this.renderTargetPrevious.clone();
+      this.renderTargetAdapted.texture.name = "Luminance.Adapted";
+      this.copyPass = new CopyPass(this.renderTargetPrevious, false);
+    }
+    /**
+     * The adaptive luminance texture.
+     *
+     * @type {Texture}
+     */
+    get texture() {
+      return this.renderTargetAdapted.texture;
+    }
+    /**
+     * Returns the adaptive 1x1 luminance texture.
+     *
+     * @deprecated Use texture instead.
+     * @return {Texture} The texture.
+     */
+    getTexture() {
+      return this.renderTargetAdapted.texture;
+    }
+    /**
+     * Sets the 1x1 mipmap level.
+     *
+     * This level is used to identify the smallest mipmap of the main luminance texture which contains the downsampled
+     * average scene luminance.
+     *
+     * @type {Number}
+     * @deprecated Use fullscreenMaterial.mipLevel1x1 instead.
+     */
+    set mipLevel1x1(value) {
+      this.fullscreenMaterial.mipLevel1x1 = value;
+    }
+    /**
+     * The luminance adaptation rate.
+     *
+     * @type {Number}
+     * @deprecated Use fullscreenMaterial.adaptationRate instead.
+     */
+    get adaptationRate() {
+      return this.fullscreenMaterial.adaptationRate;
+    }
+    /**
+     * @type {Number}
+     * @deprecated Use fullscreenMaterial.adaptationRate instead.
+     */
+    set adaptationRate(value) {
+      this.fullscreenMaterial.adaptationRate = value;
+    }
+    /**
+     * Renders the scene normals.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      this.fullscreenMaterial.deltaTime = deltaTime;
+      renderer2.setRenderTarget(this.renderToScreen ? null : this.renderTargetAdapted);
+      renderer2.render(this.scene, this.camera);
+      this.copyPass.render(renderer2, this.renderTargetAdapted);
+    }
+  };
+  var tone_mapping_default = "#include <tonemapping_pars_fragment>\nuniform float whitePoint;\n#if TONE_MAPPING_MODE == 2 || TONE_MAPPING_MODE == 3\nuniform float middleGrey;\n#if TONE_MAPPING_MODE == 3\nuniform lowp sampler2D luminanceBuffer;\n#else\nuniform float averageLuminance;\n#endif\nvec3 Reinhard2ToneMapping(vec3 color){color*=toneMappingExposure;float l=luminance(color);\n#if TONE_MAPPING_MODE == 3\nfloat lumAvg=unpackRGBAToFloat(texture2D(luminanceBuffer,vec2(0.5)));\n#else\nfloat lumAvg=averageLuminance;\n#endif\nfloat lumScaled=(l*middleGrey)/max(lumAvg,1e-6);float lumCompressed=lumScaled*(1.0+lumScaled/(whitePoint*whitePoint));lumCompressed/=(1.0+lumScaled);return clamp(lumCompressed*color,0.0,1.0);}\n#elif TONE_MAPPING_MODE == 4\n#define A 0.15\n#define B 0.50\n#define C 0.10\n#define D 0.20\n#define E 0.02\n#define F 0.30\nvec3 Uncharted2Helper(const in vec3 x){return((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F))-E/F;}vec3 Uncharted2ToneMapping(vec3 color){color*=toneMappingExposure;return clamp(Uncharted2Helper(color)/Uncharted2Helper(vec3(whitePoint)),0.0,1.0);}\n#endif\nvoid mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){\n#if TONE_MAPPING_MODE == 2 || TONE_MAPPING_MODE == 3\noutputColor=vec4(Reinhard2ToneMapping(inputColor.rgb),inputColor.a);\n#elif TONE_MAPPING_MODE == 4\noutputColor=vec4(Uncharted2ToneMapping(inputColor.rgb),inputColor.a);\n#else\noutputColor=vec4(toneMapping(inputColor.rgb),inputColor.a);\n#endif\n}";
+  var ToneMappingEffect = class extends Effect {
+    /**
+     * Constructs a new tone mapping effect.
+     *
+     * The additional parameters only affect the Reinhard2 operator.
+     *
+     * @param {Object} [options] - The options.
+     * @param {BlendFunction} [options.blendFunction=BlendFunction.SRC] - The blend function of this effect.
+     * @param {Boolean} [options.adaptive=false] - Deprecated. Use mode instead.
+     * @param {ToneMappingMode} [options.mode=ToneMappingMode.AGX] - The tone mapping mode.
+     * @param {Number} [options.resolution=256] - The resolution of the luminance texture. Must be a power of two.
+     * @param {Number} [options.maxLuminance=4.0] - Deprecated. Same as whitePoint.
+     * @param {Number} [options.whitePoint=4.0] - The white point.
+     * @param {Number} [options.middleGrey=0.6] - The middle grey factor.
+     * @param {Number} [options.minLuminance=0.01] - The minimum luminance. Prevents very high exposure in dark scenes.
+     * @param {Number} [options.averageLuminance=1.0] - The average luminance. Used for the non-adaptive Reinhard operator.
+     * @param {Number} [options.adaptationRate=1.0] - The luminance adaptation rate.
+     */
+    constructor({
+      blendFunction = BlendFunction.SRC,
+      adaptive = false,
+      mode = adaptive ? ToneMappingMode.REINHARD2_ADAPTIVE : ToneMappingMode.AGX,
+      resolution = 256,
+      maxLuminance = 4,
+      whitePoint = maxLuminance,
+      middleGrey = 0.6,
+      minLuminance = 0.01,
+      averageLuminance = 1,
+      adaptationRate = 1
+    } = {}) {
+      super("ToneMappingEffect", tone_mapping_default, {
+        blendFunction,
+        uniforms: /* @__PURE__ */ new Map([
+          ["luminanceBuffer", new Uniform(null)],
+          ["maxLuminance", new Uniform(maxLuminance)],
+          // Unused
+          ["whitePoint", new Uniform(whitePoint)],
+          ["middleGrey", new Uniform(middleGrey)],
+          ["averageLuminance", new Uniform(averageLuminance)]
+        ])
+      });
+      this.renderTargetLuminance = new WebGLRenderTarget(1, 1, {
+        minFilter: LinearMipmapLinearFilter,
+        depthBuffer: false
+      });
+      this.renderTargetLuminance.texture.generateMipmaps = true;
+      this.renderTargetLuminance.texture.name = "Luminance";
+      this.luminancePass = new LuminancePass({
+        renderTarget: this.renderTargetLuminance
+      });
+      this.adaptiveLuminancePass = new AdaptiveLuminancePass(this.luminancePass.texture, {
+        minLuminance,
+        adaptationRate
+      });
+      this.uniforms.get("luminanceBuffer").value = this.adaptiveLuminancePass.texture;
+      this.resolution = resolution;
+      this.mode = mode;
+    }
+    /**
+     * The tone mapping mode.
+     *
+     * @type {ToneMappingMode}
+     */
+    get mode() {
+      return Number(this.defines.get("TONE_MAPPING_MODE"));
+    }
+    set mode(value) {
+      if (this.mode === value) {
+        return;
+      }
+      const revision = REVISION.replace(/\D+/g, "");
+      const cineonToneMapping = revision >= 168 ? "CineonToneMapping(texel)" : "OptimizedCineonToneMapping(texel)";
+      this.defines.clear();
+      this.defines.set("TONE_MAPPING_MODE", value.toFixed(0));
+      switch (value) {
+        case ToneMappingMode.LINEAR:
+          this.defines.set("toneMapping(texel)", "LinearToneMapping(texel)");
+          break;
+        case ToneMappingMode.REINHARD:
+          this.defines.set("toneMapping(texel)", "ReinhardToneMapping(texel)");
+          break;
+        case ToneMappingMode.CINEON:
+        case ToneMappingMode.OPTIMIZED_CINEON:
+          this.defines.set("toneMapping(texel)", cineonToneMapping);
+          break;
+        case ToneMappingMode.ACES_FILMIC:
+          this.defines.set("toneMapping(texel)", "ACESFilmicToneMapping(texel)");
+          break;
+        case ToneMappingMode.AGX:
+          this.defines.set("toneMapping(texel)", "AgXToneMapping(texel)");
+          break;
+        case ToneMappingMode.NEUTRAL:
+          this.defines.set("toneMapping(texel)", "NeutralToneMapping(texel)");
+          break;
+        default:
+          this.defines.set("toneMapping(texel)", "texel");
+          break;
+      }
+      this.adaptiveLuminancePass.enabled = value === ToneMappingMode.REINHARD2_ADAPTIVE;
+      this.setChanged();
+    }
+    /**
+     * Returns the current tone mapping mode.
+     *
+     * @deprecated Use mode instead.
+     * @return {ToneMappingMode} The tone mapping mode.
+     */
+    getMode() {
+      return this.mode;
+    }
+    /**
+     * Sets the tone mapping mode.
+     *
+     * @deprecated Use mode instead.
+     * @param {ToneMappingMode} value - The tone mapping mode.
+     */
+    setMode(value) {
+      this.mode = value;
+    }
+    /**
+     * The white point. Default is `4.0`.
+     *
+     * Only applies to Reinhard2 (Modified & Adaptive).
+     *
+     * @type {Number}
+     */
+    get whitePoint() {
+      return this.uniforms.get("whitePoint").value;
+    }
+    set whitePoint(value) {
+      this.uniforms.get("whitePoint").value = value;
+    }
+    /**
+     * The middle grey factor. Default is `0.6`.
+     *
+     * Only applies to Reinhard2 (Modified & Adaptive).
+     *
+     * @type {Number}
+     */
+    get middleGrey() {
+      return this.uniforms.get("middleGrey").value;
+    }
+    set middleGrey(value) {
+      this.uniforms.get("middleGrey").value = value;
+    }
+    /**
+     * The average luminance.
+     *
+     * Only applies to Reinhard2 (Modified).
+     *
+     * @type {Number}
+     */
+    get averageLuminance() {
+      return this.uniforms.get("averageLuminance").value;
+    }
+    set averageLuminance(value) {
+      this.uniforms.get("averageLuminance").value = value;
+    }
+    /**
+     * The adaptive luminance material.
+     *
+     * @type {AdaptiveLuminanceMaterial}
+     */
+    get adaptiveLuminanceMaterial() {
+      return this.adaptiveLuminancePass.fullscreenMaterial;
+    }
+    /**
+     * Returns the adaptive luminance material.
+     *
+     * @deprecated Use adaptiveLuminanceMaterial instead.
+     * @return {AdaptiveLuminanceMaterial} The material.
+     */
+    getAdaptiveLuminanceMaterial() {
+      return this.adaptiveLuminanceMaterial;
+    }
+    /**
+     * The resolution of the luminance texture. Must be a power of two.
+     *
+     * @type {Number}
+     */
+    get resolution() {
+      return this.luminancePass.resolution.width;
+    }
+    set resolution(value) {
+      const exponent = Math.max(0, Math.ceil(Math.log2(value)));
+      const size = Math.pow(2, exponent);
+      this.luminancePass.resolution.setPreferredSize(size, size);
+      this.adaptiveLuminanceMaterial.mipLevel1x1 = exponent;
+    }
+    /**
+     * Returns the resolution of the luminance texture.
+     *
+     * @deprecated Use resolution instead.
+     * @return {Number} The resolution.
+     */
+    getResolution() {
+      return this.resolution;
+    }
+    /**
+     * Sets the resolution of the luminance texture. Must be a power of two.
+     *
+     * @deprecated Use resolution instead.
+     * @param {Number} value - The resolution.
+     */
+    setResolution(value) {
+      this.resolution = value;
+    }
+    /**
+     * Indicates whether this pass uses adaptive luminance.
+     *
+     * @type {Boolean}
+     * @deprecated Use mode instead.
+     */
+    get adaptive() {
+      return this.mode === ToneMappingMode.REINHARD2_ADAPTIVE;
+    }
+    set adaptive(value) {
+      this.mode = value ? ToneMappingMode.REINHARD2_ADAPTIVE : ToneMappingMode.REINHARD2;
+    }
+    /**
+     * The luminance adaptation rate.
+     *
+     * @type {Number}
+     * @deprecated Use adaptiveLuminanceMaterial.adaptationRate instead.
+     */
+    get adaptationRate() {
+      return this.adaptiveLuminanceMaterial.adaptationRate;
+    }
+    set adaptationRate(value) {
+      this.adaptiveLuminanceMaterial.adaptationRate = value;
+    }
+    /**
+     * @type {Number}
+     * @deprecated
+     */
+    get distinction() {
+      console.warn(this.name, "distinction was removed.");
+      return 1;
+    }
+    set distinction(value) {
+      console.warn(this.name, "distinction was removed.");
+    }
+    /**
+     * Updates this effect.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     */
+    update(renderer2, inputBuffer, deltaTime) {
+      if (this.adaptiveLuminancePass.enabled) {
+        this.luminancePass.render(renderer2, inputBuffer);
+        this.adaptiveLuminancePass.render(renderer2, null, null, deltaTime);
+      }
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+      this.adaptiveLuminancePass.initialize(renderer2, alpha, frameBufferType);
+    }
+  };
+  var vignette_default = "uniform float offset;uniform float darkness;void mainImage(const in vec4 inputColor,const in vec2 uv,out vec4 outputColor){const vec2 center=vec2(0.5);vec3 color=inputColor.rgb;\n#if VIGNETTE_TECHNIQUE == 0\nfloat d=distance(uv,center);color*=smoothstep(0.8,offset*0.799,d*(darkness+offset));\n#else\nvec2 coord=(uv-center)*vec2(offset);color=mix(color,vec3(1.0-darkness),dot(coord,coord));\n#endif\noutputColor=vec4(color,inputColor.a);}";
+  var VignetteEffect = class extends Effect {
+    /**
+     * Constructs a new Vignette effect.
+     *
+     * @param {Object} [options] - The options.
+     * @param {BlendFunction} [options.blendFunction] - The blend function of this effect.
+     * @param {VignetteTechnique} [options.technique=VignetteTechnique.DEFAULT] - The Vignette technique.
+     * @param {Boolean} [options.eskil=false] - Deprecated. Use technique instead.
+     * @param {Number} [options.offset=0.5] - The Vignette offset.
+     * @param {Number} [options.darkness=0.5] - The Vignette darkness.
+     */
+    constructor({
+      blendFunction,
+      eskil = false,
+      technique = eskil ? VignetteTechnique.ESKIL : VignetteTechnique.DEFAULT,
+      offset = 0.5,
+      darkness = 0.5
+    } = {}) {
+      super("VignetteEffect", vignette_default, {
+        blendFunction,
+        defines: /* @__PURE__ */ new Map([
+          ["VIGNETTE_TECHNIQUE", technique.toFixed(0)]
+        ]),
+        uniforms: /* @__PURE__ */ new Map([
+          ["offset", new Uniform(offset)],
+          ["darkness", new Uniform(darkness)]
+        ])
+      });
+    }
+    /**
+     * The Vignette technique.
+     *
+     * @type {VignetteTechnique}
+     */
+    get technique() {
+      return Number(this.defines.get("VIGNETTE_TECHNIQUE"));
+    }
+    set technique(value) {
+      if (this.technique !== value) {
+        this.defines.set("VIGNETTE_TECHNIQUE", value.toFixed(0));
+        this.setChanged();
+      }
+    }
+    /**
+     * Indicates whether Eskil's Vignette technique is enabled.
+     *
+     * @type {Boolean}
+     * @deprecated Use technique instead.
+     */
+    get eskil() {
+      return this.technique === VignetteTechnique.ESKIL;
+    }
+    /**
+     * Indicates whether Eskil's Vignette technique is enabled.
+     *
+     * @type {Boolean}
+     * @deprecated Use technique instead.
+     */
+    set eskil(value) {
+      this.technique = value ? VignetteTechnique.ESKIL : VignetteTechnique.DEFAULT;
+    }
+    /**
+     * Returns the Vignette technique.
+     *
+     * @deprecated Use technique instead.
+     * @return {VignetteTechnique} The technique.
+     */
+    getTechnique() {
+      return this.technique;
+    }
+    /**
+     * Sets the Vignette technique.
+     *
+     * @deprecated Use technique instead.
+     * @param {VignetteTechnique} value - The technique.
+     */
+    setTechnique(value) {
+      this.technique = value;
+    }
+    /**
+     * The Vignette offset.
+     *
+     * @type {Number}
+     */
+    get offset() {
+      return this.uniforms.get("offset").value;
+    }
+    set offset(value) {
+      this.uniforms.get("offset").value = value;
+    }
+    /**
+     * Returns the Vignette offset.
+     *
+     * @deprecated Use offset instead.
+     * @return {Number} The offset.
+     */
+    getOffset() {
+      return this.offset;
+    }
+    /**
+     * Sets the Vignette offset.
+     *
+     * @deprecated Use offset instead.
+     * @param {Number} value - The offset.
+     */
+    setOffset(value) {
+      this.offset = value;
+    }
+    /**
+     * The Vignette darkness.
+     *
+     * @type {Number}
+     */
+    get darkness() {
+      return this.uniforms.get("darkness").value;
+    }
+    set darkness(value) {
+      this.uniforms.get("darkness").value = value;
+    }
+    /**
+     * Returns the Vignette darkness.
+     *
+     * @deprecated Use darkness instead.
+     * @return {Number} The darkness.
+     */
+    getDarkness() {
+      return this.darkness;
+    }
+    /**
+     * Sets the Vignette darkness.
+     *
+     * @deprecated Use darkness instead.
+     * @param {Number} value - The darkness.
+     */
+    setDarkness(value) {
+      this.darkness = value;
+    }
+  };
+  var effect_default = "#include <common>\n#include <packing>\n#include <dithering_pars_fragment>\n#define packFloatToRGBA(v) packDepthToRGBA(v)\n#define unpackRGBAToFloat(v) unpackRGBAToDepth(v)\n#ifdef FRAMEBUFFER_PRECISION_HIGH\nuniform mediump sampler2D inputBuffer;\n#else\nuniform lowp sampler2D inputBuffer;\n#endif\n#if DEPTH_PACKING == 3201\nuniform lowp sampler2D depthBuffer;\n#elif defined(GL_FRAGMENT_PRECISION_HIGH)\nuniform highp sampler2D depthBuffer;\n#else\nuniform mediump sampler2D depthBuffer;\n#endif\nuniform vec2 resolution;uniform vec2 texelSize;uniform float cameraNear;uniform float cameraFar;uniform float aspect;uniform float time;varying vec2 vUv;vec4 sRGBToLinear(const in vec4 value){return vec4(mix(pow(value.rgb*0.9478672986+vec3(0.0521327014),vec3(2.4)),value.rgb*0.0773993808,vec3(lessThanEqual(value.rgb,vec3(0.04045)))),value.a);}float readDepth(const in vec2 uv){\n#if DEPTH_PACKING == 3201\nreturn unpackRGBAToDepth(texture2D(depthBuffer,uv));\n#else\nreturn texture2D(depthBuffer,uv).r;\n#endif\n}float getViewZ(const in float depth){\n#ifdef PERSPECTIVE_CAMERA\nreturn perspectiveDepthToViewZ(depth,cameraNear,cameraFar);\n#else\nreturn orthographicDepthToViewZ(depth,cameraNear,cameraFar);\n#endif\n}vec3 RGBToHCV(const in vec3 RGB){vec4 P=mix(vec4(RGB.bg,-1.0,2.0/3.0),vec4(RGB.gb,0.0,-1.0/3.0),step(RGB.b,RGB.g));vec4 Q=mix(vec4(P.xyw,RGB.r),vec4(RGB.r,P.yzx),step(P.x,RGB.r));float C=Q.x-min(Q.w,Q.y);float H=abs((Q.w-Q.y)/(6.0*C+EPSILON)+Q.z);return vec3(H,C,Q.x);}vec3 RGBToHSL(const in vec3 RGB){vec3 HCV=RGBToHCV(RGB);float L=HCV.z-HCV.y*0.5;float S=HCV.y/(1.0-abs(L*2.0-1.0)+EPSILON);return vec3(HCV.x,S,L);}vec3 HueToRGB(const in float H){float R=abs(H*6.0-3.0)-1.0;float G=2.0-abs(H*6.0-2.0);float B=2.0-abs(H*6.0-4.0);return clamp(vec3(R,G,B),0.0,1.0);}vec3 HSLToRGB(const in vec3 HSL){vec3 RGB=HueToRGB(HSL.x);float C=(1.0-abs(2.0*HSL.z-1.0))*HSL.y;return(RGB-0.5)*C+HSL.z;}FRAGMENT_HEAD void main(){FRAGMENT_MAIN_UV vec4 color0=texture2D(inputBuffer,UV);vec4 color1=vec4(0.0);FRAGMENT_MAIN_IMAGE color0.a=clamp(color0.a,0.0,1.0);gl_FragColor=color0;\n#ifdef ENCODE_OUTPUT\n#include <colorspace_fragment>\n#endif\n#include <dithering_fragment>\n}";
+  var effect_default2 = "uniform vec2 resolution;uniform vec2 texelSize;uniform float cameraNear;uniform float cameraFar;uniform float aspect;uniform float time;varying vec2 vUv;VERTEX_HEAD void main(){vUv=position.xy*0.5+0.5;VERTEX_MAIN_SUPPORT gl_Position=vec4(position.xy,1.0,1.0);}";
+  var EffectMaterial = class extends ShaderMaterial {
+    /**
+     * Constructs a new effect material.
+     *
+     * @param {Map<String, String>} [shaderParts] - Deprecated. Use setShaderData instead.
+     * @param {Map<String, String>} [defines] - Deprecated. Use setShaderData instead.
+     * @param {Map<String, Uniform>} [uniforms] - Deprecated. Use setShaderData instead.
+     * @param {Camera} [camera] - A camera.
+     * @param {Boolean} [dithering=false] - Deprecated.
+     */
+    constructor(shaderParts, defines, uniforms, camera, dithering = false) {
+      super({
+        name: "EffectMaterial",
+        defines: {
+          THREE_REVISION: REVISION.replace(/\D+/g, ""),
+          DEPTH_PACKING: "0",
+          ENCODE_OUTPUT: "1"
+        },
+        uniforms: {
+          inputBuffer: new Uniform(null),
+          depthBuffer: new Uniform(null),
+          resolution: new Uniform(new Vector2()),
+          texelSize: new Uniform(new Vector2()),
+          cameraNear: new Uniform(0.3),
+          cameraFar: new Uniform(1e3),
+          aspect: new Uniform(1),
+          time: new Uniform(0)
+        },
+        blending: NoBlending,
+        toneMapped: false,
+        depthWrite: false,
+        depthTest: false,
+        dithering
+      });
+      if (shaderParts) {
+        this.setShaderParts(shaderParts);
+      }
+      if (defines) {
+        this.setDefines(defines);
+      }
+      if (uniforms) {
+        this.setUniforms(uniforms);
+      }
+      this.copyCameraSettings(camera);
+    }
+    /**
+     * The input buffer.
+     *
+     * @type {Texture}
+     */
+    set inputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * Sets the input buffer.
+     *
+     * @deprecated Use inputBuffer instead.
+     * @param {Texture} value - The input buffer.
+     */
+    setInputBuffer(value) {
+      this.uniforms.inputBuffer.value = value;
+    }
+    /**
+     * The depth buffer.
+     *
+     * @type {Texture}
+     */
+    get depthBuffer() {
+      return this.uniforms.depthBuffer.value;
+    }
+    set depthBuffer(value) {
+      this.uniforms.depthBuffer.value = value;
+    }
+    /**
+     * The depth packing strategy.
+     *
+     * @type {DepthPackingStrategies}
+     */
+    get depthPacking() {
+      return Number(this.defines.DEPTH_PACKING);
+    }
+    set depthPacking(value) {
+      this.defines.DEPTH_PACKING = value.toFixed(0);
+      this.needsUpdate = true;
+    }
+    /**
+     * Sets the depth buffer.
+     *
+     * @deprecated Use depthBuffer and depthPacking instead.
+     * @param {Texture} buffer - The depth texture.
+     * @param {DepthPackingStrategies} [depthPacking=BasicDepthPacking] - The depth packing strategy.
+     */
+    setDepthBuffer(buffer, depthPacking = BasicDepthPacking) {
+      this.depthBuffer = buffer;
+      this.depthPacking = depthPacking;
+    }
+    /**
+     * Sets the shader data.
+     *
+     * @param {EffectShaderData} data - The shader data.
+     * @return {EffectMaterial} This material.
+     */
+    setShaderData(data) {
+      this.setShaderParts(data.shaderParts);
+      this.setDefines(data.defines);
+      this.setUniforms(data.uniforms);
+      this.setExtensions(data.extensions);
+    }
+    /**
+     * Sets the shader parts.
+     *
+     * @deprecated Use setShaderData instead.
+     * @param {Map<String, String>} shaderParts - A collection of shader snippets. See {@link EffectShaderSection}.
+     * @return {EffectMaterial} This material.
+     */
+    setShaderParts(shaderParts) {
+      this.fragmentShader = effect_default.replace(EffectShaderSection.FRAGMENT_HEAD, shaderParts.get(EffectShaderSection.FRAGMENT_HEAD) || "").replace(EffectShaderSection.FRAGMENT_MAIN_UV, shaderParts.get(EffectShaderSection.FRAGMENT_MAIN_UV) || "").replace(EffectShaderSection.FRAGMENT_MAIN_IMAGE, shaderParts.get(EffectShaderSection.FRAGMENT_MAIN_IMAGE) || "");
+      this.vertexShader = effect_default2.replace(EffectShaderSection.VERTEX_HEAD, shaderParts.get(EffectShaderSection.VERTEX_HEAD) || "").replace(EffectShaderSection.VERTEX_MAIN_SUPPORT, shaderParts.get(EffectShaderSection.VERTEX_MAIN_SUPPORT) || "");
+      this.needsUpdate = true;
+      return this;
+    }
+    /**
+     * Sets the shader macros.
+     *
+     * @deprecated Use setShaderData instead.
+     * @param {Map<String, String>} defines - A collection of preprocessor macro definitions.
+     * @return {EffectMaterial} This material.
+     */
+    setDefines(defines) {
+      for (const entry of defines.entries()) {
+        this.defines[entry[0]] = entry[1];
+      }
+      this.needsUpdate = true;
+      return this;
+    }
+    /**
+     * Sets the shader uniforms.
+     *
+     * @deprecated Use setShaderData instead.
+     * @param {Map<String, Uniform>} uniforms - A collection of uniforms.
+     * @return {EffectMaterial} This material.
+     */
+    setUniforms(uniforms) {
+      for (const entry of uniforms.entries()) {
+        this.uniforms[entry[0]] = entry[1];
+      }
+      return this;
+    }
+    /**
+     * Sets the required shader extensions.
+     *
+     * @deprecated Use setShaderData instead.
+     * @param {Set<WebGLExtension>} extensions - A collection of extensions.
+     * @return {EffectMaterial} This material.
+     */
+    setExtensions(extensions) {
+      this.extensions = {};
+      for (const extension of extensions) {
+        this.extensions[extension] = true;
+      }
+      return this;
+    }
+    /**
+     * Indicates whether output encoding is enabled.
+     *
+     * @type {Boolean}
+     */
+    get encodeOutput() {
+      return this.defines.ENCODE_OUTPUT !== void 0;
+    }
+    set encodeOutput(value) {
+      if (this.encodeOutput !== value) {
+        if (value) {
+          this.defines.ENCODE_OUTPUT = "1";
+        } else {
+          delete this.defines.ENCODE_OUTPUT;
+        }
+        this.needsUpdate = true;
+      }
+    }
+    /**
+     * Indicates whether output encoding is enabled.
+     *
+     * @deprecated Use encodeOutput instead.
+     * @return {Boolean} Whether output encoding is enabled.
+     */
+    isOutputEncodingEnabled(value) {
+      return this.encodeOutput;
+    }
+    /**
+     * Enables or disables output encoding.
+     *
+     * @deprecated Use encodeOutput instead.
+     * @param {Boolean} value - Whether output encoding should be enabled.
+     */
+    setOutputEncodingEnabled(value) {
+      this.encodeOutput = value;
+    }
+    /**
+     * The time in seconds.
+     *
+     * @type {Number}
+     */
+    get time() {
+      return this.uniforms.time.value;
+    }
+    set time(value) {
+      this.uniforms.time.value = value;
+    }
+    /**
+     * Sets the delta time.
+     *
+     * @deprecated Use time instead.
+     * @param {Number} value - The delta time in seconds.
+     */
+    setDeltaTime(value) {
+      this.uniforms.time.value += value;
+    }
+    /**
+     * Copies the settings of the given camera.
+     *
+     * @deprecated Use copyCameraSettings instead.
+     * @param {Camera} camera - A camera.
+     */
+    adoptCameraSettings(camera) {
+      this.copyCameraSettings(camera);
+    }
+    /**
+     * Copies the settings of the given camera.
+     *
+     * @param {Camera} camera - A camera.
+     */
+    copyCameraSettings(camera) {
+      if (camera) {
+        this.uniforms.cameraNear.value = camera.near;
+        this.uniforms.cameraFar.value = camera.far;
+        if (camera instanceof PerspectiveCamera) {
+          this.defines.PERSPECTIVE_CAMERA = "1";
+        } else {
+          delete this.defines.PERSPECTIVE_CAMERA;
+        }
+        this.needsUpdate = true;
+      }
+    }
+    /**
+     * Sets the resolution.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      const uniforms = this.uniforms;
+      uniforms.resolution.value.set(width, height);
+      uniforms.texelSize.value.set(1 / width, 1 / height);
+      uniforms.aspect.value = width / height;
+    }
+    /**
+     * An enumeration of shader code placeholders.
+     *
+     * @deprecated Use EffectShaderSection instead.
+     * @type {Object}
+     */
+    static get Section() {
+      return EffectShaderSection;
+    }
+  };
+  var threeRevision = Number(REVISION.replace(/\D+/g, ""));
+  var unpackDownscale = 255 / 256;
+  var unpackFactorsLegacy = new Float32Array([
+    unpackDownscale / 256 ** 3,
+    unpackDownscale / 256 ** 2,
+    unpackDownscale / 256,
+    unpackDownscale
+  ]);
+  var unpackFactors = new Float32Array([
+    unpackDownscale,
+    unpackDownscale / 256,
+    unpackDownscale / 256 ** 2,
+    1 / 256 ** 3
+  ]);
+  function prefixSubstrings(prefix, substrings, strings) {
+    for (const substring of substrings) {
+      const prefixed = "$1" + prefix + substring.charAt(0).toUpperCase() + substring.slice(1);
+      const regExp = new RegExp("([^\\.])(\\b" + substring + "\\b)", "g");
+      for (const entry of strings.entries()) {
+        if (entry[1] !== null) {
+          strings.set(entry[0], entry[1].replace(regExp, prefixed));
+        }
+      }
+    }
+  }
+  function integrateEffect(prefix, effect, data) {
+    let fragmentShader = effect.getFragmentShader();
+    let vertexShader = effect.getVertexShader();
+    const mainImageExists = fragmentShader !== void 0 && /mainImage/.test(fragmentShader);
+    const mainUvExists = fragmentShader !== void 0 && /mainUv/.test(fragmentShader);
+    data.attributes |= effect.getAttributes();
+    if (fragmentShader === void 0) {
+      throw new Error(`Missing fragment shader (${effect.name})`);
+    } else if (mainUvExists && (data.attributes & EffectAttribute.CONVOLUTION) !== 0) {
+      throw new Error(`Effects that transform UVs are incompatible with convolution effects (${effect.name})`);
+    } else if (!mainImageExists && !mainUvExists) {
+      throw new Error(`Could not find mainImage or mainUv function (${effect.name})`);
+    } else {
+      const functionRegExp = /\w+\s+(\w+)\([\w\s,]*\)\s*{/g;
+      const shaderParts = data.shaderParts;
+      let fragmentHead = shaderParts.get(EffectShaderSection.FRAGMENT_HEAD) || "";
+      let fragmentMainUv = shaderParts.get(EffectShaderSection.FRAGMENT_MAIN_UV) || "";
+      let fragmentMainImage = shaderParts.get(EffectShaderSection.FRAGMENT_MAIN_IMAGE) || "";
+      let vertexHead = shaderParts.get(EffectShaderSection.VERTEX_HEAD) || "";
+      let vertexMainSupport = shaderParts.get(EffectShaderSection.VERTEX_MAIN_SUPPORT) || "";
+      const varyings = /* @__PURE__ */ new Set();
+      const names = /* @__PURE__ */ new Set();
+      if (mainUvExists) {
+        fragmentMainUv += `	${prefix}MainUv(UV);
+`;
+        data.uvTransformation = true;
+      }
+      if (vertexShader !== null && /mainSupport/.test(vertexShader)) {
+        const needsUv = /mainSupport *\([\w\s]*?uv\s*?\)/.test(vertexShader);
+        vertexMainSupport += `	${prefix}MainSupport(`;
+        vertexMainSupport += needsUv ? "vUv);\n" : ");\n";
+        for (const m2 of vertexShader.matchAll(/(?:varying\s+\w+\s+([\S\s]*?);)/g)) {
+          for (const n of m2[1].split(/\s*,\s*/)) {
+            data.varyings.add(n);
+            varyings.add(n);
+            names.add(n);
+          }
+        }
+        for (const m2 of vertexShader.matchAll(functionRegExp)) {
+          names.add(m2[1]);
+        }
+      }
+      for (const m2 of fragmentShader.matchAll(functionRegExp)) {
+        names.add(m2[1]);
+      }
+      for (const d of effect.defines.keys()) {
+        names.add(d.replace(/\([\w\s,]*\)/g, ""));
+      }
+      for (const u of effect.uniforms.keys()) {
+        names.add(u);
+      }
+      names.delete("while");
+      names.delete("for");
+      names.delete("if");
+      effect.uniforms.forEach((val, key) => data.uniforms.set(prefix + key.charAt(0).toUpperCase() + key.slice(1), val));
+      effect.defines.forEach((val, key) => data.defines.set(prefix + key.charAt(0).toUpperCase() + key.slice(1), val));
+      const shaders = /* @__PURE__ */ new Map([["fragment", fragmentShader], ["vertex", vertexShader]]);
+      prefixSubstrings(prefix, names, data.defines);
+      prefixSubstrings(prefix, names, shaders);
+      fragmentShader = shaders.get("fragment");
+      vertexShader = shaders.get("vertex");
+      const blendMode = effect.blendMode;
+      data.blendModes.set(blendMode.blendFunction, blendMode);
+      if (mainImageExists) {
+        if (effect.inputColorSpace !== null && effect.inputColorSpace !== data.colorSpace) {
+          fragmentMainImage += effect.inputColorSpace === SRGBColorSpace ? "color0 = sRGBTransferOETF(color0);\n	" : "color0 = sRGBToLinear(color0);\n	";
+        }
+        if (effect.outputColorSpace !== NoColorSpace) {
+          data.colorSpace = effect.outputColorSpace;
+        } else if (effect.inputColorSpace !== null) {
+          data.colorSpace = effect.inputColorSpace;
+        }
+        const depthParamRegExp = /MainImage *\([\w\s,]*?depth[\w\s,]*?\)/;
+        fragmentMainImage += `${prefix}MainImage(color0, UV, `;
+        if ((data.attributes & EffectAttribute.DEPTH) !== 0 && depthParamRegExp.test(fragmentShader)) {
+          fragmentMainImage += "depth, ";
+          data.readDepth = true;
+        }
+        fragmentMainImage += "color1);\n	";
+        const blendOpacity = prefix + "BlendOpacity";
+        data.uniforms.set(blendOpacity, blendMode.opacity);
+        fragmentMainImage += `color0 = blend${blendMode.blendFunction}(color0, color1, ${blendOpacity});
+
+	`;
+        fragmentHead += `uniform float ${blendOpacity};
+
+`;
+      }
+      fragmentHead += fragmentShader + "\n";
+      if (vertexShader !== null) {
+        vertexHead += vertexShader + "\n";
+      }
+      shaderParts.set(EffectShaderSection.FRAGMENT_HEAD, fragmentHead);
+      shaderParts.set(EffectShaderSection.FRAGMENT_MAIN_UV, fragmentMainUv);
+      shaderParts.set(EffectShaderSection.FRAGMENT_MAIN_IMAGE, fragmentMainImage);
+      shaderParts.set(EffectShaderSection.VERTEX_HEAD, vertexHead);
+      shaderParts.set(EffectShaderSection.VERTEX_MAIN_SUPPORT, vertexMainSupport);
+      if (effect.extensions !== null) {
+        for (const extension of effect.extensions) {
+          data.extensions.add(extension);
+        }
+      }
+    }
+  }
+  var EffectPass = class extends Pass {
+    /**
+     * Constructs a new effect pass.
+     *
+     * @param {Camera} camera - The main camera.
+     * @param {...Effect} effects - The effects that will be rendered by this pass.
+     */
+    constructor(camera, ...effects) {
+      super("EffectPass");
+      this.fullscreenMaterial = new EffectMaterial(null, null, null, camera);
+      this.listener = (event) => this.handleEvent(event);
+      this.effects = [];
+      this.setEffects(effects);
+      this.skipRendering = false;
+      this.minTime = 1;
+      this.maxTime = Number.POSITIVE_INFINITY;
+      this.timeScale = 1;
+    }
+    set mainScene(value) {
+      for (const effect of this.effects) {
+        effect.mainScene = value;
+      }
+    }
+    set mainCamera(value) {
+      this.fullscreenMaterial.copyCameraSettings(value);
+      for (const effect of this.effects) {
+        effect.mainCamera = value;
+      }
+    }
+    /**
+     * Indicates whether this pass encodes its output when rendering to screen.
+     *
+     * @type {Boolean}
+     * @deprecated Use fullscreenMaterial.encodeOutput instead.
+     */
+    get encodeOutput() {
+      return this.fullscreenMaterial.encodeOutput;
+    }
+    set encodeOutput(value) {
+      this.fullscreenMaterial.encodeOutput = value;
+    }
+    /**
+     * Indicates whether dithering is enabled.
+     *
+     * @type {Boolean}
+     */
+    get dithering() {
+      return this.fullscreenMaterial.dithering;
+    }
+    set dithering(value) {
+      const material = this.fullscreenMaterial;
+      material.dithering = value;
+      material.needsUpdate = true;
+    }
+    /**
+     * Sets the effects.
+     *
+     * @param {Effect[]} effects - The effects.
+     * @protected
+     */
+    setEffects(effects) {
+      for (const effect of this.effects) {
+        effect.removeEventListener("change", this.listener);
+      }
+      this.effects = effects.sort((a, b) => b.attributes - a.attributes);
+      for (const effect of this.effects) {
+        effect.addEventListener("change", this.listener);
+      }
+    }
+    /**
+     * Updates the compound shader material.
+     *
+     * @protected
+     */
+    updateMaterial() {
+      const data = new EffectShaderData();
+      let id = 0;
+      for (const effect of this.effects) {
+        if (effect.blendMode.blendFunction === BlendFunction.DST) {
+          data.attributes |= effect.getAttributes() & EffectAttribute.DEPTH;
+        } else if ((data.attributes & effect.getAttributes() & EffectAttribute.CONVOLUTION) !== 0) {
+          throw new Error(`Convolution effects cannot be merged (${effect.name})`);
+        } else {
+          integrateEffect("e" + id++, effect, data);
+        }
+      }
+      let fragmentHead = data.shaderParts.get(EffectShaderSection.FRAGMENT_HEAD);
+      let fragmentMainImage = data.shaderParts.get(EffectShaderSection.FRAGMENT_MAIN_IMAGE);
+      let fragmentMainUv = data.shaderParts.get(EffectShaderSection.FRAGMENT_MAIN_UV);
+      const blendRegExp = /\bblend\b/g;
+      for (const blendMode of data.blendModes.values()) {
+        fragmentHead += blendMode.getShaderCode().replace(blendRegExp, `blend${blendMode.blendFunction}`) + "\n";
+      }
+      if ((data.attributes & EffectAttribute.DEPTH) !== 0) {
+        if (data.readDepth) {
+          fragmentMainImage = "float depth = readDepth(UV);\n\n	" + fragmentMainImage;
+        }
+        this.needsDepthTexture = this.getDepthTexture() === null;
+      } else {
+        this.needsDepthTexture = false;
+      }
+      if (data.colorSpace === SRGBColorSpace) {
+        fragmentMainImage += "color0 = sRGBToLinear(color0);\n	";
+      }
+      if (data.uvTransformation) {
+        fragmentMainUv = "vec2 transformedUv = vUv;\n" + fragmentMainUv;
+        data.defines.set("UV", "transformedUv");
+      } else {
+        data.defines.set("UV", "vUv");
+      }
+      data.shaderParts.set(EffectShaderSection.FRAGMENT_HEAD, fragmentHead);
+      data.shaderParts.set(EffectShaderSection.FRAGMENT_MAIN_IMAGE, fragmentMainImage);
+      data.shaderParts.set(EffectShaderSection.FRAGMENT_MAIN_UV, fragmentMainUv);
+      for (const [key, value] of data.shaderParts) {
+        if (value !== null) {
+          data.shaderParts.set(key, value.trim().replace(/^#/, "\n#"));
+        }
+      }
+      this.skipRendering = id === 0;
+      this.needsSwap = !this.skipRendering;
+      this.fullscreenMaterial.setShaderData(data);
+    }
+    /**
+     * Rebuilds the shader material.
+     */
+    recompile() {
+      this.updateMaterial();
+    }
+    /**
+     * Returns the current depth texture.
+     *
+     * @return {Texture} The current depth texture, or null if there is none.
+     */
+    getDepthTexture() {
+      return this.fullscreenMaterial.depthBuffer;
+    }
+    /**
+     * Sets the depth texture.
+     *
+     * @param {Texture} depthTexture - A depth texture.
+     * @param {DepthPackingStrategies} [depthPacking=BasicDepthPacking] - The depth packing.
+     */
+    setDepthTexture(depthTexture, depthPacking = BasicDepthPacking) {
+      this.fullscreenMaterial.depthBuffer = depthTexture;
+      this.fullscreenMaterial.depthPacking = depthPacking;
+      for (const effect of this.effects) {
+        effect.setDepthTexture(depthTexture, depthPacking);
+      }
+    }
+    /**
+     * Renders the effect.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {WebGLRenderTarget} inputBuffer - A frame buffer that contains the result of the previous pass.
+     * @param {WebGLRenderTarget} outputBuffer - A frame buffer that serves as the output render target unless this pass renders to screen.
+     * @param {Number} [deltaTime] - The time between the last frame and the current one in seconds.
+     * @param {Boolean} [stencilTest] - Indicates whether a stencil mask is active.
+     */
+    render(renderer2, inputBuffer, outputBuffer, deltaTime, stencilTest) {
+      for (const effect of this.effects) {
+        effect.update(renderer2, inputBuffer, deltaTime);
+      }
+      if (!this.skipRendering || this.renderToScreen) {
+        const material = this.fullscreenMaterial;
+        material.inputBuffer = inputBuffer.texture;
+        material.time += deltaTime * this.timeScale;
+        renderer2.setRenderTarget(this.renderToScreen ? null : outputBuffer);
+        renderer2.render(this.scene, this.camera);
+      }
+    }
+    /**
+     * Updates the size of this pass.
+     *
+     * @param {Number} width - The width.
+     * @param {Number} height - The height.
+     */
+    setSize(width, height) {
+      this.fullscreenMaterial.setSize(width, height);
+      for (const effect of this.effects) {
+        effect.setSize(width, height);
+      }
+    }
+    /**
+     * Performs initialization tasks.
+     *
+     * @param {WebGLRenderer} renderer - The renderer.
+     * @param {Boolean} alpha - Whether the renderer uses the alpha channel or not.
+     * @param {Number} frameBufferType - The type of the main frame buffers.
+     */
+    initialize(renderer2, alpha, frameBufferType) {
+      this.renderer = renderer2;
+      for (const effect of this.effects) {
+        effect.initialize(renderer2, alpha, frameBufferType);
+      }
+      this.updateMaterial();
+      if (frameBufferType !== void 0 && frameBufferType !== UnsignedByteType) {
+        this.fullscreenMaterial.defines.FRAMEBUFFER_PRECISION_HIGH = "1";
+      }
+    }
+    /**
+     * Deletes disposable objects.
+     */
+    dispose() {
+      super.dispose();
+      for (const effect of this.effects) {
+        effect.removeEventListener("change", this.listener);
+        effect.dispose();
+      }
+    }
+    /**
+     * Handles events.
+     *
+     * @param {Event} event - An event.
+     */
+    handleEvent(event) {
+      switch (event.type) {
+        case "change":
+          this.recompile();
+          break;
+      }
+    }
+  };
+  var P = [
+    new Float32Array(3),
+    new Float32Array(3)
+  ];
+  var C = [
+    new Float32Array(3),
+    new Float32Array(3),
+    new Float32Array(3),
+    new Float32Array(3)
+  ];
+  var T = [
+    [
+      new Float32Array([0, 0, 0]),
+      new Float32Array([1, 0, 0]),
+      new Float32Array([1, 1, 0]),
+      new Float32Array([1, 1, 1])
+    ],
+    [
+      new Float32Array([0, 0, 0]),
+      new Float32Array([1, 0, 0]),
+      new Float32Array([1, 0, 1]),
+      new Float32Array([1, 1, 1])
+    ],
+    [
+      new Float32Array([0, 0, 0]),
+      new Float32Array([0, 0, 1]),
+      new Float32Array([1, 0, 1]),
+      new Float32Array([1, 1, 1])
+    ],
+    [
+      new Float32Array([0, 0, 0]),
+      new Float32Array([0, 1, 0]),
+      new Float32Array([1, 1, 0]),
+      new Float32Array([1, 1, 1])
+    ],
+    [
+      new Float32Array([0, 0, 0]),
+      new Float32Array([0, 1, 0]),
+      new Float32Array([0, 1, 1]),
+      new Float32Array([1, 1, 1])
+    ],
+    [
+      new Float32Array([0, 0, 0]),
+      new Float32Array([0, 0, 1]),
+      new Float32Array([0, 1, 1]),
+      new Float32Array([1, 1, 1])
+    ]
+  ];
+  var area = [
+    new Float32Array(2),
+    new Float32Array(2)
+  ];
+  var orthogonalSubsamplingOffsets = new Float32Array([
+    0,
+    -0.25,
+    0.25,
+    -0.125,
+    0.125,
+    -0.375,
+    0.375
+  ]);
+  var diagonalSubsamplingOffsets = [
+    new Float32Array([0, 0]),
+    new Float32Array([0.25, -0.25]),
+    new Float32Array([-0.25, 0.25]),
+    new Float32Array([0.125, -0.125]),
+    new Float32Array([-0.125, 0.125])
+  ];
+  var orthogonalEdges = [
+    new Uint8Array([0, 0]),
+    new Uint8Array([3, 0]),
+    new Uint8Array([0, 3]),
+    new Uint8Array([3, 3]),
+    new Uint8Array([1, 0]),
+    new Uint8Array([4, 0]),
+    new Uint8Array([1, 3]),
+    new Uint8Array([4, 3]),
+    new Uint8Array([0, 1]),
+    new Uint8Array([3, 1]),
+    new Uint8Array([0, 4]),
+    new Uint8Array([3, 4]),
+    new Uint8Array([1, 1]),
+    new Uint8Array([4, 1]),
+    new Uint8Array([1, 4]),
+    new Uint8Array([4, 4])
+  ];
+  var diagonalEdges = [
+    new Uint8Array([0, 0]),
+    new Uint8Array([1, 0]),
+    new Uint8Array([0, 2]),
+    new Uint8Array([1, 2]),
+    new Uint8Array([2, 0]),
+    new Uint8Array([3, 0]),
+    new Uint8Array([2, 2]),
+    new Uint8Array([3, 2]),
+    new Uint8Array([0, 1]),
+    new Uint8Array([1, 1]),
+    new Uint8Array([0, 3]),
+    new Uint8Array([1, 3]),
+    new Uint8Array([2, 1]),
+    new Uint8Array([3, 1]),
+    new Uint8Array([2, 3]),
+    new Uint8Array([3, 3])
+  ];
+  var edges = /* @__PURE__ */ new Map([
+    [bilinear(0, 0, 0, 0), new Float32Array([0, 0, 0, 0])],
+    [bilinear(0, 0, 0, 1), new Float32Array([0, 0, 0, 1])],
+    [bilinear(0, 0, 1, 0), new Float32Array([0, 0, 1, 0])],
+    [bilinear(0, 0, 1, 1), new Float32Array([0, 0, 1, 1])],
+    [bilinear(0, 1, 0, 0), new Float32Array([0, 1, 0, 0])],
+    [bilinear(0, 1, 0, 1), new Float32Array([0, 1, 0, 1])],
+    [bilinear(0, 1, 1, 0), new Float32Array([0, 1, 1, 0])],
+    [bilinear(0, 1, 1, 1), new Float32Array([0, 1, 1, 1])],
+    [bilinear(1, 0, 0, 0), new Float32Array([1, 0, 0, 0])],
+    [bilinear(1, 0, 0, 1), new Float32Array([1, 0, 0, 1])],
+    [bilinear(1, 0, 1, 0), new Float32Array([1, 0, 1, 0])],
+    [bilinear(1, 0, 1, 1), new Float32Array([1, 0, 1, 1])],
+    [bilinear(1, 1, 0, 0), new Float32Array([1, 1, 0, 0])],
+    [bilinear(1, 1, 0, 1), new Float32Array([1, 1, 0, 1])],
+    [bilinear(1, 1, 1, 0), new Float32Array([1, 1, 1, 0])],
+    [bilinear(1, 1, 1, 1), new Float32Array([1, 1, 1, 1])]
+  ]);
+  function lerp2(a, b, p) {
+    return a + (b - a) * p;
+  }
+  function bilinear(e0, e1, e2, e3) {
+    const a = lerp2(e0, e1, 1 - 0.25);
+    const b = lerp2(e2, e3, 1 - 0.25);
+    return lerp2(a, b, 1 - 0.125);
+  }
+
+  // src/scenes/lib/deterministic_hash.ts
+  function hash1(t) {
+    const x = Math.sin(t * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  function hash2(t, k) {
+    const x = Math.sin(t * 12.9898 + k * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  }
+  function hash3(t, k, b) {
+    const x = Math.sin(t * 12.9898 + k * 78.233 + b * 37.719) * 43758.5453;
+    return x - Math.floor(x);
   }
 
   // src/scenes/onset_emitter.ts
@@ -19610,6 +24932,10 @@ void main() {
     // when each slot's lifespan ends
     nextSpawn = 0;
     prevT = -1;
+    // Cadence gate for per-band continuous spawning. Each band tracks the
+    // last t at which it spawned so the host can call spawnBandPulse every
+    // render frame and the emitter throttles to ~10 Hz internally.
+    lastBandSpawnT = new Float32Array(8).fill(-1e3);
     poolSize;
     baseColor;
     maxSize;
@@ -19658,13 +24984,20 @@ void main() {
       const hi = ctx.t;
       this.prevT = ctx.t;
       if (lo < 0) return;
+      const contrast = ctx.audio.spectralContrast;
       for (const onset of spec2.onset_track) {
         if (onset.t <= lo) continue;
         if (onset.t > hi) break;
-        this.spawnFor(onset, ctx, accentTint);
+        const N = Math.max(
+          2,
+          Math.min(7, Math.round(2 + onset.intensity * 4 + contrast * 2))
+        );
+        for (let b = 0; b < N; b++) {
+          this.spawnFor(onset, ctx, accentTint, b, N, contrast);
+        }
       }
     }
-    spawnFor(onset, ctx, accentTint) {
+    spawnFor(onset, ctx, accentTint, b, N, contrast) {
       const slot = this.nextSpawn;
       this.nextSpawn = (this.nextSpawn + 1) % this.poolSize;
       const attS = onset.attack_time_ms * 1e-3;
@@ -19673,12 +25006,30 @@ void main() {
       const relS = 0.15;
       const lifespan = attS + decS + susS + relS;
       this.slotEndTimes[slot] = onset.t + lifespan;
-      const pitchHeight = onset.pitch_class >= 0 ? onset.pitch_class / 11 * 2 - 1 : 0;
+      const bands = ctx.audio.melBands;
+      let bandY = 0;
+      if (bands && bands.length === 8) {
+        let totalE = 0;
+        let weightedSum = 0;
+        for (let k = 0; k < 8; k++) {
+          const e = bands[k] ?? 0;
+          totalE += e;
+          const bandPos = -1.8 + k / 7 * 3.6;
+          weightedSum += bandPos * e;
+        }
+        if (totalE > 1e-4) bandY = weightedSum / totalE;
+      }
+      const pitchFine = onset.pitch_class >= 0 ? (onset.pitch_class / 11 * 2 - 1) * 0.3 : 0;
       const sizeFromPitch = onset.pitch_class >= 0 ? 1.4 - 0.7 * (onset.pitch_class / 11) : 1;
-      const hash = onset.t * 13.7 % 1;
-      const x = (hash - 0.5) * 4.5;
-      const y = pitchHeight * 1.6;
-      const z = -0.5 - hash * 1.5;
+      const baseHash = hash1(onset.t);
+      const baseX = (baseHash - 0.5) * 4.5;
+      const pitchHeight = onset.pitch_class >= 0 ? onset.pitch_class / 11 * 2 - 1 : 0;
+      const baseY = bandY !== 0 ? bandY + pitchFine : pitchHeight * 1.6;
+      const fanAngle = b / Math.max(1, N) * Math.PI * 2;
+      const fanR = 0.15 + contrast * 0.25 + hash2(onset.t, b) * 0.1;
+      const x = baseX + Math.cos(fanAngle) * fanR;
+      const y = baseY + Math.sin(fanAngle) * fanR;
+      const z = -0.5 - hash2(onset.t, b + 1) * 1.5;
       const ix3 = slot * 3;
       const ix4 = slot * 4;
       this.positions[ix3 + 0] = x;
@@ -19707,11 +25058,709 @@ void main() {
       geo.getAttribute("aColor").needsUpdate = true;
       geo.getAttribute("aBaseSize").needsUpdate = true;
     }
+    /// Per-band continuous spawning. Called every render frame from the
+    /// host scene for each of the 8 mel bands. Internally throttled to a
+    /// 0.10s cadence per band; only fires when the band energy exceeds
+    /// 0.55. Spawned particle uses a pure-decay envelope (instant attack,
+    /// short decay, fade) instead of full ADSR — these are sparkles, not
+    /// articulated onsets.
+    spawnBandPulse(bandIndex, energy, t, _ctx) {
+      if (bandIndex < 0 || bandIndex > 7) return;
+      if (energy <= 0.55) return;
+      if (t - this.lastBandSpawnT[bandIndex] < 0.1) return;
+      this.lastBandSpawnT[bandIndex] = t;
+      const slot = this.nextSpawn;
+      this.nextSpawn = (this.nextSpawn + 1) % this.poolSize;
+      const k = bandIndex;
+      const y = -1.8 + k / 7 * 3.6;
+      const xScatter = (hash2(t, k) - 0.5) * 5;
+      const lifespan = 0.4 + hash2(t, k + 13) * 0.3;
+      this.slotEndTimes[slot] = t + lifespan;
+      const ix3 = slot * 3;
+      const ix4 = slot * 4;
+      this.positions[ix3 + 0] = xScatter;
+      this.positions[ix3 + 1] = y;
+      this.positions[ix3 + 2] = -0.5 - hash2(t, k + 23) * 1.5;
+      this.spawn[ix4 + 0] = t;
+      this.spawn[ix4 + 1] = lifespan;
+      this.spawn[ix4 + 2] = 0.6;
+      this.spawn[ix4 + 3] = 0;
+      this.adsr[ix4 + 0] = 5;
+      this.adsr[ix4 + 1] = 50;
+      this.adsr[ix4 + 2] = 0.5;
+      this.adsr[ix4 + 3] = energy;
+      const tintScale = 0.6 + k / 7 * 0.8;
+      this.colors[ix3 + 0] = this.baseColor.r * tintScale;
+      this.colors[ix3 + 1] = this.baseColor.g * tintScale;
+      this.colors[ix3 + 2] = this.baseColor.b * tintScale;
+      this.baseSizes[slot] = this.maxSize * 0.6;
+      const geo = this.object3D.geometry;
+      geo.getAttribute("position").needsUpdate = true;
+      geo.getAttribute("aSpawn").needsUpdate = true;
+      geo.getAttribute("aADSR").needsUpdate = true;
+      geo.getAttribute("aColor").needsUpdate = true;
+      geo.getAttribute("aBaseSize").needsUpdate = true;
+    }
     dispose() {
       this.material.dispose();
       this.object3D.geometry.dispose();
     }
   };
+
+  // src/scenes/serene_sun.ts
+  var SUN_VERT = (
+    /* glsl */
+    `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`
+  );
+  var SUN_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform float uTime;
+  uniform vec2  uSunPos;          // screen-space sun center [0..1]^2
+  uniform float uDiskRadius;      // \u2190 harmonicRatio
+  uniform float uCoreBrightness;  // \u2190 rms \xD7 section.brightness
+  uniform float uCoronaSpread;    // \u2190 chromaStrength
+  uniform float uCoronaSoftness;  // \u2190 harmonicRatio
+  uniform float uCloudDensity;    // \u2190 1 - rms
+  uniform float uCloudDrift;      // \u2190 spectralFlux
+  uniform float uHorizonGlow;     // \u2190 centroid
+  uniform vec3  uSunColor;        // \u2190 mfccWarm warmth
+  uniform vec3  uCloudTint;
+  uniform vec3  uHorizonColor;
+
+  varying vec2 vUv;
+
+  // 2D value noise \u2014 cheap, used for cloud bands.
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float noise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i),                hash(i + vec2(1, 0)), u.x),
+               mix(hash(i + vec2(0, 1)),   hash(i + vec2(1, 1)), u.x), u.y);
+  }
+  float fbm(vec2 p) {
+    return noise(p) * 0.55
+         + noise(p * 2.1 + 1.3) * 0.30
+         + noise(p * 4.7 + 3.1) * 0.15;
+  }
+
+  void main() {
+    // Sun disk: bright core falling off radially, then a wide corona.
+    vec2 d = vUv - uSunPos;
+    // Stretch the sun slightly vertically to read as a low rising sun.
+    d.y *= 1.4;
+    float r = length(d);
+
+    float core = smoothstep(uDiskRadius * 0.55, 0.0, r);
+    float corona = exp(-r / max(0.05, uCoronaSpread * 0.30));
+    corona *= mix(1.0, 1.4, uCoronaSoftness);
+
+    vec3 col = uSunColor * (core * uCoreBrightness + corona * 0.7);
+
+    // Horizon glow: warm haze hugging the bottom 35% of the frame.
+    float horizonMask = smoothstep(0.35, 0.0, vUv.y);
+    col += uHorizonColor * horizonMask * (0.30 + uHorizonGlow * 0.45);
+
+    // Cloud strata: 2\u20133 stacked horizontal bands of low-amplitude fbm
+    // scrolling at uCloudDrift. Density gates the band opacity.
+    float bandWeight = 0.0;
+    for (int b = 0; b < 3; b++) {
+      float bandY = 0.55 + float(b) * 0.07;
+      float bandThickness = 0.05;
+      float yMask = smoothstep(bandThickness, 0.0, abs(vUv.y - bandY));
+      vec2 q = vec2(vUv.x * 4.0 + uTime * uCloudDrift + float(b) * 7.3,
+                    vUv.y * 6.0);
+      float c = fbm(q);
+      bandWeight += yMask * smoothstep(0.45, 0.85, c);
+    }
+    bandWeight = clamp(bandWeight, 0.0, 1.0) * uCloudDensity;
+    col = mix(col, uCloudTint, bandWeight * 0.55);
+
+    // Output alpha: opaque where any element registered, transparent
+    // elsewhere so we layer cleanly over the existing bg gradient.
+    float alpha = clamp(core * uCoreBrightness * 1.4
+                      + corona * 0.6
+                      + horizonMask * (0.30 + uHorizonGlow * 0.40)
+                      + bandWeight * 0.55, 0.0, 1.0);
+    gl_FragColor = vec4(col, alpha);
+  }
+`
+  );
+  var SereneSunScene = class {
+    object3D;
+    material;
+    constructor() {
+      this.material = new ShaderMaterial({
+        vertexShader: SUN_VERT,
+        fragmentShader: SUN_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          // Sun anchored low and slightly right — sunrise feel.
+          uSunPos: { value: new Vector2(0.55, 0.4) },
+          uDiskRadius: { value: 0.18 },
+          uCoreBrightness: { value: 1 },
+          uCoronaSpread: { value: 0.5 },
+          uCoronaSoftness: { value: 0.7 },
+          uCloudDensity: { value: 0.5 },
+          uCloudDrift: { value: 0.02 },
+          uHorizonGlow: { value: 0.5 },
+          // Warm cream-amber sun; cool warm tilt with mfccWarm lerps it
+          // toward the deeper-amber end during dark-instrument frames.
+          uSunColor: { value: new Color("#ffe2a0") },
+          uCloudTint: { value: new Color("#ffd6a0") },
+          uHorizonColor: { value: new Color("#ffa86b") }
+        },
+        transparent: true,
+        depthTest: false,
+        depthWrite: false
+      });
+      this.object3D = new Mesh(new PlaneGeometry(2, 2), this.material);
+      this.object3D.frustumCulled = false;
+      this.object3D.renderOrder = -8;
+    }
+    update(_spec, ctx) {
+      const u = this.material.uniforms;
+      u.uTime.value = ctx.t;
+      const pitchHeight = ctx.audio.pitchHeight ?? 0;
+      const sunY = 0.42 + pitchHeight * 0.12;
+      u.uSunPos.value.y = sunY;
+      u.uDiskRadius.value = 0.13 + ctx.audio.harmonicRatio * 0.1;
+      const sectionBri = ctx.section?.brightness ?? 1;
+      u.uCoreBrightness.value = (0.6 + ctx.audio.rms * 1.1) * sectionBri;
+      u.uCoronaSpread.value = 0.4 + ctx.audio.chromaStrength * 0.7;
+      u.uCoronaSoftness.value = ctx.audio.harmonicRatio;
+      u.uCloudDensity.value = 0.35 + (1 - ctx.audio.rms) * 0.55;
+      u.uCloudDrift.value = 0.02 + ctx.audio.spectralFlux * 0.18;
+      u.uHorizonGlow.value = ctx.audio.centroid;
+      const warm = (ctx.audio.mfccWarm + 1) * 0.5;
+      u.uSunColor.value.setRGB(
+        0.95 + warm * 0.1,
+        0.78 + warm * 0.12,
+        0.42 + (1 - warm) * 0.25
+      );
+    }
+    dispose() {
+      this.material.dispose();
+      this.object3D.geometry.dispose();
+    }
+  };
+
+  // src/scenes/effects/skyline.ts
+  var SKYLINE_VERT = (
+    /* glsl */
+    `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`
+  );
+  var SKYLINE_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform sampler2D uTex;
+  uniform float uScroll;
+  uniform float uChromaStrength;
+  uniform float uDropFlicker;
+  uniform float uDepth;
+  uniform vec3  uBuildingColor;
+  uniform vec3  uWindowColor;
+  uniform vec3  uFlickerColor;
+  uniform vec3  uHazeTint;       // additive haze color for far layer
+
+  varying vec2 vUv;
+
+  void main() {
+    vec2 uv = vec2(vUv.x + uScroll, vUv.y);
+    vec4 tex = texture2D(uTex, uv);
+    if (tex.a < 0.01) discard;
+
+    vec3 col = mix(uBuildingColor, uWindowColor,
+                   tex.r * uChromaStrength);
+    col += uFlickerColor * uDropFlicker * 0.4;
+    col *= mix(0.55, 1.0, uDepth);
+    col += uHazeTint * (1.0 - uDepth);
+
+    gl_FragColor = vec4(col, tex.a * mix(0.75, 1.0, uDepth));
+  }
+`
+  );
+  function generateSilhouetteTexture(shape) {
+    const W = 512;
+    const H = 128;
+    const data = new Uint8Array(W * H * 4);
+    const heights = new Float32Array(W);
+    if (shape === "urban") {
+      for (let x = 0; x < W; x++) {
+        const n1 = hash1(x * 0.04) * 0.55;
+        const n2 = hash2(x * 0.13, 1) * 0.3;
+        const n3 = hash3(x * 0.05, 1, 2) * 0.2;
+        heights[x] = Math.pow(Math.min(1, n1 + n2 + n3), 1.25) * 0.88;
+      }
+    } else if (shape === "hills") {
+      for (let x = 0; x < W; x++) {
+        const u = x / W;
+        const h = 0.35 + Math.sin(u * Math.PI * 2.1 + 0.3) * 0.18 + Math.sin(u * Math.PI * 3.7 + 1.4) * 0.1 + Math.sin(u * Math.PI * 5.5 + 2.1) * 0.06 + hash1(x * 0.02) * 0.05;
+        heights[x] = Math.max(0.15, Math.min(0.8, h));
+      }
+    } else if (shape === "festival") {
+      for (let x = 0; x < W; x++) {
+        const spire = hash1(Math.floor(x / 8) * 0.5);
+        const h = Math.pow(spire, 0.7) * 0.9;
+        heights[x] = h * (0.85 + hash2(x, 7) * 0.15);
+      }
+    } else {
+      for (let x = 0; x < W; x++) {
+        const n1 = hash1(x * 0.08) * 0.6;
+        const n2 = hash2(x * 0.21, 1) * 0.4;
+        heights[x] = Math.pow(Math.max(0, n1 + n2 - 0.1), 2) * 0.95;
+      }
+    }
+    const smoothed = new Float32Array(W);
+    for (let x = 0; x < W; x++) {
+      const prev = heights[(x - 1 + W) % W];
+      const next = heights[(x + 1) % W];
+      smoothed[x] = (prev + heights[x] * 2 + next) / 4;
+    }
+    const hasWindows = shape === "urban" || shape === "festival";
+    for (let y = 0; y < H; y++) {
+      const yNorm = 1 - y / H;
+      for (let x = 0; x < W; x++) {
+        const idx = (y * W + x) * 4;
+        const top = smoothed[x];
+        if (yNorm < top) {
+          let isWindow = false;
+          if (hasWindows) {
+            const cellSize = shape === "festival" ? 4 : 6;
+            const wx = Math.floor(x / cellSize);
+            const wy = Math.floor(y / H * 24);
+            const threshold = shape === "festival" ? 0.55 : 0.74;
+            isWindow = hash3(wx, wy, 17) > threshold && yNorm > 0.06 && yNorm < top - 0.04;
+          }
+          data[idx + 0] = isWindow ? 235 : 0;
+          data[idx + 1] = 35;
+          data[idx + 2] = 60;
+          data[idx + 3] = 255;
+        } else {
+          data[idx + 3] = 0;
+        }
+      }
+    }
+    const tex = new DataTexture(data, W, H, RGBAFormat);
+    tex.needsUpdate = true;
+    tex.wrapS = RepeatWrapping;
+    tex.wrapT = ClampToEdgeWrapping;
+    tex.minFilter = LinearFilter;
+    tex.magFilter = LinearFilter;
+    tex.generateMipmaps = false;
+    return tex;
+  }
+  var Skyline = class {
+    object3D;
+    farMaterial;
+    nearMaterial;
+    texture;
+    opts;
+    constructor(opts) {
+      this.opts = opts;
+      this.object3D = new Group();
+      this.texture = generateSilhouetteTexture(opts.shape ?? "urban");
+      this.farMaterial = this.makeMaterial(true);
+      this.nearMaterial = this.makeMaterial(false);
+      const far = new Mesh(
+        new PlaneGeometry(40, 10),
+        this.farMaterial
+      );
+      far.position.set(0, opts.farY ?? 1.8, -15);
+      far.renderOrder = -5;
+      this.object3D.add(far);
+      const near = new Mesh(
+        new PlaneGeometry(24, 6),
+        this.nearMaterial
+      );
+      near.position.set(0, opts.nearY ?? 1.2, -8);
+      near.renderOrder = -4;
+      this.object3D.add(near);
+    }
+    makeMaterial(isFar) {
+      return new ShaderMaterial({
+        vertexShader: SKYLINE_VERT,
+        fragmentShader: SKYLINE_FRAG,
+        uniforms: {
+          uTex: { value: this.texture },
+          uScroll: { value: 0 },
+          uChromaStrength: { value: 0 },
+          uDropFlicker: { value: 0 },
+          uDepth: { value: isFar ? 0.55 : 1 },
+          uBuildingColor: { value: this.opts.buildingColor.clone() },
+          uWindowColor: { value: this.opts.windowColor.clone() },
+          uFlickerColor: {
+            value: (this.opts.flickerColor ?? new Color("#fff0d8")).clone()
+          },
+          uHazeTint: {
+            value: (this.opts.hazeTint ?? new Color("#000008")).clone()
+          }
+        },
+        transparent: true,
+        depthWrite: false
+      });
+    }
+    update(_spec, ctx) {
+      const reactivity = this.opts.windowReactivity ?? 1;
+      this.farMaterial.uniforms.uScroll.value = ctx.t * 0.02 * (ctx.audio.centroid - 0.5);
+      this.nearMaterial.uniforms.uScroll.value = ctx.t * 0.01 * (ctx.audio.centroid - 0.5);
+      this.farMaterial.uniforms.uChromaStrength.value = ctx.audio.chromaStrength * 0.35 * reactivity;
+      this.nearMaterial.uniforms.uChromaStrength.value = ctx.audio.chromaStrength * 0.75 * reactivity;
+      const flickerEnabled = this.opts.enableFlicker ?? true;
+      const flickerVal = flickerEnabled ? ctx.dropImpulse : 0;
+      this.farMaterial.uniforms.uDropFlicker.value = flickerVal;
+      this.nearMaterial.uniforms.uDropFlicker.value = flickerVal * 0.3;
+    }
+    dispose() {
+      this.farMaterial.dispose();
+      this.nearMaterial.dispose();
+      this.texture.dispose();
+      this.object3D.traverse((obj) => {
+        if (obj instanceof Mesh) obj.geometry.dispose();
+      });
+    }
+  };
+
+  // src/scenes/effects/godrays.ts
+  var GODRAY_VERT = (
+    /* glsl */
+    `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`
+  );
+  var GODRAY_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform float uTime;
+  uniform float uIntensity;
+  uniform float uSpread;
+  uniform float uPhraseFlash;
+  uniform vec3  uShaftColor;
+  uniform vec2  uSunPos;
+  uniform float uVerticalBias;  // 0 = rays fade upward, 1 = fade downward
+
+  varying vec2 vUv;
+
+  void main() {
+    vec2 dir = vUv - uSunPos;
+    float angle = atan(dir.y, dir.x);
+    float dist  = length(dir);
+
+    float a = sin(angle * 30.0 + uTime * 0.07);
+    float b = sin(angle * 17.0 - uTime * 0.04 + 1.7);
+    float c = sin(angle * 9.0  + uTime * 0.02 + 3.1);
+    float streak = (a * 0.5 + b * 0.3 + c * 0.2) * 0.5 + 0.5;
+    streak = pow(streak, mix(5.0, 2.5, uSpread));
+
+    streak *= exp(-dist * 1.2);
+
+    // Vertical falloff: choose which half of the frame brightens.
+    float vMask = mix(
+      smoothstep(-0.05, 0.55, vUv.y),       // upper-half bright
+      smoothstep(1.05, 0.45, vUv.y),        // lower-half bright
+      uVerticalBias
+    );
+    streak *= vMask;
+
+    streak += uPhraseFlash * 0.15;
+    streak *= 1.0 + uPhraseFlash * 0.35;
+
+    float intensity = streak * uIntensity;
+    vec3 col = uShaftColor * intensity;
+    gl_FragColor = vec4(col, intensity);
+  }
+`
+  );
+  var GodRays = class {
+    object3D;
+    material;
+    opts;
+    baseColor;
+    warmColor;
+    constructor(opts) {
+      this.opts = opts;
+      this.baseColor = opts.shaftColor.clone();
+      this.warmColor = (opts.warmTint ?? opts.shaftColor).clone();
+      this.material = new ShaderMaterial({
+        vertexShader: GODRAY_VERT,
+        fragmentShader: GODRAY_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uIntensity: { value: 0 },
+          uSpread: { value: 0.5 },
+          uPhraseFlash: { value: 0 },
+          uShaftColor: { value: this.baseColor.clone() },
+          uSunPos: { value: opts.sunPos.clone() },
+          uVerticalBias: { value: opts.verticalBias ?? 0 }
+        },
+        transparent: true,
+        blending: AdditiveBlending,
+        depthTest: false,
+        depthWrite: false
+      });
+      this.object3D = new Mesh(new PlaneGeometry(2, 2), this.material);
+      this.object3D.frustumCulled = false;
+      this.object3D.renderOrder = 100;
+    }
+    update(_spec, ctx) {
+      const u = this.material.uniforms;
+      u.uTime.value = ctx.t;
+      const base = this.opts.intensityBase ?? 0.1;
+      const scale = this.opts.intensityScale ?? 1;
+      const intensity = Math.min(
+        1.2,
+        base + scale * (ctx.audio.rms * 0.55 + ctx.audio.chromaStrength * 0.3 + ctx.buildIntensity * 0.25)
+      );
+      u.uIntensity.value = intensity;
+      u.uSpread.value = ctx.audio.centroid;
+      u.uPhraseFlash.value = ctx.phrasePulse;
+      const t = ctx.audio.chromaStrength;
+      const tint = u.uShaftColor.value;
+      tint.setRGB(
+        this.baseColor.r * (1 - t) + this.warmColor.r * t,
+        this.baseColor.g * (1 - t) + this.warmColor.g * t,
+        this.baseColor.b * (1 - t) + this.warmColor.b * t
+      );
+    }
+    dispose() {
+      this.material.dispose();
+      this.object3D.geometry.dispose();
+    }
+  };
+
+  // src/scenes/lib/cinematic_camera.ts
+  function cinematicCameraDeltas(ctx, mult = {}) {
+    const swayMult = mult.sway ?? 1;
+    const pushMult = mult.push ?? 1;
+    const phraseMult = mult.phrase ?? 1;
+    const shakeMult = mult.shake ?? 1;
+    const rollMult = mult.roll ?? 1;
+    const bands = ctx.audio.melBands;
+    const subBass = bands[0] ?? 0;
+    const lowBass = bands[1] ?? 0;
+    const swayPhase = ctx.t * 0.6;
+    const swayX = Math.sin(swayPhase) * subBass * 0.18 * swayMult;
+    const swayY = Math.cos(swayPhase * 0.7) * lowBass * 0.1 * swayMult;
+    const pushIn = ctx.buildIntensity * 1.4 * pushMult;
+    const phraseSwoop = ctx.phrasePulse * 0.6 * phraseMult;
+    const craneLift = ctx.phrasePulse * 0.25 * phraseMult;
+    const phraseSweep = Math.sin(ctx.t * 1.5) * ctx.phrasePulse * 0.25 * phraseMult;
+    const shakeX = (hash1(ctx.t * 60) - 0.5) * ctx.dropImpulse * 0.12 * shakeMult + (hash1(ctx.t * 50 + 11) - 0.5) * ctx.phrasePulse * 0.05 * shakeMult;
+    const shakeY = (hash1(ctx.t * 60 + 7.3) - 0.5) * ctx.dropImpulse * 0.12 * shakeMult + (hash1(ctx.t * 50 + 23) - 0.5) * ctx.phrasePulse * 0.05 * shakeMult;
+    const tension = ctx.section?.tension ?? 0.4;
+    const rollZ = ((tension - 0.4) * 0.05 + ctx.phrasePulse * 0.03) * rollMult;
+    return {
+      posDelta: new Vector3(
+        swayX + shakeX + phraseSweep,
+        swayY + craneLift + shakeY,
+        -(pushIn + phraseSwoop)
+      ),
+      rollZ
+    };
+  }
+
+  // src/scenes/effects/texture_overlay.ts
+  var OVERLAY_VERT = (
+    /* glsl */
+    `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`
+  );
+  var OVERLAY_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform float uTime;
+  uniform float uAngularity;
+  uniform float uZcr;
+  uniform float uChromaStrength;
+  uniform float uHarmonicRatio;
+  uniform float uDropImpulse;
+  uniform vec3  uTintColor;
+
+  varying vec2 vUv;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+  void main() {
+    vec3 col = vec3(0.0);
+    float a = 0.0;
+
+    // ---- Halftone dots ----
+    // Active when angularity high. Cell grid of fading dots; dot size
+    // shrinks toward the center of each cell, so the dark fills the
+    // gaps between dots. The effect reads as a print-newsprint texture.
+    float angW = smoothstep(0.35, 0.7, uAngularity);
+    if (angW > 0.001) {
+      vec2 cellPx = vec2(8.0);            // ~8-px cells at 1080p
+      vec2 cell = floor(vUv * 240.0);     // ~240 cells across width
+      vec2 cellUv = fract(vUv * 240.0) - 0.5;
+      float d = length(cellUv);
+      float dotR = mix(0.45, 0.20, uAngularity);
+      float dot = 1.0 - smoothstep(dotR, dotR + 0.12, d);
+      // Halftone darkens *between* dots \u2014 invert.
+      col -= vec3(0.40) * angW * (1.0 - dot);
+      a += 0.4 * angW * (1.0 - dot);
+    }
+
+    // ---- Scanlines ----
+    // Active when zcr high. Horizontal interference pattern, 1080 lines
+    // per height = one scanline per pixel-row at 1080p.
+    float zcrW = smoothstep(0.4, 0.75, uZcr);
+    if (zcrW > 0.001) {
+      float scan = sin(vUv.y * 1440.0) * 0.5 + 0.5;
+      // Slight horizontal jitter on scanline phase for CRT flicker.
+      float jitter = sin(uTime * 8.0 + vUv.y * 60.0) * 0.5 + 0.5;
+      float scanMask = mix(0.7, 1.0, scan) * mix(0.85, 1.0, jitter);
+      col -= vec3(0.30) * zcrW * (1.0 - scanMask);
+      a += 0.3 * zcrW * (1.0 - scanMask);
+    }
+
+    // ---- Iridescent vertical bands ----
+    // Active when chromaStrength high. Subtle prismatic shift \u2014 vertical
+    // soft bands of tinted RGB drift slowly. Reads as oil-slick / chord
+    // color halo.
+    float chrW = smoothstep(0.55, 0.85, uChromaStrength);
+    if (chrW > 0.001) {
+      float bandPhase = vUv.x * 4.0 + uTime * 0.15;
+      vec3 irid = vec3(
+        sin(bandPhase) * 0.5 + 0.5,
+        sin(bandPhase + 2.094) * 0.5 + 0.5,
+        sin(bandPhase + 4.189) * 0.5 + 0.5
+      );
+      col += irid * 0.08 * chrW;
+      a += 0.08 * chrW;
+    }
+
+    // ---- Smooth ink-bleed wash ----
+    // Active when harmonicRatio high. Slow low-amplitude noise haze that
+    // gives the frame a soft "ink on paper" feel during sustained tonal
+    // passages \u2014 the *opposite* of the halftone treatment.
+    float harW = smoothstep(0.6, 0.9, uHarmonicRatio);
+    if (harW > 0.001) {
+      float wash = hash(floor(vUv * 50.0 + vec2(uTime * 0.4))) * 0.5;
+      col += uTintColor * wash * 0.10 * harW;
+      a += 0.10 * harW;
+    }
+
+    // ---- Drop glitch slices ----
+    // Active when drop_impulse > 0.3. Horizontal slices flicker with
+    // chromatic offset \u2014 RGB channels split by a few pixels worth of UV.
+    float dropW = smoothstep(0.3, 0.7, uDropImpulse);
+    if (dropW > 0.001) {
+      float sliceN = floor(vUv.y * 25.0 + uTime * 12.0);
+      float sliceH = hash(vec2(sliceN, floor(uTime * 16.0)));
+      if (sliceH > 0.75) {
+        float offset = (sliceH - 0.85) * 0.06 * dropW;
+        // Channel split \u2014 synthesize via additive tinted bands.
+        col.r += 0.25 * dropW * step(0.85, sliceH);
+        col.b += 0.25 * dropW * step(0.85, sliceH);
+        a += 0.25 * dropW * step(0.85, sliceH);
+      }
+    }
+
+    gl_FragColor = vec4(col, clamp(a, 0.0, 1.0));
+  }
+`
+  );
+  var TextureOverlay = class {
+    object3D;
+    material;
+    constructor(opts = {}) {
+      this.material = new ShaderMaterial({
+        vertexShader: OVERLAY_VERT,
+        fragmentShader: OVERLAY_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uAngularity: { value: 0 },
+          uZcr: { value: 0 },
+          uChromaStrength: { value: 0 },
+          uHarmonicRatio: { value: 0 },
+          uDropImpulse: { value: 0 },
+          uTintColor: { value: (opts.tintColor ?? new Color("#ffffff")).clone() }
+        },
+        transparent: true,
+        // Custom blending: combine multiplicative darkening (halftone +
+        // scanlines) with additive lift (iridescence + wash). Use normal
+        // blending with alpha so the layer composites cleanly atop the
+        // scene render — the shader already encodes the additive parts as
+        // positive rgb and the multiplicative parts as negative rgb that
+        // alpha-blends into a dim region.
+        blending: NormalBlending,
+        depthTest: false,
+        depthWrite: false
+      });
+      this.object3D = new Mesh(new PlaneGeometry(2, 2), this.material);
+      this.object3D.frustumCulled = false;
+      this.object3D.renderOrder = 300;
+    }
+    update(_spec, ctx) {
+      const u = this.material.uniforms;
+      u.uTime.value = ctx.t;
+      const angularity = ctx.section?.angularity ?? 0.5;
+      u.uAngularity.value = angularity;
+      u.uZcr.value = ctx.audio.zcr;
+      u.uChromaStrength.value = ctx.audio.chromaStrength;
+      u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
+      u.uDropImpulse.value = ctx.dropImpulse;
+    }
+    dispose() {
+      this.material.dispose();
+      this.object3D.geometry.dispose();
+    }
+  };
+
+  // src/scenes/curl_noise.ts
+  function hash22(x, y) {
+    const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    return h - Math.floor(h);
+  }
+  function valueNoise2(x, y) {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = x - ix;
+    const fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+    const a = hash22(ix, iy);
+    const b = hash22(ix + 1, iy);
+    const c = hash22(ix, iy + 1);
+    const d = hash22(ix + 1, iy + 1);
+    return (a * (1 - ux) + b * ux) * (1 - uy) + (c * (1 - ux) + d * ux) * uy;
+  }
+  function curlNoise2(x, y, eps = 0.1) {
+    const n1 = valueNoise2(x, y + eps);
+    const n2 = valueNoise2(x, y - eps);
+    const n3 = valueNoise2(x + eps, y);
+    const n4 = valueNoise2(x - eps, y);
+    return [(n1 - n2) / (2 * eps), -(n3 - n4) / (2 * eps)];
+  }
 
   // src/scenes/serene_dawn.ts
   var BG_VERTEX = (
@@ -19774,7 +25823,15 @@ void main() {
     // Modulate sample frequency so tonal passages read as smoother.
     float boubaScale = mix(3.0, 1.8, uHarmonicRatio);
     vec2 p = uv * boubaScale + vec2(uTime * 0.03, uTime * 0.018);
-    float n = valueNoise(p) * 0.6 + valueNoise(p * 2.1) * 0.4;
+    // Domain warp: perturb sample coords by a second noise lookup.
+    // Costs 2 extra noise reads but transforms a static-feeling fbm
+    // into a flowing liquid/smoke field \u2014 reads as "alive."
+    vec2 warp = vec2(
+      valueNoise(p + vec2(1.7, 9.2)),
+      valueNoise(p + vec2(8.3, 2.8))
+    ) * 0.30;
+    vec2 wp = p + warp;
+    float n = valueNoise(wp) * 0.6 + valueNoise(wp * 2.1) * 0.4;
 
     // Radial falloff so the frame has a visible "source" rather than
     // reading as a flat field.
@@ -19801,19 +25858,9 @@ void main() {
     col.r *= 1.0 + uModeWarm * 0.03;
     col.b *= 1.0 - uModeWarm * 0.03;
 
-    // Schloss & Palmer hue_distance: tension splits the RGB channels
-    // slightly along x, reading as quiet chromatic dissonance. Subtle
-    // here \u2014 Serene shouldn't go full prismatic.
-    if (uHueDistance > 0.20) {
-      vec2 splitOff = vec2(uHueDistance * 0.004, 0);
-      vec2 sp = uv * boubaScale + vec2(uTime * 0.03, uTime * 0.018);
-      float nR = valueNoise(sp + splitOff) * 0.6 + valueNoise((sp + splitOff) * 2.1) * 0.4;
-      float nB = valueNoise(sp - splitOff) * 0.6 + valueNoise((sp - splitOff) * 2.1) * 0.4;
-      vec3 colR = mix(uColorEdge, uColorCore, vignette * (0.5 + 0.5 * nR) + ripple * 0.25);
-      vec3 colB = mix(uColorEdge, uColorCore, vignette * (0.5 + 0.5 * nB) + ripple * 0.25);
-      col.r = mix(col.r, colR.r, uHueDistance * 0.5);
-      col.b = mix(col.b, colB.b, uHueDistance * 0.5);
-    }
+    // (Schloss & Palmer hue_distance RGB-split moved to the
+    // ChromaticAberrationEffect post-pass \u2014 it now sees the bloom halo,
+    // reading like a real lens rather than a per-fragment channel skew.)
 
     // Phrase boundary: brief overall lift so the listener gets a
     // visual anchor at structural moments.
@@ -19832,6 +25879,10 @@ void main() {
     particleMaterial;
     particlePositions;
     onsetEmitter;
+    sun;
+    skyline;
+    godrays;
+    texture;
     constructor() {
       this.object3D = new Scene();
       this.camera = new PerspectiveCamera(50, 16 / 9, 0.1, 100);
@@ -19869,9 +25920,9 @@ void main() {
       const N = 220;
       this.particlePositions = new Float32Array(N * 3);
       for (let i = 0; i < N; i++) {
-        this.particlePositions[i * 3 + 0] = (Math.random() - 0.5) * 6;
-        this.particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 4;
-        this.particlePositions[i * 3 + 2] = -(Math.random() * 3);
+        this.particlePositions[i * 3 + 0] = (hash1(i + 1) - 0.5) * 6;
+        this.particlePositions[i * 3 + 1] = (hash2(i, 1) - 0.5) * 4;
+        this.particlePositions[i * 3 + 2] = -(hash2(i, 2) * 3);
       }
       const geo = new BufferGeometry();
       geo.setAttribute("position", new BufferAttribute(this.particlePositions, 3));
@@ -19892,6 +25943,36 @@ void main() {
         poolSize: 192
       });
       this.object3D.add(this.onsetEmitter.object3D);
+      this.sun = new SereneSunScene();
+      this.object3D.add(this.sun.object3D);
+      this.skyline = new Skyline({
+        buildingColor: new Color("#4a3a2a"),
+        // warm dark hills
+        windowColor: new Color("#fff2d4"),
+        // unused (no windows)
+        flickerColor: new Color("#ffd9a0"),
+        hazeTint: new Color("#3a2818"),
+        shape: "hills",
+        enableFlicker: false,
+        // Serene doesn't punch with lightning
+        windowReactivity: 0,
+        farY: 0.6,
+        nearY: 0
+      });
+      this.object3D.add(this.skyline.object3D);
+      this.godrays = new GodRays({
+        shaftColor: new Color("#ffe2a8"),
+        warmTint: new Color("#ffc878"),
+        sunPos: new Vector2(0.55, 0.42),
+        // matches sun
+        intensityBase: 0.18,
+        intensityScale: 0.85
+      });
+      this.object3D.add(this.godrays.object3D);
+      this.texture = new TextureOverlay({
+        tintColor: new Color("#ffe0c0")
+      });
+      this.object3D.add(this.texture.object3D);
     }
     render(spec2, ctx) {
       const u = this.bgMaterial.uniforms;
@@ -19910,20 +25991,483 @@ void main() {
       u.uModeWarm.value = modeWarm;
       u.uHueDistance.value = ctx.section?.hue_distance ?? 0.2;
       u.uPhrasePulse.value = ctx.phrasePulse;
+      const rolloff = ctx.audio.rolloff;
+      const ceilY = 1.5 * rolloff;
+      const floorY = -1.5 * (1 - rolloff * 0.5);
       const pos = this.particles.geometry.getAttribute("position");
+      const dt = 1 / 60;
+      const flowScale = 0.03;
+      const sampleScale = 0.4;
+      const tDrift = ctx.t * 0.05;
+      const pitchBias = ctx.audio.pitchDirection * 0.06;
       for (let i = 0; i < pos.count; i++) {
-        const y = this.particlePositions[i * 3 + 1] + Math.sin(ctx.t * 0.18 + i) * 15e-4;
+        const ix3 = i * 3;
+        const px = this.particlePositions[ix3];
+        const py = this.particlePositions[ix3 + 1];
+        const [vx, vy] = curlNoise2(px * sampleScale + tDrift, py * sampleScale);
+        let x = px + vx * flowScale * dt;
+        let y = py + (vy * flowScale + pitchBias) * dt;
+        if (y > ceilY) y = ceilY;
+        else if (y < floorY) y = floorY;
+        this.particlePositions[ix3] = x;
+        this.particlePositions[ix3 + 1] = y;
+        pos.setX(i, x);
         pos.setY(i, y);
       }
       pos.needsUpdate = true;
       this.particleMaterial.opacity = 0.45 + ctx.beatPulse * 0.2;
       this.onsetEmitter.update(spec2, ctx);
+      const bands = ctx.audio.melBands;
+      for (let k = 0; k < 8; k++) {
+        this.onsetEmitter.spawnBandPulse(k, bands[k] ?? 0, ctx.t, ctx);
+      }
+      this.sun.update(spec2, ctx);
+      this.skyline.update(spec2, ctx);
+      this.godrays.update(spec2, ctx);
+      this.texture.update(spec2, ctx);
+      const sp = ctx.sectionProgress;
+      const cam = cinematicCameraDeltas(ctx, {
+        sway: 0.5,
+        push: 0.6,
+        phrase: 0.7,
+        shake: 0.15,
+        // near zero — Serene doesn't shake
+        roll: 0.4
+      });
+      this.camera.position.set(0, 0.08, 4 - sp * 0.3).add(cam.posDelta);
+      this.camera.lookAt(0, 0, 0);
+      this.camera.rotation.z = cam.rollZ;
+      this.camera.updateProjectionMatrix();
     }
     dispose() {
       this.bgMaterial.dispose();
       this.particleMaterial.dispose();
       this.particles.geometry.dispose();
       this.onsetEmitter.dispose();
+      this.sun.dispose();
+      this.skyline.dispose();
+      this.godrays.dispose();
+      this.texture.dispose();
+    }
+  };
+
+  // src/scenes/euphoric_vortex.ts
+  var VORTEX_VERT = (
+    /* glsl */
+    `
+  attribute vec3 aInstanceRA;   // x=radius, y=baseAngle, z=phaseSpeed
+  attribute float aPhaseOffset;
+  attribute vec3 aColor;
+
+  uniform float uTime;
+  uniform float uTunnelDepth;
+  uniform float uSpeedMult;
+  uniform float uHueShift;
+
+  varying vec2 vUv;
+  varying vec3 vColor;
+  varying float vNearness;
+  varying float vSpeed;
+
+  void main() {
+    float radius = aInstanceRA.x;
+    float baseAngle = aInstanceRA.y;
+    float speed = aInstanceRA.z;
+
+    // t cycles 0..1 \u2014 z goes from -depth (far) to +0.5 (past camera).
+    float t = fract(uTime * speed * uSpeedMult * 0.18 + aPhaseOffset);
+    float z = mix(-uTunnelDepth, 0.5, t);
+
+    // Spiral: per-instance angle drifts slowly + small phase from t.
+    float angle = baseAngle + uTime * 0.35 + t * 0.5;
+
+    vec3 worldPos = vec3(
+      cos(angle) * radius,
+      sin(angle) * radius,
+      z
+    );
+
+    // Streak orientation: long axis along world +Z, width axis chosen
+    // to be perpendicular to view direction.
+    vec3 streakAxis = vec3(0.0, 0.0, 1.0);
+    vec3 toCam = normalize(cameraPosition - worldPos);
+    vec3 widthAxis = normalize(cross(streakAxis, toCam));
+
+    float streakLen = 0.30 + speed * 0.55;
+    float streakWidth = 0.022;
+
+    vec3 offset = position.x * streakWidth * widthAxis
+                + position.y * streakLen * streakAxis;
+
+    gl_Position = projectionMatrix * viewMatrix * vec4(worldPos + offset, 1.0);
+
+    vUv = uv;
+    // Hue-rotate the per-instance color by uHueShift radians using a
+    // cheap RGB rotation matrix (axis = (1,1,1)/sqrt(3)).
+    float cs = cos(uHueShift);
+    float sn = sin(uHueShift);
+    float omcs = 1.0 - cs;
+    float k = 0.5773503;
+    mat3 R = mat3(
+      cs + k*k*omcs,        k*k*omcs - k*sn,     k*k*omcs + k*sn,
+      k*k*omcs + k*sn,      cs + k*k*omcs,       k*k*omcs - k*sn,
+      k*k*omcs - k*sn,      k*k*omcs + k*sn,     cs + k*k*omcs
+    );
+    vColor = R * aColor;
+    vNearness = 1.0 - t;   // 1 far, 0 near (use to fade in then peak then out)
+    vSpeed = speed;
+  }
+`
+  );
+  var VORTEX_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform float uBeatPulse;
+
+  varying vec2 vUv;
+  varying vec3 vColor;
+  varying float vNearness;
+  varying float vSpeed;
+
+  void main() {
+    // Width taper \u2014 gaussian falloff from center to edges
+    float wDist = abs(vUv.x - 0.5);
+    float wA = smoothstep(0.5, 0.0, wDist);
+
+    // Length taper \u2014 peak in middle, fade at both ends, with the
+    // leading half (vUv.y > 0.5) glowing brighter (head of comet).
+    float lTaper = smoothstep(0.0, 0.20, vUv.y) * smoothstep(1.0, 0.80, vUv.y);
+    float head = smoothstep(0.50, 0.95, vUv.y);
+
+    // Birth/death fade so particles don't pop in/out at the cycle seam.
+    // vNearness peaks at 0 (just past camera); fade in at vNearness > 0.9
+    // (just spawned at far) and fade out at vNearness < 0.05 (right at cam).
+    float lifeFade = smoothstep(1.0, 0.9, vNearness) * smoothstep(0.0, 0.06, vNearness);
+
+    float a = wA * lTaper * lifeFade * (0.6 + uBeatPulse * 0.5);
+
+    vec3 col = vColor * (0.8 + head * 0.7) * (1.0 + uBeatPulse * 0.4);
+
+    gl_FragColor = vec4(col, a);
+  }
+`
+  );
+  var AURORA_VERT = (
+    /* glsl */
+    `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`
+  );
+  var AURORA_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform float uTime;
+  uniform float uDrift;
+  uniform float uIntensity;
+  uniform float uHueShift;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
+
+  varying vec2 vUv;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i),                hash(i + vec2(1,0)), u.x),
+               mix(hash(i + vec2(0,1)),    hash(i + vec2(1,1)), u.x), u.y);
+  }
+  float fbm(vec2 p) {
+    return noise(p) * 0.55 + noise(p * 2.1) * 0.30 + noise(p * 4.3) * 0.15;
+  }
+
+  void main() {
+    // Aurora occupies the upper 55% of the frame, fading out below.
+    float vMask = smoothstep(0.30, 0.80, vUv.y);
+    if (vMask < 0.01) discard;
+
+    vec2 q = vec2(vUv.x * 3.5 + uTime * uDrift,
+                  vUv.y * 1.5 + sin(vUv.x * 6.0 + uTime * 0.3) * 0.08);
+    // Single-pass fbm \u2014 was nested (fbm of fbm) but that was the wall-
+    // clock bottleneck on long renders. Visually near-identical at this
+    // scale.
+    float curtain = fbm(q);
+    curtain = smoothstep(0.45, 0.85, curtain);
+
+    // Hue-shift base color via cheap rotation, mix between two tones
+    // along the vertical axis.
+    vec3 base = mix(uColorA, uColorB, vUv.y);
+    float cs = cos(uHueShift);
+    float sn = sin(uHueShift);
+    float omcs = 1.0 - cs;
+    float k = 0.5773503;
+    mat3 R = mat3(
+      cs + k*k*omcs,        k*k*omcs - k*sn,     k*k*omcs + k*sn,
+      k*k*omcs + k*sn,      cs + k*k*omcs,       k*k*omcs - k*sn,
+      k*k*omcs - k*sn,      k*k*omcs + k*sn,     cs + k*k*omcs
+    );
+    vec3 col = R * base;
+
+    float a = curtain * vMask * uIntensity;
+    gl_FragColor = vec4(col, a);
+  }
+`
+  );
+  var EuphoricBloomHero = class _EuphoricBloomHero {
+    object3D;
+    vortexMesh;
+    vortexMaterial;
+    vortexGeometry;
+    auroraMesh;
+    auroraMaterial;
+    static POOL_SIZE = 1200;
+    constructor() {
+      this.object3D = new Group();
+      this.vortexGeometry = new InstancedBufferGeometry();
+      const quadPos = new Float32Array([
+        -0.5,
+        -0.5,
+        0,
+        0.5,
+        -0.5,
+        0,
+        0.5,
+        0.5,
+        0,
+        -0.5,
+        0.5,
+        0
+      ]);
+      const quadUv = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+      const quadIdx = new Uint16Array([0, 1, 2, 0, 2, 3]);
+      this.vortexGeometry.setAttribute("position", new BufferAttribute(quadPos, 3));
+      this.vortexGeometry.setAttribute("uv", new BufferAttribute(quadUv, 2));
+      this.vortexGeometry.setIndex(new BufferAttribute(quadIdx, 1));
+      const N = _EuphoricBloomHero.POOL_SIZE;
+      const ra = new Float32Array(N * 3);
+      const phase = new Float32Array(N);
+      const colors = new Float32Array(N * 3);
+      for (let i = 0; i < N; i++) {
+        const u = hash1(i + 1);
+        const radius = 0.3 + Math.pow(u, 0.6) * 4.2;
+        const angle = hash2(i, 1) * Math.PI * 2;
+        const speed = 0.7 + hash2(i, 3) * 1.6;
+        ra[i * 3 + 0] = radius;
+        ra[i * 3 + 1] = angle;
+        ra[i * 3 + 2] = speed;
+        phase[i] = hash2(i, 7);
+        const h = hash2(i, 11);
+        const r = 1;
+        const g = 0.45 + h * 0.45;
+        const b = 0.55 + (1 - h) * 0.45;
+        colors[i * 3 + 0] = r;
+        colors[i * 3 + 1] = g;
+        colors[i * 3 + 2] = b;
+      }
+      this.vortexGeometry.setAttribute("aInstanceRA", new InstancedBufferAttribute(ra, 3));
+      this.vortexGeometry.setAttribute("aPhaseOffset", new InstancedBufferAttribute(phase, 1));
+      this.vortexGeometry.setAttribute("aColor", new InstancedBufferAttribute(colors, 3));
+      this.vortexGeometry.instanceCount = 200;
+      this.vortexMaterial = new ShaderMaterial({
+        vertexShader: VORTEX_VERT,
+        fragmentShader: VORTEX_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uTunnelDepth: { value: 14 },
+          uSpeedMult: { value: 1 },
+          uHueShift: { value: 0 },
+          uBeatPulse: { value: 0 }
+        },
+        transparent: true,
+        blending: AdditiveBlending,
+        depthWrite: false
+      });
+      this.vortexMesh = new Mesh(this.vortexGeometry, this.vortexMaterial);
+      this.vortexMesh.frustumCulled = false;
+      this.object3D.add(this.vortexMesh);
+      this.auroraMaterial = new ShaderMaterial({
+        vertexShader: AURORA_VERT,
+        fragmentShader: AURORA_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uDrift: { value: 0.05 },
+          uIntensity: { value: 0 },
+          uHueShift: { value: 0 },
+          uColorA: { value: new Color("#a04eff") },
+          // magenta
+          uColorB: { value: new Color("#ffcc66") }
+          // amber-gold
+        },
+        transparent: true,
+        blending: AdditiveBlending,
+        depthTest: false,
+        depthWrite: false
+      });
+      this.auroraMesh = new Mesh(new PlaneGeometry(2, 2), this.auroraMaterial);
+      this.auroraMesh.frustumCulled = false;
+      this.auroraMesh.renderOrder = -7;
+      this.object3D.add(this.auroraMesh);
+    }
+    update(_spec, ctx) {
+      const v = this.vortexMaterial.uniforms;
+      v.uTime.value = ctx.t;
+      const audio = ctx.audio;
+      v.uSpeedMult.value = 0.6 + audio.rms * 1 + audio.spectralFlux * 1 + audio.onsetStrengthEnv * 0.8 + ctx.dropImpulse * 2.5;
+      v.uHueShift.value = Math.atan2(audio.chromaCenterY, audio.chromaCenterX) + ctx.dropImpulse * 1.2;
+      v.uBeatPulse.value = ctx.beatPulse + ctx.phrasePulse * 0.5;
+      const live = Math.min(
+        _EuphoricBloomHero.POOL_SIZE,
+        200 + Math.round(ctx.buildIntensity * 1e3)
+      );
+      this.vortexGeometry.instanceCount = live;
+      const a = this.auroraMaterial.uniforms;
+      a.uTime.value = ctx.t;
+      a.uDrift.value = 0.05 + audio.spectralFlux * 0.3;
+      a.uIntensity.value = 0.2 + audio.chromaStrength * 0.45 + ctx.beatPulse * 0.15;
+      a.uHueShift.value = Math.atan2(audio.chromaCenterY, audio.chromaCenterX) * 0.6;
+    }
+    dispose() {
+      this.vortexMaterial.dispose();
+      this.vortexGeometry.dispose();
+      this.auroraMaterial.dispose();
+      this.auroraMesh.geometry.dispose();
+    }
+  };
+
+  // src/scenes/effects/event_layer.ts
+  var MAX_SHOCKWAVES = 4;
+  var EVENT_VERT = (
+    /* glsl */
+    `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`
+  );
+  var EVENT_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform float uTime;
+  uniform float uShockTimes[${MAX_SHOCKWAVES}];   // wall time of each active shockwave
+  uniform float uShockSpread;                     // 1.0 default, controls speed
+  uniform float uBeatStrobe;
+  uniform float uPhraseBurst;
+  uniform float uAspect;
+  uniform vec3  uShockColor;
+  uniform vec3  uStrobeColor;
+  uniform vec3  uBurstColor;
+
+  varying vec2 vUv;
+
+  float shockwave(vec2 d, float age) {
+    if (age < 0.0 || age > 1.4) return 0.0;
+    float r = length(d);
+    // Ring radius grows from 0 to ~1.6 over 1.4s.
+    float ringR = age * 1.4 * uShockSpread;
+    float ringW = 0.08 + age * 0.25;
+    float band = smoothstep(ringW, 0.0, abs(r - ringR));
+    float fade = 1.0 - smoothstep(0.0, 1.4, age);
+    // Multiply by a leading-edge sharpener so the front of the wave is
+    // brighter than the trailing skirt.
+    float front = smoothstep(0.10, 0.0, r - ringR);
+    return band * fade * (0.7 + front * 0.6);
+  }
+
+  void main() {
+    // Aspect-correct screen coords centered at (0.5, 0.5).
+    vec2 d = (vUv - vec2(0.5)) * vec2(uAspect, 1.0);
+
+    // ---- Shockwaves: sum up to MAX_SHOCKWAVES active ones ----
+    float wave = 0.0;
+    for (int i = 0; i < ${MAX_SHOCKWAVES}; i++) {
+      float age = uTime - uShockTimes[i];
+      wave += shockwave(d, age);
+    }
+    wave = min(wave, 1.5);
+
+    // ---- Phrase radial burst: 16-spoke fan ----
+    float ang = atan(d.y, d.x);
+    float spokes = sin(ang * 16.0) * 0.5 + 0.5;
+    spokes = pow(spokes, 6.0);
+    float r2 = length(d);
+    float radial = exp(-r2 * 1.6);
+    float burst = spokes * radial * uPhraseBurst;
+
+    // ---- Beat strobe: full-frame lift, no falloff ----
+    float strobe = uBeatStrobe * 0.18;
+
+    vec3 col = uShockColor * wave
+             + uBurstColor  * burst * 1.2
+             + uStrobeColor * strobe;
+    float alpha = clamp(wave * 0.85 + burst * 0.7 + strobe, 0.0, 1.0);
+    gl_FragColor = vec4(col, alpha);
+  }
+`
+  );
+  var EventLayer = class {
+    object3D;
+    material;
+    shockTimes;
+    writeIdx = 0;
+    prevT = -1;
+    constructor(opts) {
+      this.shockTimes = new Array(MAX_SHOCKWAVES).fill(-1e3);
+      this.material = new ShaderMaterial({
+        vertexShader: EVENT_VERT,
+        fragmentShader: EVENT_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uShockTimes: { value: new Float32Array(this.shockTimes) },
+          uShockSpread: { value: opts.shockSpread ?? 1 },
+          uBeatStrobe: { value: 0 },
+          uPhraseBurst: { value: 0 },
+          uAspect: { value: opts.aspect ?? 16 / 9 },
+          uShockColor: { value: opts.shockColor.clone() },
+          uStrobeColor: {
+            value: (opts.strobeColor ?? new Color("#ffffff")).clone()
+          },
+          uBurstColor: {
+            value: (opts.burstColor ?? opts.shockColor).clone()
+          }
+        },
+        transparent: true,
+        blending: AdditiveBlending,
+        depthTest: false,
+        depthWrite: false
+      });
+      this.object3D = new Mesh(new PlaneGeometry(2, 2), this.material);
+      this.object3D.frustumCulled = false;
+      this.object3D.renderOrder = 200;
+    }
+    update(spec2, ctx) {
+      const u = this.material.uniforms;
+      u.uTime.value = ctx.t;
+      u.uBeatStrobe.value = ctx.beatPulse;
+      u.uPhraseBurst.value = ctx.phrasePulse;
+      if (this.prevT >= 0) {
+        for (const drop of spec2.drop_triggers) {
+          if (drop.t <= this.prevT) continue;
+          if (drop.t > ctx.t) break;
+          this.shockTimes[this.writeIdx] = drop.t;
+          this.writeIdx = (this.writeIdx + 1) % MAX_SHOCKWAVES;
+        }
+      }
+      this.prevT = ctx.t;
+      const arr = u.uShockTimes.value;
+      for (let i = 0; i < MAX_SHOCKWAVES; i++) arr[i] = this.shockTimes[i];
+    }
+    dispose() {
+      this.material.dispose();
+      this.object3D.geometry.dispose();
     }
   };
 
@@ -19958,6 +26502,7 @@ void main() {
   uniform float uModeWarm;
   uniform float uHueDistance;
   uniform float uPhrasePulse;
+  uniform float uRolloff;         // 0..1 \u2014 bright mixes extend outer halo
 
   // Cheap value noise for halo modulation.
   float hash(vec2 p) {
@@ -19986,11 +26531,15 @@ void main() {
     float angle = atan(d.y, d.x);
 
     // Three-stop radial: gold core \u2192 magenta mid \u2192 wine edge.
+    // Rolloff stretches the outer gradient \u2014 bright/treble-rich passages
+    // extend the bloom outward (halo reaches further); dark mixes
+    // compress it inward.
+    float outerR = 1.05 + uRolloff * 0.30;
     vec3 col;
     if (r < 0.40) {
       col = mix(uColorCore, uColorMid, smoothstep(0.0, 0.40, r));
     } else {
-      col = mix(uColorMid, uColorEdge, smoothstep(0.40, 1.05, r));
+      col = mix(uColorMid, uColorEdge, smoothstep(0.40, outerR, r));
     }
 
     // Bouba/Kiki on shimmer frequency: high harmonic_ratio \u2192 smoother,
@@ -20019,7 +26568,9 @@ void main() {
     col += vec3(uCentroid * 0.20) * smoothstep(0.6, 0.0, r);
 
     // Mild edge vignette so the bloom reads as the focal point.
-    col *= smoothstep(1.45, 0.30, r);
+    // Vignette outer bound widens on bright mixes (rolloff) so the bloom
+    // "breathes outward" rather than capping at a fixed radius.
+    col *= smoothstep(1.45 + uRolloff * 0.40, 0.30, r);
 
     // Itoh 2017 \u2014 chroma locks in palette vividness on tonal passages.
     float chromaSat = mix(0.85, 1.15, uChromaStrength);
@@ -20028,13 +26579,8 @@ void main() {
     col.r *= 1.0 + uModeWarm * 0.04;
     col.b *= 1.0 - uModeWarm * 0.04;
 
-    // hue_distance: tension splits the magenta toward cyan accents.
-    // Subtle, since Euphoric is identity-stable on its warm palette.
-    if (uHueDistance > 0.30) {
-      float split = (uHueDistance - 0.30) * 0.6;
-      col.b += split * (1.0 - r) * 0.3;
-      col.g += split * (1.0 - r) * 0.15;
-    }
+    // (Inline hue_distance channel-bleed removed \u2014 ChromaticAberration
+    // post-pass replaces it and operates on the bloomed image.)
 
     // Phrase boundary: brightness pop on the bloom core. Krumhansl-tier
     // events should land prominently in a celebratory biome.
@@ -20054,7 +26600,14 @@ void main() {
     positions;
     velocities;
     onsetEmitter;
-    static PARTICLE_COUNT = 600;
+    hero;
+    skyline;
+    godrays;
+    events;
+    texture;
+    static PARTICLE_COUNT = 350;
+    // dialed down — was 600
+    // (vortex tunnel now carries the motion)
     constructor() {
       this.object3D = new Scene();
       this.camera = new PerspectiveCamera(50, 16 / 9, 0.1, 100);
@@ -20081,7 +26634,8 @@ void main() {
           uChromaStrength: { value: 0 },
           uModeWarm: { value: 0 },
           uHueDistance: { value: 0.4 },
-          uPhrasePulse: { value: 0 }
+          uPhrasePulse: { value: 0 },
+          uRolloff: { value: 0.5 }
         },
         depthTest: false,
         depthWrite: false
@@ -20099,10 +26653,10 @@ void main() {
         const radius = 0.2 + (Math.sin(i * 1.234) + 1) * 1.5;
         this.positions[i * 3 + 0] = Math.cos(angle) * radius;
         this.positions[i * 3 + 1] = Math.sin(angle) * radius;
-        this.positions[i * 3 + 2] = -Math.random() * 2;
+        this.positions[i * 3 + 2] = -hash1(i + 1) * 2;
         this.velocities[i * 3 + 0] = Math.cos(angle) * 0.18;
         this.velocities[i * 3 + 1] = Math.sin(angle) * 0.18;
-        this.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.05;
+        this.velocities[i * 3 + 2] = (hash2(i, 1) - 0.5) * 0.05;
       }
       const geo = new BufferGeometry();
       geo.setAttribute("position", new BufferAttribute(this.positions, 3));
@@ -20119,10 +26673,44 @@ void main() {
       this.object3D.add(this.particles);
       this.onsetEmitter = new OnsetParticleEmitter({
         baseColor: new Color("#ffe7a3"),
-        maxSize: 32,
-        poolSize: 256
+        maxSize: 38,
+        // larger — more visible against vortex
+        poolSize: 320
       });
       this.object3D.add(this.onsetEmitter.object3D);
+      this.hero = new EuphoricBloomHero();
+      this.object3D.add(this.hero.object3D);
+      this.skyline = new Skyline({
+        buildingColor: new Color("#2a1838"),
+        windowColor: new Color("#ffd066"),
+        flickerColor: new Color("#ff9aff"),
+        hazeTint: new Color("#1a0820"),
+        shape: "festival",
+        enableFlicker: true,
+        windowReactivity: 1.3,
+        farY: 1,
+        nearY: 0.6
+      });
+      this.object3D.add(this.skyline.object3D);
+      this.godrays = new GodRays({
+        shaftColor: new Color("#ff88e0"),
+        warmTint: new Color("#ffd070"),
+        sunPos: new Vector2(0.5, 1),
+        intensityBase: 0.15,
+        intensityScale: 1
+      });
+      this.object3D.add(this.godrays.object3D);
+      this.events = new EventLayer({
+        shockColor: new Color("#ffb0ff"),
+        strobeColor: new Color("#fff0ff"),
+        burstColor: new Color("#ffe080"),
+        shockSpread: 1.2
+      });
+      this.object3D.add(this.events.object3D);
+      this.texture = new TextureOverlay({
+        tintColor: new Color("#ffd0e8")
+      });
+      this.object3D.add(this.texture.object3D);
     }
     render(spec2, ctx) {
       const u = this.bgMaterial.uniforms;
@@ -20141,20 +26729,28 @@ void main() {
       u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
       u.uHueDistance.value = ctx.section?.hue_distance ?? 0.4;
       u.uPhrasePulse.value = ctx.phrasePulse;
+      u.uRolloff.value = ctx.audio.rolloff;
       const pos = this.particles.geometry.getAttribute("position");
       const dt = 1 / 60;
       const beatBoost = 1 + ctx.beatPulse * 1.5 + ctx.phrasePulse * 0.6;
+      const flowScale = 0.06;
+      const sampleScale = 0.3;
+      const tDrift = ctx.t * 0.08;
+      const pitchBias = ctx.audio.pitchDirection * 0.1;
       for (let i = 0; i < _EuphoricBloomScene.PARTICLE_COUNT; i++) {
         const ix = i * 3;
-        this.positions[ix + 0] += this.velocities[ix + 0] * dt * beatBoost;
-        this.positions[ix + 1] += this.velocities[ix + 1] * dt * beatBoost;
+        const px = this.positions[ix];
+        const py = this.positions[ix + 1];
+        const [cvx, cvy] = curlNoise2(px * sampleScale + tDrift, py * sampleScale);
+        this.positions[ix + 0] += (this.velocities[ix + 0] * beatBoost + cvx * flowScale) * dt;
+        this.positions[ix + 1] += (this.velocities[ix + 1] * beatBoost + cvy * flowScale + pitchBias) * dt;
         this.positions[ix + 2] += this.velocities[ix + 2] * dt;
         const r = Math.hypot(this.positions[ix], this.positions[ix + 1]);
         if (r > 4.5) {
-          const a = Math.random() * Math.PI * 2;
+          const a = hash2(ctx.t, i) * Math.PI * 2;
           this.positions[ix + 0] = Math.cos(a) * 0.3;
           this.positions[ix + 1] = Math.sin(a) * 0.3;
-          this.positions[ix + 2] = -Math.random() * 2;
+          this.positions[ix + 2] = -hash2(ctx.t, i + 1e3) * 2;
           this.velocities[ix + 0] = Math.cos(a) * 0.18;
           this.velocities[ix + 1] = Math.sin(a) * 0.18;
         }
@@ -20163,12 +26759,255 @@ void main() {
       this.particleMaterial.opacity = 0.55 + ctx.beatPulse * 0.3 + ctx.dropImpulse * 0.2;
       this.particleMaterial.size = 0.06 + ctx.dropImpulse * 0.05;
       this.onsetEmitter.update(spec2, ctx, new Color("#ff5588"));
+      const bands = ctx.audio.melBands;
+      for (let k = 0; k < 8; k++) {
+        this.onsetEmitter.spawnBandPulse(k, bands[k] ?? 0, ctx.t, ctx);
+      }
+      this.hero.update(spec2, ctx);
+      this.skyline.update(spec2, ctx);
+      this.godrays.update(spec2, ctx);
+      this.events.update(spec2, ctx);
+      this.texture.update(spec2, ctx);
+      const sp = ctx.sectionProgress;
+      const cam = cinematicCameraDeltas(ctx, {
+        sway: 1.3,
+        // stronger than Melancholic — high-arousal
+        push: 1,
+        phrase: 1.2,
+        shake: 1.4,
+        // visible drop shake — drops here punch
+        roll: 1
+      });
+      const orbitAngle = sp * 0.2;
+      this.camera.position.set(
+        Math.sin(orbitAngle) * 0.4,
+        Math.cos(orbitAngle * 0.7) * 0.2,
+        4
+      ).add(cam.posDelta);
+      this.camera.lookAt(0, 0, 0);
+      this.camera.rotation.z = cam.rollZ;
+      this.camera.updateProjectionMatrix();
     }
     dispose() {
       this.bgMaterial.dispose();
       this.particleMaterial.dispose();
       this.particles.geometry.dispose();
       this.onsetEmitter.dispose();
+      this.hero.dispose();
+      this.skyline.dispose();
+      this.godrays.dispose();
+      this.events.dispose();
+      this.texture.dispose();
+    }
+  };
+
+  // src/scenes/intense_lightning.ts
+  var WALL_VERT = (
+    /* glsl */
+    `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = vec4(position, 1.0);
+  }
+`
+  );
+  var WALL_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform float uTime;
+  uniform float uDarkness;       // 0..1
+  uniform float uTurbulence;     // 0..1
+  uniform float uFlash;          // current lightning impulse
+  uniform vec3  uCloudColor;
+  uniform vec3  uFlashColor;
+
+  varying vec2 vUv;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float noise(vec2 p) {
+    vec2 i = floor(p); vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(mix(hash(i),                hash(i + vec2(1,0)), u.x),
+               mix(hash(i + vec2(0,1)),    hash(i + vec2(1,1)), u.x), u.y);
+  }
+  float fbm(vec2 p) {
+    return noise(p) * 0.55 + noise(p * 2.1) * 0.30 + noise(p * 4.3) * 0.15;
+  }
+
+  void main() {
+    // Wall lives in upper 2/3 of frame.
+    float vMask = smoothstep(0.10, 0.65, vUv.y);
+    if (vMask < 0.01) discard;
+
+    // Two layers of turbulence at slightly different speeds for depth.
+    vec2 q1 = vec2(vUv.x * 3.0 + uTime * 0.06, vUv.y * 1.5 + uTime * 0.02);
+    vec2 q2 = vec2(vUv.x * 5.0 - uTime * 0.04, vUv.y * 2.0 + uTime * 0.03);
+    float clouds = mix(fbm(q1), fbm(q2), 0.4);
+    clouds = mix(clouds, smoothstep(0.4, 0.8, clouds), uTurbulence);
+
+    vec3 col = uCloudColor * (0.25 + clouds * 0.55);
+    // Brighten dramatically on lightning flash.
+    col += uFlashColor * uFlash * (0.4 + clouds * 0.7);
+    col *= 1.0 - uDarkness * 0.5;
+
+    float a = vMask * (0.55 + clouds * 0.35) * (0.85 + uFlash * 0.15);
+    gl_FragColor = vec4(col, a);
+  }
+`
+  );
+  var MAX_AFTERGLOWS = 6;
+  var AFTERGLOW_LIFE = 1.4;
+  var IntenseLightningScene = class _IntenseLightningScene {
+    object3D;
+    storm;
+    wallMaterial;
+    afterglowMaterial;
+    afterglowGeometry;
+    afterglowBuffer;
+    // (MAX_AFTERGLOWS × MAX_BOLT_VERTS × 3)
+    afterglowAges;
+    // per-vertex age uniform (passed as attribute? use perVertex slot index)
+    afterglowSlotAttr;
+    // per-vertex slot index (0..MAX_AFTERGLOWS-1)
+    slotStartTimes;
+    // MAX_AFTERGLOWS — uniform array
+    slotIntensities;
+    // MAX_AFTERGLOWS — uniform array
+    slotVertCounts;
+    writeIdx = 0;
+    static VERTS_PER_BOLT = 64;
+    constructor() {
+      this.object3D = new Group();
+      this.wallMaterial = new ShaderMaterial({
+        vertexShader: WALL_VERT,
+        fragmentShader: WALL_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uDarkness: { value: 0.6 },
+          uTurbulence: { value: 0.5 },
+          uFlash: { value: 0 },
+          uCloudColor: { value: new Color("#2a3550") },
+          // cool dark
+          uFlashColor: { value: new Color("#d0e0ff") }
+          // electric white
+        },
+        transparent: true,
+        blending: NormalBlending,
+        depthTest: false,
+        depthWrite: false
+      });
+      this.storm = new Mesh(new PlaneGeometry(2, 2), this.wallMaterial);
+      this.storm.frustumCulled = false;
+      this.storm.renderOrder = -9;
+      this.object3D.add(this.storm);
+      const totalVerts = MAX_AFTERGLOWS * _IntenseLightningScene.VERTS_PER_BOLT;
+      this.afterglowBuffer = new Float32Array(totalVerts * 3);
+      this.afterglowSlotAttr = new Float32Array(totalVerts);
+      this.afterglowAges = new Float32Array(totalVerts);
+      this.slotStartTimes = new Float32Array(MAX_AFTERGLOWS).fill(-1e3);
+      this.slotIntensities = new Float32Array(MAX_AFTERGLOWS);
+      this.slotVertCounts = new Array(MAX_AFTERGLOWS).fill(0);
+      for (let s = 0; s < MAX_AFTERGLOWS; s++) {
+        for (let v = 0; v < _IntenseLightningScene.VERTS_PER_BOLT; v++) {
+          this.afterglowSlotAttr[s * _IntenseLightningScene.VERTS_PER_BOLT + v] = s;
+        }
+      }
+      this.afterglowGeometry = new BufferGeometry();
+      this.afterglowGeometry.setAttribute(
+        "position",
+        new BufferAttribute(this.afterglowBuffer, 3)
+      );
+      this.afterglowGeometry.setAttribute(
+        "aSlotIdx",
+        new BufferAttribute(this.afterglowSlotAttr, 1)
+      );
+      this.afterglowGeometry.setDrawRange(0, 0);
+      this.afterglowMaterial = new ShaderMaterial({
+        vertexShader: (
+          /* glsl */
+          `
+        attribute float aSlotIdx;
+        uniform float uTime;
+        uniform float uSlotStart[${MAX_AFTERGLOWS}];
+        uniform float uSlotIntensity[${MAX_AFTERGLOWS}];
+        varying float vAlpha;
+        void main() {
+          int idx = int(aSlotIdx + 0.5);
+          float age = uTime - uSlotStart[idx];
+          float life = ${AFTERGLOW_LIFE.toFixed(3)};
+          float t = clamp(age / life, 0.0, 1.0);
+          // Quick attack, slow fade \u2014 exp decay scaled by per-slot intensity.
+          vAlpha = uSlotIntensity[idx] * exp(-t * 3.0) * step(0.0, age);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `
+        ),
+        fragmentShader: (
+          /* glsl */
+          `
+        precision highp float;
+        uniform vec3 uColor;
+        varying float vAlpha;
+        void main() {
+          gl_FragColor = vec4(uColor * (0.6 + vAlpha * 1.4), vAlpha * 0.85);
+        }
+      `
+        ),
+        uniforms: {
+          uTime: { value: 0 },
+          uSlotStart: { value: new Float32Array(MAX_AFTERGLOWS).fill(-1e3) },
+          uSlotIntensity: { value: new Float32Array(MAX_AFTERGLOWS) },
+          uColor: { value: new Color("#e8f0ff") }
+        },
+        transparent: true,
+        blending: AdditiveBlending,
+        depthTest: false,
+        depthWrite: false
+      });
+      const lines = new LineSegments(this.afterglowGeometry, this.afterglowMaterial);
+      lines.frustumCulled = false;
+      lines.renderOrder = 10;
+      this.object3D.add(lines);
+    }
+    /// Push a fired bolt (as a flat XYZ vertex array) into the next
+    /// afterglow slot. Caller passes the same vertex buffer it writes
+    /// into the live bolt LineSegments, plus the vertex count.
+    pushBolt(boltVerts, vertCount, t, intensity) {
+      const slot = this.writeIdx;
+      this.writeIdx = (this.writeIdx + 1) % MAX_AFTERGLOWS;
+      const slotOffset = slot * _IntenseLightningScene.VERTS_PER_BOLT * 3;
+      const copyVerts = Math.min(vertCount, _IntenseLightningScene.VERTS_PER_BOLT);
+      for (let i = 0; i < copyVerts * 3; i++) {
+        this.afterglowBuffer[slotOffset + i] = boltVerts[i];
+      }
+      for (let i = copyVerts * 3; i < _IntenseLightningScene.VERTS_PER_BOLT * 3; i++) {
+        this.afterglowBuffer[slotOffset + i] = 0;
+      }
+      this.slotStartTimes[slot] = t;
+      this.slotIntensities[slot] = intensity;
+      this.slotVertCounts[slot] = copyVerts;
+      this.afterglowGeometry.getAttribute("position").needsUpdate = true;
+      this.afterglowGeometry.setDrawRange(0, MAX_AFTERGLOWS * _IntenseLightningScene.VERTS_PER_BOLT);
+    }
+    update(_spec, ctx) {
+      const tension = ctx.section?.tension ?? 0.5;
+      const w = this.wallMaterial.uniforms;
+      w.uTime.value = ctx.t;
+      w.uDarkness.value = 0.4 + tension * 0.4 - ctx.audio.centroid * 0.2;
+      w.uTurbulence.value = 0.25 + ctx.audio.spectralFlux * 0.6;
+      w.uFlash.value = Math.max(ctx.downbeatPulse, ctx.dropImpulse);
+      const ag = this.afterglowMaterial.uniforms;
+      ag.uTime.value = ctx.t;
+      ag.uSlotStart.value.set(this.slotStartTimes);
+      ag.uSlotIntensity.value.set(this.slotIntensities);
+    }
+    dispose() {
+      this.wallMaterial.dispose();
+      this.storm.geometry.dispose();
+      this.afterglowMaterial.dispose();
+      this.afterglowGeometry.dispose();
     }
   };
 
@@ -20239,7 +27078,14 @@ void main() {
     // higher-freq turbulence (more chaotic); high \u2192 broader, slower.
     float cloudFreqX = mix(3.5, 2.0, uHarmonicRatio);
     vec2 p = uv * vec2(cloudFreqX, cloudFreqX * 0.65) + vec2(uTime * 0.10, uTime * 0.04);
-    float cloud = fbm(p);
+    // Domain warp: turbulent flow rather than static fbm cloud.
+    // The warp itself drifts with time so the perturbation isn't
+    // frozen \u2014 reads as wind pushing the cloud, not noise stamped on it.
+    vec2 warp = vec2(
+      fbm(p + vec2(4.1, 1.3) + uTime * 0.06),
+      fbm(p + vec2(2.7, 5.9) - uTime * 0.04)
+    ) * 0.40;
+    float cloud = fbm(p + warp);
     // Pow sharpening also modulated \u2014 high HR keeps cloud softer.
     float cloudPow = mix(2.1, 1.4, uHarmonicRatio);
     cloud = pow(cloud, cloudPow);
@@ -20269,14 +27115,10 @@ void main() {
     // Bright timbre lifts the electric-blue contrast singleton.
     col.b += uCentroid * 0.12 * smoothstep(0.40, 0.10, cloud);
 
-    // ZCR (sibilance / noise density) drives a grain layer \u2014 high-noise
-    // passages get visibly grittier.
-    float grain = (hash(uv * 800.0 + uTime * 60.0) - 0.5) * 0.18;
-    col += vec3(grain * uZCR);
-
-    // Vignette \u2014 Intense should feel claustrophobic.
+    // (Inline ZCR grain and frame-edge vignette removed \u2014 NoiseEffect
+    // and VignetteEffect post-passes replace them and respect tonemap
+    // ordering. ZCR still drives the post-grain opacity per frame.)
     float r = length(d) * 1.4;
-    col *= smoothstep(1.5, 0.20, r);
 
     float chromaSat = mix(0.85, 1.10, uChromaStrength);
     col = desaturate(col, uSaturation * chromaSat);
@@ -20284,17 +27126,9 @@ void main() {
     col.r *= 1.0 + uModeWarm * 0.04;
     col.b *= 1.0 - uModeWarm * 0.04;
 
-    // hue_distance: at high tension, RGB-split the cloud field for
-    // a chromatic-aberration "pressure" feel. Intense biome leans
-    // into this rather than away from it.
-    if (uHueDistance > 0.40) {
-      float split = (uHueDistance - 0.40) * 1.2;
-      vec2 splitOff = vec2(split * 0.008, 0);
-      vec3 colR = mix(uColorBlack, uColorRed, fbm(p + splitOff));
-      vec3 colB = mix(uColorBlack, uColorBlue, fbm(p - splitOff));
-      col.r = mix(col.r, colR.r, 0.4);
-      col.b = mix(col.b, colB.b, 0.4);
-    }
+    // (Inline hue_distance cloud channel-split removed \u2014 the
+    // ChromaticAberration post-pass replaces it. Intense's CA
+    // intensity is already biased high by the per-frame mutator.)
 
     // Phrase pulse: brief reverse-vignette flash at frame edges so
     // structural moments register as a "frame closing in."
@@ -20322,6 +27156,11 @@ void main() {
     static MAX_BOLT_VERTS = 256;
     prevDownbeat = 0;
     prevDrop = 0;
+    hero;
+    skyline;
+    godrays;
+    events;
+    texture;
     constructor() {
       this.object3D = new Scene();
       this.camera = new PerspectiveCamera(50, 16 / 9, 0.1, 100);
@@ -20361,9 +27200,9 @@ void main() {
       const N = _IntenseStormScene.PARTICLE_COUNT;
       this.positions = new Float32Array(N * 3);
       for (let i = 0; i < N; i++) {
-        this.positions[i * 3 + 0] = (Math.random() - 0.5) * 7;
-        this.positions[i * 3 + 1] = (Math.random() - 0.5) * 5;
-        this.positions[i * 3 + 2] = -Math.random() * 3;
+        this.positions[i * 3 + 0] = (hash1(i + 1) - 0.5) * 7;
+        this.positions[i * 3 + 1] = (hash2(i, 1) - 0.5) * 5;
+        this.positions[i * 3 + 2] = -hash2(i, 2) * 3;
       }
       const pgeo = new BufferGeometry();
       pgeo.setAttribute("position", new BufferAttribute(this.positions, 3));
@@ -20396,6 +27235,40 @@ void main() {
         poolSize: 192
       });
       this.object3D.add(this.onsetEmitter.object3D);
+      this.hero = new IntenseLightningScene();
+      this.object3D.add(this.hero.object3D);
+      this.skyline = new Skyline({
+        buildingColor: new Color("#0a1020"),
+        windowColor: new Color("#a0c8ff"),
+        flickerColor: new Color("#e8f0ff"),
+        hazeTint: new Color("#040814"),
+        shape: "crags",
+        enableFlicker: true,
+        windowReactivity: 0.5,
+        farY: -0.5,
+        nearY: -1.2
+      });
+      this.object3D.add(this.skyline.object3D);
+      this.godrays = new GodRays({
+        shaftColor: new Color("#a8d4ff"),
+        warmTint: new Color("#e0ecff"),
+        sunPos: new Vector2(0.5, 1.05),
+        intensityBase: 0.12,
+        intensityScale: 1.1
+      });
+      this.object3D.add(this.godrays.object3D);
+      this.events = new EventLayer({
+        shockColor: new Color("#c8e0ff"),
+        strobeColor: new Color("#ffffff"),
+        burstColor: new Color("#8ab8ff"),
+        shockSpread: 1.4
+        // fastest in any biome — storm drops slam
+      });
+      this.object3D.add(this.events.object3D);
+      this.texture = new TextureOverlay({
+        tintColor: new Color("#b8d0ff")
+      });
+      this.object3D.add(this.texture.object3D);
     }
     render(spec2, ctx) {
       const u = this.bgMaterial.uniforms;
@@ -20422,19 +27295,48 @@ void main() {
       this.prevDrop = ctx.dropImpulse;
       let vertCount = 0;
       if (downbeatFiring || dropFiring) {
-        vertCount = this.writeBolt(ctx.t, dropFiring ? 1.4 : 0.9);
+        const intensity = dropFiring ? 1.4 : 0.9;
+        vertCount = this.writeBolt(ctx.t, intensity);
+        this.hero.pushBolt(this.boltBuffer, vertCount, ctx.t, intensity);
       }
       this.boltGeometry.setDrawRange(0, vertCount);
       this.boltGeometry.getAttribute("position").needsUpdate = true;
       this.boltMaterial.opacity = Math.max(ctx.downbeatPulse, ctx.dropImpulse * 1.3) * 0.95;
+      const rolloff = ctx.audio.rolloff;
+      const ceilY = 2.5 * rolloff;
+      const floorY = -2.5 * (1 - rolloff * 0.4);
       const pos = this.particles.geometry.getAttribute("position");
       const jitter = ctx.beatPulse * 0.04;
       for (let i = 0; i < _IntenseStormScene.PARTICLE_COUNT; i++) {
-        this.positions[i * 3 + 0] += Math.sin(ctx.t * 4 + i) * 1e-3 + (Math.random() - 0.5) * jitter * 0.05;
-        this.positions[i * 3 + 1] += Math.cos(ctx.t * 3 + i) * 1e-3 + (Math.random() - 0.5) * jitter * 0.05;
+        this.positions[i * 3 + 0] += Math.sin(ctx.t * 4 + i) * 1e-3 + (hash2(ctx.t, i) - 0.5) * jitter * 0.05;
+        let y = this.positions[i * 3 + 1] + Math.cos(ctx.t * 3 + i) * 1e-3 + (hash2(ctx.t, i + 1e3) - 0.5) * jitter * 0.05;
+        if (y > ceilY) y = ceilY;
+        else if (y < floorY) y = floorY;
+        this.positions[i * 3 + 1] = y;
       }
       pos.needsUpdate = true;
       this.onsetEmitter.update(spec2, ctx, new Color("#ff5050"));
+      const bands = ctx.audio.melBands;
+      for (let k = 0; k < 8; k++) {
+        this.onsetEmitter.spawnBandPulse(k, bands[k] ?? 0, ctx.t, ctx);
+      }
+      this.hero.update(spec2, ctx);
+      this.skyline.update(spec2, ctx);
+      this.godrays.update(spec2, ctx);
+      this.events.update(spec2, ctx);
+      this.texture.update(spec2, ctx);
+      const sp = ctx.sectionProgress;
+      const cam = cinematicCameraDeltas(ctx, {
+        sway: 1.4,
+        push: 1.2,
+        phrase: 1,
+        shake: 1.6,
+        roll: 1.3
+      });
+      this.camera.position.set(0, 0, 4 - sp * 0.15).add(cam.posDelta);
+      this.camera.lookAt(0, 0, 0);
+      this.camera.rotation.z = cam.rollZ;
+      this.camera.updateProjectionMatrix();
     }
     /// Write a jagged polyline lightning bolt into the line-segment
     /// buffer. Returns the number of vertices written (must be even).
@@ -20476,6 +27378,281 @@ void main() {
       this.boltMaterial.dispose();
       this.boltGeometry.dispose();
       this.onsetEmitter.dispose();
+      this.hero.dispose();
+      this.skyline.dispose();
+      this.godrays.dispose();
+      this.events.dispose();
+      this.texture.dispose();
+    }
+  };
+
+  // src/scenes/melancholic_water.ts
+  var MAX_BEAT_RINGS = 4;
+  var MAX_SPLASHES = 8;
+  var WATER_VERT = (
+    /* glsl */
+    `
+  uniform float uTime;
+  uniform float uFlux;
+  uniform float uHarmonicRatio;
+  uniform vec3  uBeatRings[${MAX_BEAT_RINGS}];   // (x, z, startTime)
+  uniform vec4  uSplashes[${MAX_SPLASHES}];      // (x, z, startTime, intensity)
+
+  varying vec3 vWorldPos;
+  varying vec3 vWorldNormal;
+  varying float vDisplacement;
+  varying float vCrestMask;
+
+  // Total displacement at a plane-local (x, z) coordinate. Factored so
+  // we can sample it at the vertex plus two neighbors for normal
+  // estimation via finite difference.
+  float sampleDisp(float x, float z) {
+    float disp = 0.0;
+
+    // Beat rings \u2014 propagating expanding ring with a sinusoidal wave
+    // riding the leading edge. Lifespan 3s; amplitude pushed for
+    // outstanding-tier drama.
+    for (int i = 0; i < ${MAX_BEAT_RINGS}; i++) {
+      vec3 ring = uBeatRings[i];
+      float age = uTime - ring.z;
+      if (age < 0.0 || age > 3.0) continue;
+      float r = length(vec2(x - ring.x, z - ring.y));
+      float ringR = age * 2.0;
+      float amp = 0.32 * exp(-age / 1.8);
+      disp += amp
+              * smoothstep(0.22, 0.0, abs(r - ringR))
+              * sin((r - ringR) * 25.0);
+    }
+
+    // Onset splashes \u2014 tight Gaussian bump, fast decay.
+    for (int i = 0; i < ${MAX_SPLASHES}; i++) {
+      vec4 s = uSplashes[i];
+      float age = uTime - s.z;
+      if (age < 0.0 || age > 0.8) continue;
+      float r = length(vec2(x - s.x, z - s.y));
+      float amp = 0.22 * s.w * exp(-age / 0.2);
+      disp += amp * exp(-r * r * 15.0);
+    }
+
+    // Ambient flow \u2014 perpetual gentle cross-sin motion, scaled by
+    // spectral_flux so transient-dense passages chop more. Tonal
+    // (high harmonic_ratio) passages flow more smoothly.
+    float flowAmt = mix(0.025, 0.055, uHarmonicRatio);
+    disp += sin(x * 2.0 + uTime * 0.3) * sin(z * 1.7 + uTime * 0.2)
+            * flowAmt * (0.5 + uFlux * 0.5);
+
+    // Mandatory: a few-beat collision plus drop can stack ~1u \u2014 clamp.
+    return clamp(disp, -0.5, 0.5);
+  }
+
+  void main() {
+    // Geometry was created with rotateX(-pi/2), so the vertex's local
+    // position is in plane-local (x, 0, z); we displace along +y.
+    float px = position.x;
+    float pz = position.z;
+
+    float dCenter = sampleDisp(px,        pz);
+    float dRight  = sampleDisp(px + 0.08, pz);
+    float dFwd    = sampleDisp(px,        pz + 0.08);
+
+    vec3 p = vec3(px, dCenter, pz);
+
+    // Estimate normal from neighbor displacements (finite difference).
+    // Tangents along x and z; cross product gives surface normal.
+    vec3 tx = vec3(0.08, dRight - dCenter, 0.0);
+    vec3 tz = vec3(0.0,  dFwd   - dCenter, 0.08);
+    vec3 nLocal = normalize(cross(tz, tx));
+
+    vec4 worldPos4 = modelMatrix * vec4(p, 1.0);
+    vWorldPos = worldPos4.xyz;
+    // For a plane sitting in world XZ, world normal \u2248 local normal
+    // (model has only a translation, no rotation in the host scene).
+    vWorldNormal = normalize((modelMatrix * vec4(nLocal, 0.0)).xyz);
+    vDisplacement = dCenter;
+
+    // Crest mask \u2014 bright on upward-pointing wave tops, used in the
+    // fragment shader to boost specular contribution.
+    vCrestMask = smoothstep(0.04, 0.16, dCenter);
+
+    gl_Position = projectionMatrix * viewMatrix * worldPos4;
+  }
+`
+  );
+  var WATER_FRAG = (
+    /* glsl */
+    `
+  precision highp float;
+
+  uniform vec3 uSkyColorTop;
+  uniform vec3 uSkyColorBottom;
+  uniform vec3 uSkyColorFog;
+  uniform vec3 uLightDir;
+  uniform vec3 uLightColor;
+  uniform float uTime;
+  uniform float uCentroid;
+  uniform float uChromaStrength;
+  uniform float uTension;
+
+  varying vec3 vWorldPos;
+  varying vec3 vWorldNormal;
+  varying float vDisplacement;
+  varying float vCrestMask;
+
+  // Cheap animated caustic-style pattern. Three rotating sin waves
+  // multiplied + powered yield the bright wandering "spots" that
+  // characterize underwater light through ripples \u2014 but here we apply
+  // them on top of the reflection so the surface reads as alive.
+  float caustics(vec2 p) {
+    vec2 q1 = vec2(p.x + uTime * 0.18, p.y + uTime * 0.12);
+    vec2 q2 = vec2(p.x * 1.4 - uTime * 0.10, p.y * 1.3 + uTime * 0.16);
+    float c = sin(q1.x * 4.0) * sin(q1.y * 3.5)
+            + sin(q2.x * 5.3) * sin(q2.y * 4.7) * 0.7;
+    return pow(max(0.0, c * 0.5 + 0.5), 4.0);
+  }
+
+  void main() {
+    vec3 N = normalize(vWorldNormal);
+
+    // Analytic sky reflection. A water surface mirrors what's above \u2014
+    // parallax the sky lookup by the normal so tilted facets sample a
+    // different sky band. Matches the bg shader's vertical gradient.
+    float skyT = clamp(N.y * 1.2 + 0.0, 0.0, 1.0);
+    vec3 skyCol = mix(uSkyColorBottom * 0.8, uSkyColorTop, skyT);
+    float fogAmt = 0.3 * smoothstep(-0.4, 0.6, N.x);
+    skyCol = mix(skyCol, uSkyColorFog, fogAmt);
+
+    // Lambert + specular from a single directional light. Tighter
+    // exponent (48) crisps the highlight; intensity ramps with crest
+    // mask so wave tops genuinely glitter.
+    vec3 L = normalize(uLightDir);
+    float nDotL = max(0.0, dot(N, L));
+    vec3 V = normalize(cameraPosition - vWorldPos);
+    vec3 R = reflect(-L, N);
+    float spec = pow(max(0.0, dot(V, R)), 48.0);
+
+    // Fresnel rim \u2014 grazing-angle view brightens the reflection. For a
+    // mostly-horizontal plane viewed from above-front this lifts the
+    // whole surface toward the sky color, reading as "wet."
+    float fres = pow(1.0 - max(0.0, dot(V, N)), 5.0);
+
+    vec3 col = skyCol * (0.42 + 0.58 * nDotL);
+    col = mix(col, skyCol * 1.25, fres * 0.55);
+    col += uLightColor * spec * (1.1 + 1.6 * vCrestMask);
+
+    // Foam at high crests \u2014 bright peaks read clearly even when the
+    // sky reflection is dim. Threshold tuned against the \xB10.5 disp clamp.
+    float foam = smoothstep(0.18, 0.34, vDisplacement);
+    col = mix(col, vec3(0.85, 0.88, 0.95), foam * 0.45);
+
+    // Caustic shimmer \u2014 wandering bright spots over the whole surface.
+    // Tinted with the light color so it reads as filtered sunlight
+    // through the (implied) overcast above. Modulated by chroma so it
+    // brightens when the music is tonal.
+    float caust = caustics(vWorldPos.xz * 0.6);
+    col += uLightColor * caust * (0.18 + uChromaStrength * 0.22);
+
+    // Slight warmth lift on chord-strong frames, slight darken with
+    // tension. Centroid (brightness) nudges everything brighter when
+    // the mix opens up.
+    col *= 1.0 - uTension * 0.18;
+    col += vec3(uChromaStrength * 0.05, uChromaStrength * 0.04,
+                uChromaStrength * 0.07);
+    col *= 0.85 + uCentroid * 0.30;
+
+    gl_FragColor = vec4(col, 1.0);
+  }
+`
+  );
+  var MelancholicWaterScene = class {
+    object3D;
+    mesh;
+    material;
+    beatRings;
+    // (x, z, startTime) × MAX_BEAT_RINGS
+    splashes;
+    // (x, z, startTime, intensity) × MAX_SPLASHES
+    ringWriteIdx = 0;
+    splashWriteIdx = 0;
+    prevBeatT = -1;
+    prevOnsetT = -1;
+    constructor() {
+      this.object3D = new Group();
+      const geo = new PlaneGeometry(8, 4, 96, 96);
+      geo.rotateX(-Math.PI / 2);
+      this.beatRings = new Float32Array(MAX_BEAT_RINGS * 3);
+      this.splashes = new Float32Array(MAX_SPLASHES * 4);
+      for (let i = 0; i < MAX_BEAT_RINGS; i++) {
+        this.beatRings[i * 3 + 2] = -1e3;
+      }
+      for (let i = 0; i < MAX_SPLASHES; i++) {
+        this.splashes[i * 4 + 2] = -1e3;
+      }
+      this.material = new ShaderMaterial({
+        vertexShader: WATER_VERT,
+        fragmentShader: WATER_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uFlux: { value: 0 },
+          uHarmonicRatio: { value: 0.6 },
+          uCentroid: { value: 0.4 },
+          uChromaStrength: { value: 0 },
+          uTension: { value: 0.4 },
+          uBeatRings: { value: this.beatRings },
+          uSplashes: { value: this.splashes },
+          // Match the bg shader's palette so the wave reads as the same
+          // world. Slight bias warmer on top so the reflected sky has a
+          // bit more pop than the bg fog.
+          uSkyColorTop: { value: new Color("#262d50") },
+          uSkyColorBottom: { value: new Color("#1c2236") },
+          uSkyColorFog: { value: new Color("#3f4a78") },
+          // Directional light from above-front-right.
+          uLightDir: { value: new Vector3(0.4, 1, 0.6).normalize() },
+          uLightColor: { value: new Color("#d8d5ff") }
+        },
+        transparent: false,
+        depthWrite: true
+      });
+      this.mesh = new Mesh(geo, this.material);
+      this.mesh.position.set(0, -1.2, -1);
+      this.object3D.add(this.mesh);
+    }
+    update(spec2, ctx) {
+      const u = this.material.uniforms;
+      u.uTime.value = ctx.t;
+      u.uFlux.value = ctx.audio.spectralFlux;
+      u.uHarmonicRatio.value = ctx.audio.harmonicRatio;
+      u.uCentroid.value = ctx.audio.centroid;
+      u.uChromaStrength.value = ctx.audio.chromaStrength;
+      u.uTension.value = ctx.section?.tension ?? 0.4;
+      for (const beat of spec2.beat_track) {
+        if (beat.t <= this.prevBeatT) continue;
+        if (beat.t > ctx.t) break;
+        const idx = this.ringWriteIdx;
+        this.ringWriteIdx = (this.ringWriteIdx + 1) % MAX_BEAT_RINGS;
+        const x = (hash1(beat.t) - 0.5) * 4.5;
+        const z = (hash2(beat.t, 1) - 0.5) * 1.8;
+        this.beatRings[idx * 3 + 0] = x;
+        this.beatRings[idx * 3 + 1] = z;
+        this.beatRings[idx * 3 + 2] = beat.t;
+      }
+      this.prevBeatT = ctx.t;
+      for (const onset of spec2.onset_track) {
+        if (onset.t <= this.prevOnsetT) continue;
+        if (onset.t > ctx.t) break;
+        const idx = this.splashWriteIdx;
+        this.splashWriteIdx = (this.splashWriteIdx + 1) % MAX_SPLASHES;
+        const x = (hash1(onset.t + 0.5) - 0.5) * 4.5;
+        const z = (hash2(onset.t + 0.5, 1) - 0.5) * 1.8;
+        this.splashes[idx * 4 + 0] = x;
+        this.splashes[idx * 4 + 1] = z;
+        this.splashes[idx * 4 + 2] = onset.t;
+        this.splashes[idx * 4 + 3] = onset.intensity;
+      }
+      this.prevOnsetT = ctx.t;
+    }
+    dispose() {
+      this.material.dispose();
+      this.mesh.geometry.dispose();
     }
   };
 
@@ -20487,6 +27664,65 @@ void main() {
   void main() {
     vUv = uv;
     gl_Position = vec4(position, 1.0);
+  }
+`
+  );
+  var RIBBON_VERTEX = (
+    /* glsl */
+    `
+  attribute vec3 aInstancePos;
+  attribute float aOpacity;
+
+  uniform float uRibbonW;
+  uniform float uRibbonH;
+
+  varying vec2 vUv;
+  varying float vOpacity;
+
+  void main() {
+    vec3 worldUp = vec3(0.0, 1.0, 0.0);
+    vec3 toCam = cameraPosition - aInstancePos;
+    toCam.y = 0.0;                       // lock rotation around world Y
+    vec3 camFwd = normalize(toCam);
+    vec3 camRight = normalize(cross(worldUp, camFwd));
+
+    vec3 offset = position.x * uRibbonW * camRight
+                + position.y * uRibbonH * worldUp;
+    vec4 worldPos = vec4(aInstancePos + offset, 1.0);
+
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
+    vUv = uv;
+    vOpacity = aOpacity;
+  }
+`
+  );
+  var RIBBON_FRAGMENT = (
+    /* glsl */
+    `
+  precision highp float;
+  uniform float uBeatPulse;
+  varying vec2 vUv;
+  varying float vOpacity;
+
+  void main() {
+    // Bright leading edge at the top of the ribbon, soft tail fading
+    // downward. The leading-edge highlight reads as the wet front of
+    // a falling drop catching ambient light. Beat pulse momentarily
+    // brightens the lead so rain visibly "thumps" on each beat.
+    float lead = smoothstep(0.82, 1.0, vUv.y);
+    float tail = pow(vUv.y, 1.4);
+    float a = tail * 0.45 + lead * (0.95 + uBeatPulse * 0.6);
+
+    // Horizontal taper softens the rectangle into an ellipse-ish blade
+    // so ribbons don't read as flat strips.
+    float hT = 1.0 - pow(abs(vUv.x - 0.5) * 2.0, 2.5);
+    a *= max(0.0, hT);
+
+    vec3 base = vec3(0.62, 0.68, 0.92);
+    vec3 hot  = vec3(1.05 + uBeatPulse * 0.4, 1.05, 1.20);
+    vec3 col = mix(base, hot, lead);
+
+    gl_FragColor = vec4(col, a * vOpacity);
   }
 `
   );
@@ -20532,23 +27768,28 @@ void main() {
     vec2 uv = vUv;
 
     // Vertical gradient: indigo sky on top, slate puddle below.
-    // Horizon at y=0.40 \u2014 the reflection plane sits in the lower 40%.
-    vec3 col;
-    if (uv.y > 0.40) {
-      float t = (uv.y - 0.40) / 0.60;
-      col = mix(uColorTop * 0.95, uColorTop, t);
+    // Horizon was a hard step at y=0.40 \u2014 visible seam. Now a smoothstep
+    // band 0.32\u21920.48 mixes between the two computed branches. The W3
+    // wave plane (Milestone D) will replace the puddle region wholesale.
+    vec3 skyCol;
+    {
+      float t = max(0.0, (uv.y - 0.40) / 0.60);
+      skyCol = mix(uColorTop * 0.95, uColorTop, t);
       // Bouba/Kiki on fog: high harmonic_ratio (sustained, tonal) \u2192
       // smoother, slower fog drift; low \u2192 more granular fog.
       float fogFreq = mix(4.0, 2.4, uHarmonicRatio);
       float fog = noise(vec2(uv.x * fogFreq + uTime * 0.04, uv.y * 2.0)) * 0.20;
-      col = mix(col, uColorFog, fog);
-    } else {
+      skyCol = mix(skyCol, uColorFog, fog);
+    }
+
+    vec3 puddleCol;
+    {
       // Reflection: vertically mirror the upper sky's brightness, smeared.
       float mirrorY = 0.80 - uv.y; // upper-half coordinate
       vec2 dripUV = vec2(uv.x + sin(uTime * 0.4 + uv.y * 18.0) * 0.01,
                          mirrorY);
       float mirrorN = noise(vec2(dripUV.x * 3.0, dripUV.y * 2.0));
-      col = mix(uColorBottom, uColorTop * 0.4, mirrorN * 0.7);
+      puddleCol = mix(uColorBottom, uColorTop * 0.4, mirrorN * 0.7);
       // Beat ripple in the puddle \u2014 gentle, not punchy.
       float ringR = uBeat * 0.40;
       float ringW = 0.05;
@@ -20556,8 +27797,11 @@ void main() {
       float r = length(uv - c);
       float ring = smoothstep(ringR + ringW, ringR, r)
                  - smoothstep(ringR, max(ringR - ringW, 0.0), r);
-      col += vec3(ring * uBeat * 0.18);
+      puddleCol += vec3(ring * uBeat * 0.18);
     }
+
+    float horizon = smoothstep(0.32, 0.48, uv.y);
+    vec3 col = mix(puddleCol, skyCol, horizon);
 
     // Drop is *softened* for this biome \u2014 20% strength.
     col += vec3(uDrop * 0.08);
@@ -20600,10 +27844,21 @@ void main() {
     bgMaterial;
     rainPositions;
     rainSpeeds;
-    rainParticles;
+    rainOpacities;
+    rainGeometry;
+    rainMesh;
     rainMaterial;
     onsetEmitter;
-    static RAIN_COUNT = 800;
+    water;
+    skyline;
+    godrays;
+    events;
+    texture;
+    // Pool capacity. Live count is computed per-frame as
+    // 400 + round(buildIntensity * 1200) and applied via setDrawRange so
+    // climaxes show ~4× rain density without paying for it during calm
+    // passages.
+    static RAIN_POOL = 1600;
     constructor() {
       this.object3D = new Scene();
       this.camera = new PerspectiveCamera(50, 16 / 9, 0.1, 100);
@@ -20638,36 +27893,94 @@ void main() {
       bg.frustumCulled = false;
       bg.renderOrder = -10;
       this.object3D.add(bg);
-      const N = _MelancholicRainScene.RAIN_COUNT;
+      const N = _MelancholicRainScene.RAIN_POOL;
       this.rainPositions = new Float32Array(N * 3);
       this.rainSpeeds = new Float32Array(N);
+      this.rainOpacities = new Float32Array(N);
       for (let i = 0; i < N; i++) {
-        this.rainPositions[i * 3 + 0] = (Math.random() - 0.5) * 9;
-        this.rainPositions[i * 3 + 1] = Math.random() * 5 - 1;
-        this.rainPositions[i * 3 + 2] = -Math.random() * 3.5;
-        this.rainSpeeds[i] = 1.8 + Math.random() * 1.2;
+        this.rainPositions[i * 3 + 0] = (hash1(i + 1) - 0.5) * 9;
+        this.rainPositions[i * 3 + 1] = hash2(i, 1) * 5 - 1;
+        this.rainPositions[i * 3 + 2] = -hash2(i, 2) * 3.5;
+        this.rainSpeeds[i] = 1.8 + hash2(i, 3) * 1.2;
+        this.rainOpacities[i] = 0.6 + hash2(i, 4) * 0.3;
       }
-      const geo = new BufferGeometry();
-      geo.setAttribute("position", new BufferAttribute(this.rainPositions, 3));
-      this.rainMaterial = new PointsMaterial({
-        // Rain itself sits brighter than the background atmosphere so
-        // V&M's predicted brightness still reads despite the dim sky.
-        color: new Color("#a4b0d0"),
-        size: 0.018,
-        sizeAttenuation: true,
+      this.rainGeometry = new InstancedBufferGeometry();
+      const quadPos = new Float32Array([
+        -0.5,
+        -0.5,
+        0,
+        0.5,
+        -0.5,
+        0,
+        0.5,
+        0.5,
+        0,
+        -0.5,
+        0.5,
+        0
+      ]);
+      const quadUv = new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]);
+      const quadIdx = new Uint16Array([0, 1, 2, 0, 2, 3]);
+      this.rainGeometry.setAttribute("position", new BufferAttribute(quadPos, 3));
+      this.rainGeometry.setAttribute("uv", new BufferAttribute(quadUv, 2));
+      this.rainGeometry.setIndex(new BufferAttribute(quadIdx, 1));
+      this.rainGeometry.setAttribute(
+        "aInstancePos",
+        new InstancedBufferAttribute(this.rainPositions, 3)
+      );
+      this.rainGeometry.setAttribute(
+        "aOpacity",
+        new InstancedBufferAttribute(this.rainOpacities, 1)
+      );
+      this.rainGeometry.instanceCount = 400;
+      this.rainMaterial = new ShaderMaterial({
+        vertexShader: RIBBON_VERTEX,
+        fragmentShader: RIBBON_FRAGMENT,
+        uniforms: {
+          uRibbonW: { value: 0.02 },
+          uRibbonH: { value: 0.08 },
+          uBeatPulse: { value: 0 }
+        },
         transparent: true,
-        opacity: 0.55,
         blending: NormalBlending,
         depthWrite: false
       });
-      this.rainParticles = new Points(geo, this.rainMaterial);
-      this.object3D.add(this.rainParticles);
+      this.rainMesh = new Mesh(this.rainGeometry, this.rainMaterial);
+      this.rainMesh.frustumCulled = false;
+      this.object3D.add(this.rainMesh);
       this.onsetEmitter = new OnsetParticleEmitter({
         baseColor: new Color("#b4b8d8"),
         maxSize: 14,
         poolSize: 160
       });
       this.object3D.add(this.onsetEmitter.object3D);
+      this.water = new MelancholicWaterScene();
+      this.object3D.add(this.water.object3D);
+      this.skyline = new Skyline({
+        buildingColor: new Color("#1a1d2c"),
+        windowColor: new Color("#f5c878"),
+        flickerColor: new Color("#fff0d8"),
+        hazeTint: new Color("#000008"),
+        shape: "urban"
+      });
+      this.object3D.add(this.skyline.object3D);
+      this.godrays = new GodRays({
+        shaftColor: new Color("#c8cce6"),
+        warmTint: new Color("#f0deb4"),
+        sunPos: new Vector2(0.72, 1.1)
+      });
+      this.object3D.add(this.godrays.object3D);
+      this.events = new EventLayer({
+        shockColor: new Color("#9aabe0"),
+        strobeColor: new Color("#d0d4f0"),
+        burstColor: new Color("#a8b8e8"),
+        shockSpread: 0.75
+      });
+      this.object3D.add(this.events.object3D);
+      this.texture = new TextureOverlay({
+        tintColor: new Color("#b0b8e0")
+      });
+      this.object3D.add(this.texture.object3D);
     }
     render(spec2, ctx) {
       const u = this.bgMaterial.uniforms;
@@ -20685,28 +27998,56 @@ void main() {
       u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
       u.uHueDistance.value = ctx.section?.hue_distance ?? 0.3;
       u.uPhrasePulse.value = ctx.phrasePulse;
-      const pos = this.rainParticles.geometry.getAttribute("position");
+      const rolloff = ctx.audio.rolloff;
+      const spawnCeil = 1.5 + rolloff * 1.5;
+      const liveCount = Math.min(
+        _MelancholicRainScene.RAIN_POOL,
+        400 + Math.round(ctx.buildIntensity * 1200)
+      );
+      const vScale = 1 + ctx.audio.spectralFlux * 0.6 + ctx.audio.onsetStrengthEnv * 0.8;
+      const aspect2 = 3 + rolloff * 4;
+      this.rainMaterial.uniforms.uRibbonW.value = 0.02;
+      this.rainMaterial.uniforms.uRibbonH.value = 0.02 * aspect2;
+      this.rainMaterial.uniforms.uBeatPulse.value = ctx.beatPulse;
+      const posAttr = this.rainGeometry.getAttribute("aInstancePos");
       const dt = 1 / 60;
-      for (let i = 0; i < _MelancholicRainScene.RAIN_COUNT; i++) {
+      for (let i = 0; i < liveCount; i++) {
         const ix = i * 3;
-        this.rainPositions[ix + 1] -= this.rainSpeeds[i] * dt;
+        this.rainPositions[ix + 1] -= this.rainSpeeds[i] * vScale * dt;
         if (this.rainPositions[ix + 1] < -2.5) {
-          this.rainPositions[ix + 1] = 3 + Math.random() * 0.5;
-          this.rainPositions[ix + 0] = (Math.random() - 0.5) * 9;
+          this.rainPositions[ix + 1] = spawnCeil + hash2(ctx.t, i) * 0.5;
+          this.rainPositions[ix + 0] = (hash2(ctx.t, i + 1e3) - 0.5) * 9;
         }
       }
-      pos.needsUpdate = true;
+      this.rainGeometry.instanceCount = liveCount;
+      posAttr.needsUpdate = true;
       const sp = ctx.sectionProgress;
-      this.camera.position.y = -sp * 0.4;
-      this.camera.lookAt(0, this.camera.position.y, 0);
+      const cam = cinematicCameraDeltas(ctx);
+      this.camera.position.set(0, -sp * 0.4, 4).add(cam.posDelta);
+      this.camera.lookAt(0, this.camera.position.y * 0.5, 0);
+      this.camera.rotation.z = cam.rollZ;
       this.camera.updateProjectionMatrix();
       this.onsetEmitter.update(spec2, ctx);
+      const bands = ctx.audio.melBands;
+      for (let k = 0; k < 8; k++) {
+        this.onsetEmitter.spawnBandPulse(k, bands[k] ?? 0, ctx.t, ctx);
+      }
+      this.water.update(spec2, ctx);
+      this.skyline.update(spec2, ctx);
+      this.godrays.update(spec2, ctx);
+      this.events.update(spec2, ctx);
+      this.texture.update(spec2, ctx);
     }
     dispose() {
       this.bgMaterial.dispose();
       this.rainMaterial.dispose();
-      this.rainParticles.geometry.dispose();
+      this.rainGeometry.dispose();
       this.onsetEmitter.dispose();
+      this.water.dispose();
+      this.skyline.dispose();
+      this.godrays.dispose();
+      this.events.dispose();
+      this.texture.dispose();
     }
   };
 
@@ -20737,6 +28078,59 @@ void main() {
   });
   renderer.setSize(WIDTH, HEIGHT, false);
   renderer.setClearColor(0, 1);
+  renderer.toneMapping = NoToneMapping;
+  var composer = new EffectComposer(renderer, {
+    frameBufferType: HalfFloatType,
+    multisampling: 0
+  });
+  var renderPass = null;
+  var postPassA = null;
+  var postPassB = null;
+  var BIOME_BLOOM_INTENSITY = {
+    euphoric_bloom: 1.4,
+    serene_dawn: 0.9,
+    intense_storm: 1.2,
+    melancholic_rain: 0.7
+  };
+  var bloomEffect = new BloomEffect({
+    luminanceThreshold: 0.8,
+    luminanceSmoothing: 0.1,
+    intensity: 1,
+    kernelSize: KernelSize.LARGE,
+    mipmapBlur: true
+  });
+  var chromaticAberrationEffect = new ChromaticAberrationEffect({
+    offset: new Vector2(8e-4, 0),
+    radialModulation: false,
+    modulationOffset: 0
+  });
+  var toneMappingEffect = new ToneMappingEffect({
+    mode: ToneMappingMode.ACES_FILMIC
+  });
+  var hueSaturationEffect = new HueSaturationEffect({
+    hue: 0,
+    saturation: 0.1
+  });
+  var brightnessContrastEffect = new BrightnessContrastEffect({
+    brightness: 0,
+    contrast: 0.1
+  });
+  var vignetteEffect = new VignetteEffect({
+    technique: VignetteTechnique.DEFAULT,
+    offset: 0.3,
+    darkness: 0.4
+  });
+  var noiseEffect = new NoiseEffect({
+    blendFunction: BlendFunction.OVERLAY,
+    premultiply: false
+  });
+  noiseEffect.blendMode.opacity.value = 0.05;
+  var BIOME_GRADE = {
+    euphoric_bloom: { hue: 0.04, sat: 0.2, bri: 0.02, con: 0.1 },
+    serene_dawn: { hue: -0.02, sat: 0.06, bri: 0, con: 0.06 },
+    intense_storm: { hue: 0, sat: 0.15, bri: -0.04, con: 0.2 },
+    melancholic_rain: { hue: -0.06, sat: -0.05, bri: -0.06, con: 0.08 }
+  };
   var spec = null;
   var currentScene = null;
   var currentSceneName = null;
@@ -20747,6 +28141,34 @@ void main() {
       currentScene?.dispose();
       currentScene = makeScene(sceneName);
       currentSceneName = sceneName;
+      if (renderPass === null) {
+        renderPass = new RenderPass(currentScene.object3D, currentScene.camera);
+        composer.addPass(renderPass);
+        postPassA = new EffectPass(currentScene.camera, bloomEffect, chromaticAberrationEffect);
+        composer.addPass(postPassA);
+        postPassB = new EffectPass(
+          currentScene.camera,
+          toneMappingEffect,
+          hueSaturationEffect,
+          brightnessContrastEffect,
+          vignetteEffect,
+          noiseEffect
+        );
+        composer.addPass(postPassB);
+      } else {
+        renderPass.mainScene = currentScene.object3D;
+        renderPass.mainCamera = currentScene.camera;
+        if (postPassA) postPassA.mainCamera = currentScene.camera;
+        if (postPassB) postPassB.mainCamera = currentScene.camera;
+      }
+      bloomEffect.intensity = BIOME_BLOOM_INTENSITY[sceneName] ?? 1;
+      const grade = BIOME_GRADE[sceneName];
+      if (grade) {
+        hueSaturationEffect.hue = grade.hue;
+        hueSaturationEffect.saturation = grade.sat;
+        brightnessContrastEffect.brightness = grade.bri;
+        brightnessContrastEffect.contrast = grade.con;
+      }
     }
     return currentScene;
   }
@@ -20809,6 +28231,7 @@ void main() {
     }
     return null;
   }
+  var ZERO_BANDS = [0, 0, 0, 0, 0, 0, 0, 0];
   function audioFrameAt(spec2, t) {
     const ft = spec2.frames_track;
     const fallback = {
@@ -20819,26 +28242,56 @@ void main() {
       zcr: 0.3,
       spectralContrast: 0.5,
       pitchHeight: 0,
-      pitchClass: -1
+      pitchClass: -1,
+      chromaCenterX: 0,
+      chromaCenterY: 0,
+      melBands: ZERO_BANDS,
+      pitchDirection: 0,
+      rms: 0,
+      mfccWarm: 0,
+      spectralFlux: 0,
+      onsetStrengthEnv: 0
     };
     if (!ft || ft.count === 0) return fallback;
     const idxF = Math.max(0, Math.min(ft.count - 1, t / Math.max(1e-6, ft.interval)));
     const i0 = Math.floor(idxF);
     const i1 = Math.min(ft.count - 1, i0 + 1);
     const u = idxF - i0;
-    const lerp2 = (arr, a, b) => (arr[a] ?? 0) + ((arr[b] ?? arr[a] ?? 0) - (arr[a] ?? 0)) * u;
+    const lerp3 = (arr, a, b) => (arr[a] ?? 0) + ((arr[b] ?? arr[a] ?? 0) - (arr[a] ?? 0)) * u;
+    const lerpOpt = (arr, def) => arr && arr.length > 0 ? (arr[i0] ?? def) + ((arr[i1] ?? arr[i0] ?? def) - (arr[i0] ?? def)) * u : def;
     const pcArr = ft.pitch_class || [];
     const pc = (u < 0.5 ? pcArr[i0] : pcArr[i1]) ?? -1;
     const pitchHeight = pc >= 0 ? pc / 11 * 2 - 1 : 0;
+    let melBands = ZERO_BANDS;
+    const mb = ft.mel_bands;
+    if (mb && mb.length > 0) {
+      const row0 = mb[i0] || ZERO_BANDS;
+      const row1 = mb[i1] || row0;
+      const out = new Array(8);
+      for (let k = 0; k < 8; k++) {
+        const a = row0[k] ?? 0;
+        const b = row1[k] ?? a;
+        out[k] = a + (b - a) * u;
+      }
+      melBands = out;
+    }
     return {
-      centroid: lerp2(ft.centroid_norm, i0, i1),
-      harmonicRatio: lerp2(ft.harmonic_ratio, i0, i1),
-      chromaStrength: lerp2(ft.chroma_strength, i0, i1),
-      rolloff: lerp2(ft.rolloff, i0, i1),
-      zcr: lerp2(ft.zcr, i0, i1),
-      spectralContrast: lerp2(ft.spectral_contrast, i0, i1),
+      centroid: lerp3(ft.centroid_norm, i0, i1),
+      harmonicRatio: lerp3(ft.harmonic_ratio, i0, i1),
+      chromaStrength: lerp3(ft.chroma_strength, i0, i1),
+      rolloff: lerp3(ft.rolloff, i0, i1),
+      zcr: lerp3(ft.zcr, i0, i1),
+      spectralContrast: lerp3(ft.spectral_contrast, i0, i1),
       pitchHeight,
-      pitchClass: pc
+      pitchClass: pc,
+      chromaCenterX: lerpOpt(ft.chroma_center_x, 0),
+      chromaCenterY: lerpOpt(ft.chroma_center_y, 0),
+      melBands,
+      pitchDirection: lerpOpt(ft.pitch_direction, 0),
+      rms: lerpOpt(ft.rms, 0),
+      mfccWarm: lerpOpt(ft.mfcc_warm, 0),
+      spectralFlux: lerpOpt(ft.spectral_flux, 0),
+      onsetStrengthEnv: lerpOpt(ft.onset_strength_env, 0)
     };
   }
   var BEAT_HALF_LIFE = 0.15;
@@ -20865,6 +28318,44 @@ void main() {
     const dt = t - last;
     if (dt < 0 || dt > DROP_DURATION) return 0;
     return Math.exp(-Math.pow((dt - 0.45) / 0.3, 2));
+  }
+  var _buildIntensity = 0;
+  var _buildLastT = 0;
+  var BUILD_SMOOTH_TAU = 0.3;
+  var BUILD_DROP_RELEASE = 1;
+  function buildIntensityAt(spec2, t, section, sectionProgress) {
+    let target = 0;
+    if (section) {
+      const ep = (section.energy_profile || "").toLowerCase();
+      const lbl = (section.label || "").toLowerCase();
+      if (ep === "ascending" || /build|riser|buildup|pre[\-_ ]?drop/.test(lbl)) {
+        target = Math.pow(sectionProgress, 1.6);
+      } else if (ep === "peak" || /climax|drop|chorus[_ ]?peak/.test(lbl)) {
+        target = 0.92 + Math.sin(t * 2 * Math.PI * 0.4) * 0.06;
+      } else if (ep === "descending" || /outro|fade|tail/.test(lbl)) {
+        target = Math.max(0, 1 - sectionProgress);
+      } else {
+        target = 0.2;
+      }
+    }
+    let dropAge = null;
+    for (const dr of spec2.drop_triggers) {
+      if (dr.t > t) break;
+      const age = t - dr.t;
+      if (age >= 0 && age <= BUILD_DROP_RELEASE) {
+        dropAge = age;
+      }
+    }
+    if (dropAge !== null) {
+      const u = dropAge / BUILD_DROP_RELEASE;
+      const ease = 1 - Math.pow(1 - u, 3);
+      target *= 1 - ease;
+    }
+    const dt = Math.max(1e-3, t - _buildLastT);
+    _buildLastT = t;
+    const alpha = Math.min(1, dt / BUILD_SMOOTH_TAU);
+    _buildIntensity += (target - _buildIntensity) * alpha;
+    return Math.max(0, Math.min(1, _buildIntensity));
   }
   function buildContext(spec2, t) {
     const section = sectionAt(spec2, t);
@@ -20895,7 +28386,8 @@ void main() {
       beatPulse: pulseFromMostRecent(spec2.beat_track, t, BEAT_HALF_LIFE),
       downbeatPulse: pulseFromMostRecent(downbeats, t, BEAT_HALF_LIFE),
       onsetPulse: pulseFromMostRecent(spec2.onset_track, t, ONSET_HALF_LIFE),
-      dropImpulse: dropImpulseAt(spec2, t)
+      dropImpulse: dropImpulseAt(spec2, t),
+      buildIntensity: buildIntensityAt(spec2, t, section, sectionProgress)
     };
   }
   function applyCamera(scene, ctx) {
@@ -20944,7 +28436,52 @@ void main() {
     const ctx = buildContext(spec, t);
     applyCamera(scene, ctx);
     scene.render(spec, ctx);
-    renderer.render(scene.object3D, scene.camera);
+    const hueDistance = ctx.section?.hue_distance ?? 0.3;
+    const tension = ctx.section?.tension ?? 0.4;
+    const rms = ctx.audio.rms;
+    const build = ctx.buildIntensity;
+    const sceneName = currentSceneName ?? "serene_dawn";
+    const baseBloom = BIOME_BLOOM_INTENSITY[sceneName] ?? 1;
+    const grade = BIOME_GRADE[sceneName];
+    bloomEffect.intensity = baseBloom * (1 + rms * 2.2) * (1 + build * 1.6);
+    const caOffset = 6e-4 + hueDistance * 0.018 * (1 + build * 0.5);
+    chromaticAberrationEffect.offset.set(caOffset, 0);
+    vignetteEffect.darkness = 0.3 + tension * 0.4 + build * 0.35;
+    vignetteEffect.offset = 0.3 - build * 0.05;
+    noiseEffect.blendMode.opacity.value = (0.04 + ctx.audio.zcr * 0.16) * (1 - rms * 0.5);
+    const drop = ctx.dropImpulse;
+    if (drop > 0) {
+      bloomEffect.intensity *= 1 + drop * 2.5;
+      vignetteEffect.darkness += drop * 0.25;
+      chromaticAberrationEffect.offset.set(caOffset * (1 + drop * 2.5), 0);
+      noiseEffect.blendMode.opacity.value *= 1 + drop * 1;
+    }
+    brightnessContrastEffect.contrast = (grade?.con ?? 0) + build * 0.12 + drop * 0.2;
+    const phr = ctx.phrasePulse;
+    if (phr > 0.05) {
+      bloomEffect.intensity *= 1 + phr * 0.3;
+      hueSaturationEffect.saturation += phr * 0.28;
+    }
+    if (ctx.section) {
+      const sectAge = ctx.t - ctx.section.start;
+      if (sectAge >= 0 && sectAge < 1.5) {
+        const w = 1 - sectAge / 1.5;
+        bloomEffect.intensity *= 1 + w * 0.25;
+        hueSaturationEffect.saturation += w * 0.08;
+      }
+    }
+    const chromaAngle = Math.atan2(ctx.audio.chromaCenterY, ctx.audio.chromaCenterX);
+    const chromaStrength = Math.hypot(ctx.audio.chromaCenterX, ctx.audio.chromaCenterY);
+    const chromaHueShift = chromaAngle / Math.PI * 0.175 * Math.min(1, chromaStrength * 2);
+    const mfccHueShift = ctx.audio.mfccWarm * 0.14;
+    hueSaturationEffect.hue = (grade?.hue ?? 0) + chromaHueShift + mfccHueShift;
+    hueSaturationEffect.saturation = (grade?.sat ?? 0.1) + chromaStrength * 0.15;
+    const cam = scene.camera;
+    if (cam.isPerspectiveCamera) {
+      cam.fov = 50 - rms * 7 - build * 7;
+      cam.updateProjectionMatrix();
+    }
+    composer.render();
   };
   window.__ready = true;
 })();
@@ -20955,5 +28492,13 @@ three/build/three.module.js:
    * @license
    * Copyright 2010-2024 Three.js Authors
    * SPDX-License-Identifier: MIT
+   *)
+
+postprocessing/build/index.js:
+  (**
+   * postprocessing v6.36.7 build Thu Feb 06 2025
+   * https://github.com/pmndrs/postprocessing
+   * Copyright 2015-2025 Raoul van Rüschen
+   * @license Zlib
    *)
 */

@@ -18,6 +18,13 @@
 // material settings.)
 import * as THREE from "three";
 import { OnsetParticleEmitter } from "./onset_emitter.js";
+import { hash1, hash2 } from "./lib/deterministic_hash.js";
+import { IntenseLightningScene } from "./intense_lightning.js";
+import { Skyline } from "./effects/skyline.js";
+import { GodRays } from "./effects/godrays.js";
+import { EventLayer } from "./effects/event_layer.js";
+import { cinematicCameraDeltas } from "./lib/cinematic_camera.js";
+import { TextureOverlay } from "./effects/texture_overlay.js";
 const BG_VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -79,7 +86,14 @@ const BG_FRAGMENT = /* glsl */ `
     // higher-freq turbulence (more chaotic); high → broader, slower.
     float cloudFreqX = mix(3.5, 2.0, uHarmonicRatio);
     vec2 p = uv * vec2(cloudFreqX, cloudFreqX * 0.65) + vec2(uTime * 0.10, uTime * 0.04);
-    float cloud = fbm(p);
+    // Domain warp: turbulent flow rather than static fbm cloud.
+    // The warp itself drifts with time so the perturbation isn't
+    // frozen — reads as wind pushing the cloud, not noise stamped on it.
+    vec2 warp = vec2(
+      fbm(p + vec2(4.1, 1.3) + uTime * 0.06),
+      fbm(p + vec2(2.7, 5.9) - uTime * 0.04)
+    ) * 0.40;
+    float cloud = fbm(p + warp);
     // Pow sharpening also modulated — high HR keeps cloud softer.
     float cloudPow = mix(2.1, 1.4, uHarmonicRatio);
     cloud = pow(cloud, cloudPow);
@@ -109,14 +123,10 @@ const BG_FRAGMENT = /* glsl */ `
     // Bright timbre lifts the electric-blue contrast singleton.
     col.b += uCentroid * 0.12 * smoothstep(0.40, 0.10, cloud);
 
-    // ZCR (sibilance / noise density) drives a grain layer — high-noise
-    // passages get visibly grittier.
-    float grain = (hash(uv * 800.0 + uTime * 60.0) - 0.5) * 0.18;
-    col += vec3(grain * uZCR);
-
-    // Vignette — Intense should feel claustrophobic.
+    // (Inline ZCR grain and frame-edge vignette removed — NoiseEffect
+    // and VignetteEffect post-passes replace them and respect tonemap
+    // ordering. ZCR still drives the post-grain opacity per frame.)
     float r = length(d) * 1.4;
-    col *= smoothstep(1.5, 0.20, r);
 
     float chromaSat = mix(0.85, 1.10, uChromaStrength);
     col = desaturate(col, uSaturation * chromaSat);
@@ -124,17 +134,9 @@ const BG_FRAGMENT = /* glsl */ `
     col.r *= 1.0 + uModeWarm * 0.04;
     col.b *= 1.0 - uModeWarm * 0.04;
 
-    // hue_distance: at high tension, RGB-split the cloud field for
-    // a chromatic-aberration "pressure" feel. Intense biome leans
-    // into this rather than away from it.
-    if (uHueDistance > 0.40) {
-      float split = (uHueDistance - 0.40) * 1.2;
-      vec2 splitOff = vec2(split * 0.008, 0);
-      vec3 colR = mix(uColorBlack, uColorRed, fbm(p + splitOff));
-      vec3 colB = mix(uColorBlack, uColorBlue, fbm(p - splitOff));
-      col.r = mix(col.r, colR.r, 0.4);
-      col.b = mix(col.b, colB.b, 0.4);
-    }
+    // (Inline hue_distance cloud channel-split removed — the
+    // ChromaticAberration post-pass replaces it. Intense's CA
+    // intensity is already biased high by the per-frame mutator.)
 
     // Phrase pulse: brief reverse-vignette flash at frame edges so
     // structural moments register as a "frame closing in."
@@ -161,6 +163,11 @@ export class IntenseStormScene {
     static MAX_BOLT_VERTS = 256;
     prevDownbeat = 0;
     prevDrop = 0;
+    hero;
+    skyline;
+    godrays;
+    events;
+    texture;
     constructor() {
         this.object3D = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.1, 100);
@@ -198,9 +205,9 @@ export class IntenseStormScene {
         const N = IntenseStormScene.PARTICLE_COUNT;
         this.positions = new Float32Array(N * 3);
         for (let i = 0; i < N; i++) {
-            this.positions[i * 3 + 0] = (Math.random() - 0.5) * 7;
-            this.positions[i * 3 + 1] = (Math.random() - 0.5) * 5;
-            this.positions[i * 3 + 2] = -Math.random() * 3.0;
+            this.positions[i * 3 + 0] = (hash1(i + 1) - 0.5) * 7;
+            this.positions[i * 3 + 1] = (hash2(i, 1) - 0.5) * 5;
+            this.positions[i * 3 + 2] = -hash2(i, 2) * 3.0;
         }
         const pgeo = new THREE.BufferGeometry();
         pgeo.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
@@ -236,6 +243,44 @@ export class IntenseStormScene {
             poolSize: 192,
         });
         this.object3D.add(this.onsetEmitter.object3D);
+        // Intense hero stack: dark turbulent storm wall + persistent
+        // lightning afterglow (each bolt leaves a fading trace 1.4 s).
+        this.hero = new IntenseLightningScene();
+        this.object3D.add(this.hero.object3D);
+        // Crags silhouette skyline — jagged stormwall in the lower frame.
+        this.skyline = new Skyline({
+            buildingColor: new THREE.Color("#0a1020"),
+            windowColor: new THREE.Color("#a0c8ff"),
+            flickerColor: new THREE.Color("#e8f0ff"),
+            hazeTint: new THREE.Color("#040814"),
+            shape: "crags",
+            enableFlicker: true,
+            windowReactivity: 0.5,
+            farY: -0.5,
+            nearY: -1.2,
+        });
+        this.object3D.add(this.skyline.object3D);
+        // Cold electric god-rays from above-center.
+        this.godrays = new GodRays({
+            shaftColor: new THREE.Color("#a8d4ff"),
+            warmTint: new THREE.Color("#e0ecff"),
+            sunPos: new THREE.Vector2(0.50, 1.05),
+            intensityBase: 0.12,
+            intensityScale: 1.1,
+        });
+        this.object3D.add(this.godrays.object3D);
+        // Event layer — cool electric tint, sharper shockwave.
+        this.events = new EventLayer({
+            shockColor: new THREE.Color("#c8e0ff"),
+            strobeColor: new THREE.Color("#ffffff"),
+            burstColor: new THREE.Color("#8ab8ff"),
+            shockSpread: 1.4, // fastest in any biome — storm drops slam
+        });
+        this.object3D.add(this.events.object3D);
+        this.texture = new TextureOverlay({
+            tintColor: new THREE.Color("#b8d0ff"),
+        });
+        this.object3D.add(this.texture.object3D);
     }
     render(spec, ctx) {
         const u = this.bgMaterial.uniforms;
@@ -264,7 +309,12 @@ export class IntenseStormScene {
         this.prevDrop = ctx.dropImpulse;
         let vertCount = 0;
         if (downbeatFiring || dropFiring) {
-            vertCount = this.writeBolt(ctx.t, dropFiring ? 1.4 : 0.9);
+            const intensity = dropFiring ? 1.4 : 0.9;
+            vertCount = this.writeBolt(ctx.t, intensity);
+            // Push the same bolt geometry into the persistent afterglow ring
+            // buffer — the visible bolt vanishes in ~150 ms but the afterglow
+            // lingers ~1.4 s, leaving a fading trail in the storm wall.
+            this.hero.pushBolt(this.boltBuffer, vertCount, ctx.t, intensity);
         }
         this.boltGeometry.setDrawRange(0, vertCount);
         this.boltGeometry.getAttribute("position").needsUpdate = true;
@@ -272,16 +322,52 @@ export class IntenseStormScene {
             Math.max(ctx.downbeatPulse, ctx.dropImpulse * 1.3) * 0.95;
         // Particles drift slightly with subtle jitter on beats — Intense
         // wants edges to feel agitated, not floating-calm.
+        // Rolloff clamps the vertical range: high-rolloff (sibilant/treble-
+        // heavy) passages let shards reach the upper frame; low-rolloff
+        // squeezes them into the lower 2/3, reinforcing the claustrophobic
+        // pressure of the biome on dark mixes.
+        const rolloff = ctx.audio.rolloff;
+        const ceilY = 2.5 * rolloff;
+        const floorY = -2.5 * (1.0 - rolloff * 0.4);
         const pos = this.particles.geometry.getAttribute("position");
         const jitter = ctx.beatPulse * 0.04;
         for (let i = 0; i < IntenseStormScene.PARTICLE_COUNT; i++) {
-            this.positions[i * 3 + 0] += (Math.sin(ctx.t * 4 + i) * 0.001) + (Math.random() - 0.5) * jitter * 0.05;
-            this.positions[i * 3 + 1] += (Math.cos(ctx.t * 3 + i) * 0.001) + (Math.random() - 0.5) * jitter * 0.05;
+            this.positions[i * 3 + 0] += (Math.sin(ctx.t * 4 + i) * 0.001) + (hash2(ctx.t, i) - 0.5) * jitter * 0.05;
+            let y = this.positions[i * 3 + 1] + (Math.cos(ctx.t * 3 + i) * 0.001) + (hash2(ctx.t, i + 1000) - 0.5) * jitter * 0.05;
+            if (y > ceilY)
+                y = ceilY;
+            else if (y < floorY)
+                y = floorY;
+            this.positions[i * 3 + 1] = y;
         }
         pos.needsUpdate = true;
         // Per-onset shards — tinted toward red on tonal hits for the
         // signature complementary contrast against the pale-blue base.
         this.onsetEmitter.update(spec, ctx, new THREE.Color("#ff5050"));
+        const bands = ctx.audio.melBands;
+        for (let k = 0; k < 8; k++) {
+            this.onsetEmitter.spawnBandPulse(k, bands[k] ?? 0, ctx.t, ctx);
+        }
+        // Hero updates: storm wall + lightning afterglow ring buffer.
+        this.hero.update(spec, ctx);
+        this.skyline.update(spec, ctx);
+        this.godrays.update(spec, ctx);
+        this.events.update(spec, ctx);
+        this.texture.update(spec, ctx);
+        // Cinematic camera — Intense gets the loudest moves: strong shake,
+        // strong sway, exaggerated push-in on drops.
+        const sp = ctx.sectionProgress;
+        const cam = cinematicCameraDeltas(ctx, {
+            sway: 1.4,
+            push: 1.2,
+            phrase: 1.0,
+            shake: 1.6,
+            roll: 1.3,
+        });
+        this.camera.position.set(0, 0, 4 - sp * 0.15).add(cam.posDelta);
+        this.camera.lookAt(0, 0, 0);
+        this.camera.rotation.z = cam.rollZ;
+        this.camera.updateProjectionMatrix();
     }
     /// Write a jagged polyline lightning bolt into the line-segment
     /// buffer. Returns the number of vertices written (must be even).
@@ -324,6 +410,11 @@ export class IntenseStormScene {
         this.boltMaterial.dispose();
         this.boltGeometry.dispose();
         this.onsetEmitter.dispose();
+        this.hero.dispose();
+        this.skyline.dispose();
+        this.godrays.dispose();
+        this.events.dispose();
+        this.texture.dispose();
     }
 }
 //# sourceMappingURL=intense_storm.js.map

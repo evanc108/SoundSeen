@@ -2,9 +2,9 @@
 // soundseen-backend/pipeline/composition.py. Keep in sync; bump
 // SPEC_VERSION on both sides whenever the layout changes.
 //
-// Currently in sync with backend SPEC_VERSION = 3.
+// Currently in sync with backend SPEC_VERSION = 5.
 
-export const SPEC_VERSION = 3;
+export const SPEC_VERSION = 5;
 
 export type BiomeName = "euphoric" | "serene" | "intense" | "melancholic";
 export type SceneName =
@@ -130,7 +130,7 @@ export interface FramesTrack {
   /// 0..1 — tonality confidence. Itoh 2017 — saturation lock-in
   /// factor (high = vivid, low = washed).
   chroma_strength: number[];
-  /// 0..1 — high-frequency cutoff. Sky-ceiling proxy.
+  /// 0..1 — high-frequency cutoff. Drives particle altitude range.
   rolloff: number[];
   /// 0..1 — sibilance / noise density. Drives grain.
   zcr: number[];
@@ -138,6 +138,33 @@ export interface FramesTrack {
   spectral_contrast: number[];
   /// 0..11 dominant pitch class per sample, or -1 if atonal.
   pitch_class: number[];
+  // v4 additions (all optional for v3 spec backward compat).
+  /// 2-vector centroid of the 12-bin chroma distribution. atan2(y, x)
+  /// gives a ±10° hue rotation around the biome anchor; length() is
+  /// the tonality confidence for that frame.
+  chroma_center_x?: number[];
+  chroma_center_y?: number[];
+  /// 8-band mel energies per frame (sub_bass..ultra_high). Drives
+  /// frequency-banded particle placement + drift modulation.
+  mel_bands?: number[][];
+  /// -1..+1 signed centroid-trend scalar; rising melodies → +1, falling
+  /// → -1. Drives drift particle vertical bias.
+  pitch_direction?: number[];
+  /// Per-frame RMS loudness. Spence 2011 loudness↔visual mass: drives
+  /// bloom intensity multiplier, camera FOV push-in, grain washout,
+  /// particle scale.
+  rms?: number[];
+  /// One-pole low-passed MFCC[1] (spectral tilt). Slowly shifts the
+  /// biome anchor warm/cool by ±8% based on instrumental timbre color
+  /// (strings warmer, synths cooler).
+  mfcc_warm?: number[];
+  // v5 additions (optional for v4 spec backward compat).
+  /// Per-frame spectral change rate. Drives audio-reactive velocity field
+  /// (rain fall speed, drift particle scale between onsets).
+  spectral_flux?: number[];
+  /// Continuous max-normalized onset-strength envelope at 10Hz. Stream
+  /// of "transient pressure" between discrete onset events.
+  onset_strength_env?: number[];
 }
 
 export interface CompositionSpec {
@@ -172,7 +199,7 @@ export interface AudioFrame {
   harmonicRatio: number;
   /// 0..1 — Itoh 2017 saturation lock-in.
   chromaStrength: number;
-  /// 0..1 — sky-ceiling height.
+  /// 0..1 — high-freq ceiling. Drives drift particle altitude range.
   rolloff: number;
   /// 0..1 — grain/sibilance density.
   zcr: number;
@@ -184,6 +211,28 @@ export interface AudioFrame {
   pitchHeight: number;
   /// 0..11 or -1 — raw pitch class; useful for color rotation.
   pitchClass: number;
+  // v4 additions — all default to neutral on v3 specs so scenes can
+  // read them unconditionally.
+  /// Chroma centroid as 2-vector on the color wheel. atan2(y, x) gives
+  /// the ±10° hue rotation around the biome anchor.
+  chromaCenterX: number;
+  chromaCenterY: number;
+  /// 8 normalized mel-band energies (sub_bass..ultra_high). Drives
+  /// frequency-banded particle behavior.
+  melBands: number[];
+  /// -1..+1 signed centroid trend. Rising → +1, falling → -1.
+  pitchDirection: number;
+  /// 0..1 per-frame loudness (Spence 2011 loudness↔visual mass).
+  rms: number;
+  /// -1..+1 low-passed MFCC[1] (warm/cool spectral tilt).
+  mfccWarm: number;
+  // v5 additions — default to 0 on older specs.
+  /// 0..1 — per-frame spectral change rate. Drives audio-reactive
+  /// velocity field (rain fall speed, drift between onsets).
+  spectralFlux: number;
+  /// 0..1 — continuous onset-strength envelope (max-normalized). Stream
+  /// of "transient pressure" between discrete onset events.
+  onsetStrengthEnv: number;
 }
 
 /// Per-frame inputs the scene receives during render. All audio-reactive
@@ -228,4 +277,11 @@ export interface FrameContext {
   onsetPulse: number;
   /// >0 during a 1.3s window after a drop trigger.
   dropImpulse: number;
+  /// 0..1 — progressive build accumulator. Climbs through "ascending"
+  /// sections, holds near 1 in climax/peak, snaps to 0 with easeOutCubic
+  /// at drops, decays linearly through outros. Drives the seven-channel
+  /// ramp (bloom / saturation / particle density / vignette / FOV /
+  /// chromatic aberration / contrast) so build-ups visibly accumulate
+  /// and drops feel like releases, not surprises.
+  buildIntensity: number;
 }

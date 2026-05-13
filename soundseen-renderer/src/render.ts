@@ -32,15 +32,19 @@ async function readSpec(specPath: string): Promise<CompositionSpec> {
 }
 
 async function launchPage(): Promise<{ browser: Browser; page: Page }> {
+  // GL backend selection. Default = swiftshader (matches Modal's headless
+  // Chrome WebGL fallback so renders are bit-identical across local + cloud).
+  // Set RENDERER_GL=angle for real GPU on local dev — much faster + works
+  // with composer HalfFloat MRTs that swiftshader struggles to allocate.
+  const glBackend = process.env.RENDERER_GL || "swiftshader";
   const browser = await chromium.launch({
     args: [
       "--disable-gpu-vsync",
       "--disable-background-timer-throttling",
       "--disable-renderer-backgrounding",
-      // GPU rasterization on for actual GPU work in headless.
       "--enable-gpu-rasterization",
       "--enable-webgl",
-      "--use-gl=swiftshader", // CPU fallback. Override to "egl" or "angle" with a real GPU.
+      `--use-gl=${glBackend}`,
     ],
   });
   const context = await browser.newContext({

@@ -21,6 +21,13 @@ import * as THREE from "three";
 import type { Scene } from "./scene.js";
 import type { CompositionSpec, FrameContext } from "../types.js";
 import { OnsetParticleEmitter } from "./onset_emitter.js";
+import { hash1, hash2 } from "./lib/deterministic_hash.js";
+import { SereneSunScene } from "./serene_sun.js";
+import { Skyline } from "./effects/skyline.js";
+import { GodRays } from "./effects/godrays.js";
+import { cinematicCameraDeltas } from "./lib/cinematic_camera.js";
+import { TextureOverlay } from "./effects/texture_overlay.js";
+import { curlNoise2 } from "./curl_noise.js";
 
 const BG_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -80,7 +87,15 @@ const BG_FRAGMENT = /* glsl */ `
     // Modulate sample frequency so tonal passages read as smoother.
     float boubaScale = mix(3.0, 1.8, uHarmonicRatio);
     vec2 p = uv * boubaScale + vec2(uTime * 0.03, uTime * 0.018);
-    float n = valueNoise(p) * 0.6 + valueNoise(p * 2.1) * 0.4;
+    // Domain warp: perturb sample coords by a second noise lookup.
+    // Costs 2 extra noise reads but transforms a static-feeling fbm
+    // into a flowing liquid/smoke field — reads as "alive."
+    vec2 warp = vec2(
+      valueNoise(p + vec2(1.7, 9.2)),
+      valueNoise(p + vec2(8.3, 2.8))
+    ) * 0.30;
+    vec2 wp = p + warp;
+    float n = valueNoise(wp) * 0.6 + valueNoise(wp * 2.1) * 0.4;
 
     // Radial falloff so the frame has a visible "source" rather than
     // reading as a flat field.
@@ -107,19 +122,9 @@ const BG_FRAGMENT = /* glsl */ `
     col.r *= 1.0 + uModeWarm * 0.03;
     col.b *= 1.0 - uModeWarm * 0.03;
 
-    // Schloss & Palmer hue_distance: tension splits the RGB channels
-    // slightly along x, reading as quiet chromatic dissonance. Subtle
-    // here — Serene shouldn't go full prismatic.
-    if (uHueDistance > 0.20) {
-      vec2 splitOff = vec2(uHueDistance * 0.004, 0);
-      vec2 sp = uv * boubaScale + vec2(uTime * 0.03, uTime * 0.018);
-      float nR = valueNoise(sp + splitOff) * 0.6 + valueNoise((sp + splitOff) * 2.1) * 0.4;
-      float nB = valueNoise(sp - splitOff) * 0.6 + valueNoise((sp - splitOff) * 2.1) * 0.4;
-      vec3 colR = mix(uColorEdge, uColorCore, vignette * (0.5 + 0.5 * nR) + ripple * 0.25);
-      vec3 colB = mix(uColorEdge, uColorCore, vignette * (0.5 + 0.5 * nB) + ripple * 0.25);
-      col.r = mix(col.r, colR.r, uHueDistance * 0.5);
-      col.b = mix(col.b, colB.b, uHueDistance * 0.5);
-    }
+    // (Schloss & Palmer hue_distance RGB-split moved to the
+    // ChromaticAberrationEffect post-pass — it now sees the bloom halo,
+    // reading like a real lens rather than a per-fragment channel skew.)
 
     // Phrase boundary: brief overall lift so the listener gets a
     // visual anchor at structural moments.
@@ -139,6 +144,10 @@ export class SereneDawnScene implements Scene {
   private particleMaterial: THREE.PointsMaterial;
   private particlePositions: Float32Array;
   private onsetEmitter: OnsetParticleEmitter;
+  private sun: SereneSunScene;
+  private skyline: Skyline;
+  private godrays: GodRays;
+  private texture: TextureOverlay;
 
   constructor() {
     this.object3D = new THREE.Scene();
@@ -179,9 +188,9 @@ export class SereneDawnScene implements Scene {
     const N = 220;
     this.particlePositions = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
-      this.particlePositions[i * 3 + 0] = (Math.random() - 0.5) * 6;
-      this.particlePositions[i * 3 + 1] = (Math.random() - 0.5) * 4;
-      this.particlePositions[i * 3 + 2] = -(Math.random() * 3.0);
+      this.particlePositions[i * 3 + 0] = (hash1(i + 1) - 0.5) * 6;
+      this.particlePositions[i * 3 + 1] = (hash2(i, 1) - 0.5) * 4;
+      this.particlePositions[i * 3 + 2] = -(hash2(i, 2) * 3.0);
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(this.particlePositions, 3));
@@ -209,6 +218,39 @@ export class SereneDawnScene implements Scene {
       poolSize: 192,
     });
     this.object3D.add(this.onsetEmitter.object3D);
+
+    // Serene Dawn hero stack — low warm sun + cloud strata, distant
+    // rolling-hills skyline, warm-gold god-rays.
+    this.sun = new SereneSunScene();
+    this.object3D.add(this.sun.object3D);
+
+    this.skyline = new Skyline({
+      buildingColor: new THREE.Color("#4a3a2a"),    // warm dark hills
+      windowColor: new THREE.Color("#fff2d4"),       // unused (no windows)
+      flickerColor: new THREE.Color("#ffd9a0"),
+      hazeTint: new THREE.Color("#3a2818"),
+      shape: "hills",
+      enableFlicker: false,  // Serene doesn't punch with lightning
+      windowReactivity: 0,
+      farY: 0.6,
+      nearY: 0.0,
+    });
+    this.object3D.add(this.skyline.object3D);
+
+    // Warm cream-gold god-rays sweeping from the sun position.
+    this.godrays = new GodRays({
+      shaftColor: new THREE.Color("#ffe2a8"),
+      warmTint: new THREE.Color("#ffc878"),
+      sunPos: new THREE.Vector2(0.55, 0.42),  // matches sun
+      intensityBase: 0.18,
+      intensityScale: 0.85,
+    });
+    this.object3D.add(this.godrays.object3D);
+
+    this.texture = new TextureOverlay({
+      tintColor: new THREE.Color("#ffe0c0"),
+    });
+    this.object3D.add(this.texture.object3D);
   }
 
   render(spec: CompositionSpec, ctx: FrameContext): void {
@@ -237,10 +279,35 @@ export class SereneDawnScene implements Scene {
     u.uHueDistance.value = ctx.section?.hue_distance ?? 0.2;
     u.uPhrasePulse.value = ctx.phrasePulse;
 
-    // Gentle drift so the bokeh feels alive, not stamped.
+    // Curl-noise drift — divergence-free 2D flow per particle. Reads as
+    // "alive" rather than "looping" (sin-drift bunches particles into
+    // visible oscillations). Each particle samples a slowly-translating
+    // noise field; rolloff still clamps the vertical range so bright
+    // mixes let particles fill upper frame.
+    const rolloff = ctx.audio.rolloff;
+    const ceilY = 1.5 * rolloff;
+    const floorY = -1.5 * (1.0 - rolloff * 0.5);
     const pos = this.particles.geometry.getAttribute("position") as THREE.BufferAttribute;
+    const dt = 1 / 60;
+    const flowScale = 0.030;
+    const sampleScale = 0.40;
+    const tDrift = ctx.t * 0.05;
+    // Pitch direction: rising melody nudges particles up, falling nudges
+    // down. Small bias so it composes with curl-noise rather than
+    // overwhelming it.
+    const pitchBias = ctx.audio.pitchDirection * 0.060;
     for (let i = 0; i < pos.count; i++) {
-      const y = this.particlePositions[i * 3 + 1] + Math.sin(ctx.t * 0.18 + i) * 0.0015;
+      const ix3 = i * 3;
+      const px = this.particlePositions[ix3]!;
+      const py = this.particlePositions[ix3 + 1]!;
+      const [vx, vy] = curlNoise2(px * sampleScale + tDrift, py * sampleScale);
+      let x = px + vx * flowScale * dt;
+      let y = py + (vy * flowScale + pitchBias) * dt;
+      if (y > ceilY) y = ceilY;
+      else if (y < floorY) y = floorY;
+      this.particlePositions[ix3] = x;
+      this.particlePositions[ix3 + 1] = y;
+      pos.setX(i, x);
       pos.setY(i, y);
     }
     pos.needsUpdate = true;
@@ -248,6 +315,32 @@ export class SereneDawnScene implements Scene {
 
     // Onset emitter walks (prev, t] and spawns per-onset particles.
     this.onsetEmitter.update(spec, ctx);
+    const bands = ctx.audio.melBands;
+    for (let k = 0; k < 8; k++) {
+      this.onsetEmitter.spawnBandPulse(k, bands[k] ?? 0, ctx.t, ctx);
+    }
+
+    // Hero stack: sun + skyline + god-rays driven by audio features.
+    this.sun.update(spec, ctx);
+    this.skyline.update(spec, ctx);
+    this.godrays.update(spec, ctx);
+    this.texture.update(spec, ctx);
+
+    // Cinematic camera — Serene wants gentler moves than Melancholic
+    // (less sway, no shake — calm by definition). Sectional dolly
+    // drifts forward slowly through the section.
+    const sp = ctx.sectionProgress;
+    const cam = cinematicCameraDeltas(ctx, {
+      sway: 0.5,
+      push: 0.6,
+      phrase: 0.7,
+      shake: 0.15,   // near zero — Serene doesn't shake
+      roll: 0.4,
+    });
+    this.camera.position.set(0, 0.08, 4 - sp * 0.3).add(cam.posDelta);
+    this.camera.lookAt(0, 0, 0);
+    this.camera.rotation.z = cam.rollZ;
+    this.camera.updateProjectionMatrix();
   }
 
   dispose(): void {
@@ -255,5 +348,9 @@ export class SereneDawnScene implements Scene {
     this.particleMaterial.dispose();
     this.particles.geometry.dispose();
     this.onsetEmitter.dispose();
+    this.sun.dispose();
+    this.skyline.dispose();
+    this.godrays.dispose();
+    this.texture.dispose();
   }
 }

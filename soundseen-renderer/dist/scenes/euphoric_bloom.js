@@ -17,6 +17,14 @@
 // rounded particles, soft halo. Sharp shapes would feel anxious.
 import * as THREE from "three";
 import { OnsetParticleEmitter } from "./onset_emitter.js";
+import { hash1, hash2 } from "./lib/deterministic_hash.js";
+import { curlNoise2 } from "./curl_noise.js";
+import { EuphoricBloomHero } from "./euphoric_vortex.js";
+import { Skyline } from "./effects/skyline.js";
+import { GodRays } from "./effects/godrays.js";
+import { EventLayer } from "./effects/event_layer.js";
+import { TextureOverlay } from "./effects/texture_overlay.js";
+import { cinematicCameraDeltas } from "./lib/cinematic_camera.js";
 const BG_VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -42,6 +50,7 @@ const BG_FRAGMENT = /* glsl */ `
   uniform float uModeWarm;
   uniform float uHueDistance;
   uniform float uPhrasePulse;
+  uniform float uRolloff;         // 0..1 — bright mixes extend outer halo
 
   // Cheap value noise for halo modulation.
   float hash(vec2 p) {
@@ -70,11 +79,15 @@ const BG_FRAGMENT = /* glsl */ `
     float angle = atan(d.y, d.x);
 
     // Three-stop radial: gold core → magenta mid → wine edge.
+    // Rolloff stretches the outer gradient — bright/treble-rich passages
+    // extend the bloom outward (halo reaches further); dark mixes
+    // compress it inward.
+    float outerR = 1.05 + uRolloff * 0.30;
     vec3 col;
     if (r < 0.40) {
       col = mix(uColorCore, uColorMid, smoothstep(0.0, 0.40, r));
     } else {
-      col = mix(uColorMid, uColorEdge, smoothstep(0.40, 1.05, r));
+      col = mix(uColorMid, uColorEdge, smoothstep(0.40, outerR, r));
     }
 
     // Bouba/Kiki on shimmer frequency: high harmonic_ratio → smoother,
@@ -103,7 +116,9 @@ const BG_FRAGMENT = /* glsl */ `
     col += vec3(uCentroid * 0.20) * smoothstep(0.6, 0.0, r);
 
     // Mild edge vignette so the bloom reads as the focal point.
-    col *= smoothstep(1.45, 0.30, r);
+    // Vignette outer bound widens on bright mixes (rolloff) so the bloom
+    // "breathes outward" rather than capping at a fixed radius.
+    col *= smoothstep(1.45 + uRolloff * 0.40, 0.30, r);
 
     // Itoh 2017 — chroma locks in palette vividness on tonal passages.
     float chromaSat = mix(0.85, 1.15, uChromaStrength);
@@ -112,13 +127,8 @@ const BG_FRAGMENT = /* glsl */ `
     col.r *= 1.0 + uModeWarm * 0.04;
     col.b *= 1.0 - uModeWarm * 0.04;
 
-    // hue_distance: tension splits the magenta toward cyan accents.
-    // Subtle, since Euphoric is identity-stable on its warm palette.
-    if (uHueDistance > 0.30) {
-      float split = (uHueDistance - 0.30) * 0.6;
-      col.b += split * (1.0 - r) * 0.3;
-      col.g += split * (1.0 - r) * 0.15;
-    }
+    // (Inline hue_distance channel-bleed removed — ChromaticAberration
+    // post-pass replaces it and operates on the bloomed image.)
 
     // Phrase boundary: brightness pop on the bloom core. Krumhansl-tier
     // events should land prominently in a celebratory biome.
@@ -137,7 +147,13 @@ export class EuphoricBloomScene {
     positions;
     velocities;
     onsetEmitter;
-    static PARTICLE_COUNT = 600;
+    hero;
+    skyline;
+    godrays;
+    events;
+    texture;
+    static PARTICLE_COUNT = 350; // dialed down — was 600
+    // (vortex tunnel now carries the motion)
     constructor() {
         this.object3D = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(50, 16 / 9, 0.1, 100);
@@ -162,6 +178,7 @@ export class EuphoricBloomScene {
                 uModeWarm: { value: 0.0 },
                 uHueDistance: { value: 0.4 },
                 uPhrasePulse: { value: 0.0 },
+                uRolloff: { value: 0.5 },
             },
             depthTest: false,
             depthWrite: false,
@@ -183,11 +200,11 @@ export class EuphoricBloomScene {
             const radius = 0.2 + (Math.sin(i * 1.234) + 1) * 1.5;
             this.positions[i * 3 + 0] = Math.cos(angle) * radius;
             this.positions[i * 3 + 1] = Math.sin(angle) * radius;
-            this.positions[i * 3 + 2] = -Math.random() * 2.0;
+            this.positions[i * 3 + 2] = -hash1(i + 1) * 2.0;
             // Outward velocity, modulated.
             this.velocities[i * 3 + 0] = Math.cos(angle) * 0.18;
             this.velocities[i * 3 + 1] = Math.sin(angle) * 0.18;
-            this.velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.05;
+            this.velocities[i * 3 + 2] = (hash2(i, 1) - 0.5) * 0.05;
         }
         const geo = new THREE.BufferGeometry();
         geo.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
@@ -204,10 +221,51 @@ export class EuphoricBloomScene {
         this.object3D.add(this.particles);
         this.onsetEmitter = new OnsetParticleEmitter({
             baseColor: new THREE.Color("#ffe7a3"),
-            maxSize: 32,
-            poolSize: 256,
+            maxSize: 38, // larger — more visible against vortex
+            poolSize: 320,
         });
         this.object3D.add(this.onsetEmitter.object3D);
+        // Euphoric hero stack: vortex tunnel + aurora curtain (the
+        // "outstanding" replacement for the old oval-pulse particle field).
+        this.hero = new EuphoricBloomHero();
+        this.object3D.add(this.hero.object3D);
+        // Festival-tower skyline silhouette, warm windows that pulse with
+        // chord changes. Lightning flicker enabled — drops should fire here.
+        this.skyline = new Skyline({
+            buildingColor: new THREE.Color("#2a1838"),
+            windowColor: new THREE.Color("#ffd066"),
+            flickerColor: new THREE.Color("#ff9aff"),
+            hazeTint: new THREE.Color("#1a0820"),
+            shape: "festival",
+            enableFlicker: true,
+            windowReactivity: 1.3,
+            farY: 1.0,
+            nearY: 0.6,
+        });
+        this.object3D.add(this.skyline.object3D);
+        // Hot magenta-gold god-rays from above-center.
+        this.godrays = new GodRays({
+            shaftColor: new THREE.Color("#ff88e0"),
+            warmTint: new THREE.Color("#ffd070"),
+            sunPos: new THREE.Vector2(0.50, 1.0),
+            intensityBase: 0.15,
+            intensityScale: 1.0,
+        });
+        this.object3D.add(this.godrays.object3D);
+        // Event layer — shockwave on drops, radial spoke burst on phrase
+        // boundaries, white strobe on beats. The "varied movement" lever
+        // that breaks the steady-state vortex.
+        this.events = new EventLayer({
+            shockColor: new THREE.Color("#ffb0ff"),
+            strobeColor: new THREE.Color("#fff0ff"),
+            burstColor: new THREE.Color("#ffe080"),
+            shockSpread: 1.2,
+        });
+        this.object3D.add(this.events.object3D);
+        this.texture = new TextureOverlay({
+            tintColor: new THREE.Color("#ffd0e8"),
+        });
+        this.object3D.add(this.texture.object3D);
     }
     render(spec, ctx) {
         const u = this.bgMaterial.uniforms;
@@ -226,24 +284,34 @@ export class EuphoricBloomScene {
         u.uModeWarm.value = ctx.section?.mode === "minor" ? -modeStrength : modeStrength;
         u.uHueDistance.value = ctx.section?.hue_distance ?? 0.4;
         u.uPhrasePulse.value = ctx.phrasePulse;
+        u.uRolloff.value = ctx.audio.rolloff;
         // Particle behavior — beat boost + phrase-boundary outward kick
         // (Krumhansl-tier visual event: the population physically shifts
         // when the listener's segmentation response fires).
+        // Curl-noise perturbation on top of the radial drift gives a
+        // swirling, organic spread rather than straight outward spokes.
         const pos = this.particles.geometry.getAttribute("position");
         const dt = 1 / 60;
         const beatBoost = 1.0 + ctx.beatPulse * 1.5 + ctx.phrasePulse * 0.6;
+        const flowScale = 0.06;
+        const sampleScale = 0.30;
+        const tDrift = ctx.t * 0.08;
+        const pitchBias = ctx.audio.pitchDirection * 0.10;
         for (let i = 0; i < EuphoricBloomScene.PARTICLE_COUNT; i++) {
             const ix = i * 3;
-            this.positions[ix + 0] += this.velocities[ix + 0] * dt * beatBoost;
-            this.positions[ix + 1] += this.velocities[ix + 1] * dt * beatBoost;
+            const px = this.positions[ix];
+            const py = this.positions[ix + 1];
+            const [cvx, cvy] = curlNoise2(px * sampleScale + tDrift, py * sampleScale);
+            this.positions[ix + 0] += (this.velocities[ix + 0] * beatBoost + cvx * flowScale) * dt;
+            this.positions[ix + 1] += (this.velocities[ix + 1] * beatBoost + cvy * flowScale + pitchBias) * dt;
             this.positions[ix + 2] += this.velocities[ix + 2] * dt;
             const r = Math.hypot(this.positions[ix], this.positions[ix + 1]);
             if (r > 4.5) {
                 // Recycle near center with a fresh direction.
-                const a = Math.random() * Math.PI * 2;
+                const a = hash2(ctx.t, i) * Math.PI * 2;
                 this.positions[ix + 0] = Math.cos(a) * 0.3;
                 this.positions[ix + 1] = Math.sin(a) * 0.3;
-                this.positions[ix + 2] = -Math.random() * 2.0;
+                this.positions[ix + 2] = -hash2(ctx.t, i + 1000) * 2.0;
                 this.velocities[ix + 0] = Math.cos(a) * 0.18;
                 this.velocities[ix + 1] = Math.sin(a) * 0.18;
             }
@@ -254,12 +322,47 @@ export class EuphoricBloomScene {
         this.particleMaterial.size = 0.06 + ctx.dropImpulse * 0.05;
         // Per-onset particles, tinted toward magenta on tonal hits.
         this.onsetEmitter.update(spec, ctx, new THREE.Color("#ff5588"));
+        const bands = ctx.audio.melBands;
+        for (let k = 0; k < 8; k++) {
+            this.onsetEmitter.spawnBandPulse(k, bands[k] ?? 0, ctx.t, ctx);
+        }
+        // Hero stack updates — vortex motion + aurora curtain, distant
+        // skyline parallax, hot magenta god-rays.
+        this.hero.update(spec, ctx);
+        this.skyline.update(spec, ctx);
+        this.godrays.update(spec, ctx);
+        this.events.update(spec, ctx);
+        this.texture.update(spec, ctx);
+        // Cinematic camera — Euphoric wants strong moves (drops should
+        // slam the frame), so use the default multipliers for everything
+        // and add a baseline orbital sweep for high-arousal energy.
+        const sp = ctx.sectionProgress;
+        const cam = cinematicCameraDeltas(ctx, {
+            sway: 1.3, // stronger than Melancholic — high-arousal
+            push: 1.0,
+            phrase: 1.2,
+            shake: 1.4, // visible drop shake — drops here punch
+            roll: 1.0,
+        });
+        // Slow orbital base: camera circles a few degrees over the section
+        // so the vortex axis rotates relative to the frame, keeping the
+        // tunnel from reading as static-axis even in calm passages.
+        const orbitAngle = sp * 0.20;
+        this.camera.position.set(Math.sin(orbitAngle) * 0.4, Math.cos(orbitAngle * 0.7) * 0.2, 4).add(cam.posDelta);
+        this.camera.lookAt(0, 0, 0);
+        this.camera.rotation.z = cam.rollZ;
+        this.camera.updateProjectionMatrix();
     }
     dispose() {
         this.bgMaterial.dispose();
         this.particleMaterial.dispose();
         this.particles.geometry.dispose();
         this.onsetEmitter.dispose();
+        this.hero.dispose();
+        this.skyline.dispose();
+        this.godrays.dispose();
+        this.events.dispose();
+        this.texture.dispose();
     }
 }
 //# sourceMappingURL=euphoric_bloom.js.map
