@@ -15,10 +15,9 @@
 import SwiftUI
 
 struct PlaybackHUD: View {
-    @Bindable var player: AudioPlayer
+    @ObservedObject var player: VideoPlayback
     let track: LibraryTrack
     let analysis: SongAnalysis
-    let sectionLabel: String
     var onBack: () -> Void
     var onReanalyze: () -> Void
 
@@ -49,9 +48,6 @@ struct PlaybackHUD: View {
                     .lineLimit(1)
                 HStack(spacing: 8) {
                     chip(text: "\(Int(analysis.bpm.rounded())) BPM", emphasized: true)
-                    if !sectionLabel.isEmpty {
-                        chip(text: sectionLabel.capitalized, emphasized: false)
-                    }
                 }
             }
 

@@ -29,4 +29,5 @@ struct ContentView: View {
     ContentView()
         .environmentObject(LibraryStore())
         .environmentObject(AnalysisStore())
+        .environmentObject(RenderJobStore())
 }

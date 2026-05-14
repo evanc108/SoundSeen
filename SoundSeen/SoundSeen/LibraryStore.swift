@@ -122,6 +122,20 @@ final class LibraryStore: ObservableObject {
         return Double(len) / file.processingFormat.sampleRate
     }
 
+    enum ImportError: LocalizedError {
+        case tooLarge(actualMB: Int, limitMB: Int)
+        var errorDescription: String? {
+            switch self {
+            case .tooLarge(let actual, let limit):
+                return "This file is \(actual) MB. The server limit is \(limit) MB — try compressing to MP3 or trimming the track."
+            }
+        }
+    }
+
+    /// Mirrors `MAX_FILE_SIZE_MB` in soundseen-backend/config.py — reject
+    /// client-side so the user sees the error before a 30s upload 413s.
+    static let maxUploadBytes: Int = 50 * 1024 * 1024
+
     /// Copies the user-selected file into Documents and appends to the library.
     /// Returns the newly inserted track so callers can chain follow-up work
     /// (e.g. kick off an AnalyzeTask) without looking it up by index.
@@ -132,6 +146,14 @@ final class LibraryStore: ObservableObject {
             if didAccess {
                 sourceURL.stopAccessingSecurityScopedResource()
             }
+        }
+
+        if let size = try? sourceURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           size > Self.maxUploadBytes {
+            throw ImportError.tooLarge(
+                actualMB: size / 1024 / 1024,
+                limitMB: Self.maxUploadBytes / 1024 / 1024
+            )
         }
 
         let originalName = sourceURL.lastPathComponent

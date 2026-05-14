@@ -231,7 +231,7 @@ final class LiveAudioEngine {
         #endif
 
         haptics?.stopStreaming()
-        await AudioSessionCoordinator.shared.configureForPlayback()
+        try? await AudioSessionCoordinator.shared.configureForPlayback()
 
         resetDSPState()
 
@@ -456,7 +456,7 @@ final class LiveAudioEngine {
     // MARK: - WAV encoding
 
     /// Minimal 16-bit PCM WAV encoder. float32 samples → Int16, clipped.
-    static func encodeWav(samples: [Float], sampleRate: Int) -> Data {
+    nonisolated static func encodeWav(samples: [Float], sampleRate: Int) -> Data {
         let numChannels: UInt16 = 1
         let bitsPerSample: UInt16 = 16
         let byteRate = UInt32(sampleRate) * UInt32(numChannels) * UInt32(bitsPerSample / 8)

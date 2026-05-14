@@ -14,6 +14,7 @@ import SwiftUI
 struct LibraryView: View {
     @EnvironmentObject private var library: LibraryStore
     @EnvironmentObject private var analysisStore: AnalysisStore
+    @EnvironmentObject private var jobStore: RenderJobStore
     @State private var query = ""
     @State private var analyzeTask = AnalyzeTask()
     @State private var analyzingTrackId: UUID? = nil
@@ -189,13 +190,14 @@ struct LibraryView: View {
                 ForEach(filtered) { track in
                     TrackCard(
                         track: track,
-                        isAnalyzed: analysisStore.has(trackId: track.id),
-                        isAnalyzing: analyzingTrackId == track.id,
+                        renderState: renderState(for: track),
                         anyAnalyzeInFlight: analyzeTask.isWorking,
                         onOpen: { open(track: track) },
                         onAnalyze: { Task { await analyze(track: track) } },
                         onReanalyze: { trackPendingReanalysis = track },
+                        onRetryRender: { Task { await retryRender(track: track) } },
                         onRemove: {
+                            jobStore.remove(trackId: track.id)
                             analysisStore.remove(trackId: track.id)
                             library.remove(track)
                         }
@@ -266,13 +268,20 @@ struct LibraryView: View {
     private func analyzedPlayerDestination(for trackId: UUID) -> some View {
         if let track = library.tracks.first(where: { $0.id == trackId }),
            let analysis = try? analysisStore.load(trackId: trackId) {
-            AnalyzedPlayerView(
-                track: track,
-                analysis: analysis,
-                onRequestReanalyze: {
-                    Task { await reanalyze(track: track) }
-                }
-            )
+            let job = jobStore.job(for: trackId)
+            if let job, job.status == .complete,
+               let videoURL = resolvePlaybackURL(job: job) {
+                RenderedPlayerView(
+                    track: track,
+                    analysis: analysis,
+                    videoURL: videoURL,
+                    onRequestReanalyze: {
+                        Task { await reanalyze(track: track) }
+                    }
+                )
+            } else {
+                RenderProgressView(track: track, job: job)
+            }
         } else {
             ZStack {
                 AppBackground()
@@ -283,6 +292,33 @@ struct LibraryView: View {
                 )
                 .foregroundStyle(SSDesign.Palette.textPrimary)
             }
+        }
+    }
+
+    /// Pick a playable URL for a completed job. Prefers the on-disk file
+    /// when it exists, otherwise streams from Supabase.
+    private func resolvePlaybackURL(job: RenderJob) -> URL? {
+        if let local = job.localVideoURL, FileManager.default.fileExists(atPath: local.path) {
+            return local
+        }
+        return job.videoURL
+    }
+
+    // MARK: - State derivation
+
+    private func renderState(for track: LibraryTrack) -> TrackRenderState {
+        if analyzingTrackId == track.id { return .analyzing }
+        guard analysisStore.has(trackId: track.id) else { return .uploaded }
+        guard let job = jobStore.job(for: track.id) else { return .renderPending }
+        switch job.status {
+        case .queued, .rendering:
+            return .rendering
+        case .complete:
+            return job.localVideoURL == nil ? .downloading : .ready
+        case .failed:
+            return .renderFailed
+        case .unavailable:
+            return .renderUnavailable
         }
     }
 
@@ -312,41 +348,103 @@ struct LibraryView: View {
             store: analysisStore
         )
         analyzingTrackId = nil
+        // Pick up the auto-rendered job the backend just kicked off.
+        if let analysis = try? analysisStore.load(trackId: track.id) {
+            jobStore.registerSong(songId: analysis.songId, trackId: track.id)
+            Task {
+                await RenderJobResumer.shared.resume(
+                    library: library,
+                    analysisStore: analysisStore,
+                    jobStore: jobStore
+                )
+            }
+        }
     }
 
     @MainActor
     func reanalyze(track: LibraryTrack) async {
         guard !analyzeTask.isWorking else { return }
+        jobStore.remove(trackId: track.id)
         analysisStore.remove(trackId: track.id)
         await analyze(track: track)
     }
+
+    @MainActor
+    private func retryRender(track: LibraryTrack) async {
+        guard let analysis = try? analysisStore.load(trackId: track.id) else { return }
+        guard let status = try? await APIClient.shared.startRender(songId: analysis.songId) else { return }
+        let mapped = RenderJob.Status(rawValue: status.status) ?? .failed
+        let job = RenderJob(
+            jobId: status.jobId,
+            trackId: track.id,
+            songId: analysis.songId,
+            status: mapped,
+            videoURL: status.videoUrl,
+            localVideoURL: nil,
+            error: status.error,
+            updatedAt: Date()
+        )
+        try? jobStore.upsert(job)
+        RenderJobResumer.shared.startPolling(jobStore: jobStore)
+    }
+}
+
+// MARK: - Track render state
+
+enum TrackRenderState: Equatable {
+    case uploaded
+    case analyzing
+    /// Analysis exists but we haven't heard back from the server about
+    /// a job yet (transient — resumer will populate on next tick).
+    case renderPending
+    case rendering
+    case downloading
+    case ready
+    case renderFailed
+    case renderUnavailable
 }
 
 // MARK: - Track card
 
 private struct TrackCard: View {
     let track: LibraryTrack
-    let isAnalyzed: Bool
-    let isAnalyzing: Bool
+    let renderState: TrackRenderState
     let anyAnalyzeInFlight: Bool
     let onOpen: () -> Void
     let onAnalyze: () -> Void
     let onReanalyze: () -> Void
+    let onRetryRender: () -> Void
     let onRemove: () -> Void
 
+    private var isAnalyzed: Bool {
+        switch renderState {
+        case .uploaded, .analyzing: return false
+        default: return true
+        }
+    }
+
+    private var navigable: Bool {
+        // Tappable states: ready (full playback) and renderUnavailable
+        // (audio-only fallback in the destination view). Other analyzed
+        // states navigate into the progress view too — Phase D's
+        // RenderedPlayerView handles audio-only fallback when no video.
+        switch renderState {
+        case .ready, .renderUnavailable, .rendering, .downloading, .renderFailed, .renderPending:
+            return true
+        case .uploaded, .analyzing:
+            return false
+        }
+    }
+
     var body: some View {
-        // When analyzed, the whole card is a NavigationLink. When not, the
-        // card is a plain button that kicks off analysis.
         Group {
-            if isAnalyzed {
-                NavigationLink(value: track.id) {
-                    cardBody
-                }
-                .buttonStyle(.plain)
+            if navigable {
+                NavigationLink(value: track.id) { cardBody }
+                    .buttonStyle(.plain)
             } else {
                 Button(action: onAnalyze) { cardBody }
                     .buttonStyle(.plain)
-                    .disabled(isAnalyzing || anyAnalyzeInFlight)
+                    .disabled(renderState == .analyzing || anyAnalyzeInFlight)
             }
         }
         .contextMenu {
@@ -357,6 +455,13 @@ private struct TrackCard: View {
                     Label("Re-analyze", systemImage: "arrow.clockwise")
                 }
                 .disabled(anyAnalyzeInFlight)
+            }
+            if renderState == .renderFailed || renderState == .renderUnavailable {
+                Button {
+                    onRetryRender()
+                } label: {
+                    Label("Retry render", systemImage: "arrow.clockwise")
+                }
             }
             if !track.isBundled {
                 Button(role: .destructive, action: onRemove) {
@@ -404,54 +509,71 @@ private struct TrackCard: View {
             .frame(width: 3, height: 3)
     }
 
-    /// Circular disc on the left. Glows with the accent color when the
-    /// track is analyzed (ready to play), neutral gray when it isn't.
+    /// Circular disc on the left. Accents when the render is ready to play.
     private var mark: some View {
-        ZStack {
+        let glow = renderState == .ready
+        return ZStack {
             Circle()
-                .fill(isAnalyzed ? SSDesign.Palette.accent.opacity(0.22) : SSDesign.Palette.surfaceActive)
+                .fill(glow ? SSDesign.Palette.accent.opacity(0.22) : SSDesign.Palette.surfaceActive)
                 .overlay(
                     Circle()
                         .stroke(
-                            isAnalyzed ? SSDesign.Palette.accent.opacity(0.7) : SSDesign.Palette.hairlineStrong,
-                            lineWidth: isAnalyzed ? 1.2 : 0.6
+                            glow ? SSDesign.Palette.accent.opacity(0.7) : SSDesign.Palette.hairlineStrong,
+                            lineWidth: glow ? 1.2 : 0.6
                         )
                 )
-            Image(systemName: isAnalyzed ? "waveform" : "music.note")
+            Image(systemName: glow ? "waveform" : "music.note")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(isAnalyzed ? SSDesign.Palette.accent : SSDesign.Palette.textMuted)
+                .foregroundStyle(glow ? SSDesign.Palette.accent : SSDesign.Palette.textMuted)
         }
         .frame(width: 44, height: 44)
     }
 
     @ViewBuilder
     private var trailing: some View {
-        if isAnalyzing {
-            HStack(spacing: 6) {
-                ProgressView()
-                    .scaleEffect(0.7)
-                    .tint(SSDesign.Palette.accent)
-                Text("Analyzing")
-                    .font(SSDesign.Typography.caption(10))
-                    .kerning(1)
-                    .textCase(.uppercase)
-                    .foregroundStyle(SSDesign.Palette.textSecondary)
-            }
-        } else if isAnalyzed {
+        switch renderState {
+        case .analyzing:
+            inlineProgress(label: "Analyzing")
+        case .renderPending, .rendering:
+            inlineProgress(label: "Rendering")
+        case .downloading:
+            inlineProgress(label: "Downloading")
+        case .ready:
             Image(systemName: "chevron.right")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(SSDesign.Palette.accent)
-        } else {
-            Text("Analyze")
+        case .renderFailed:
+            statusPill(text: "Retry", tint: .red)
+        case .renderUnavailable:
+            statusPill(text: "Offline", tint: SSDesign.Palette.textMuted)
+        case .uploaded:
+            statusPill(text: "Analyze", tint: SSDesign.Palette.textPrimary)
+        }
+    }
+
+    private func inlineProgress(label: String) -> some View {
+        HStack(spacing: 6) {
+            ProgressView()
+                .scaleEffect(0.7)
+                .tint(SSDesign.Palette.accent)
+            Text(label)
                 .font(SSDesign.Typography.caption(10))
                 .kerning(1)
                 .textCase(.uppercase)
-                .padding(.horizontal, SSDesign.Space.m)
-                .padding(.vertical, 6)
-                .background(Capsule().fill(SSDesign.Palette.surfaceActive))
-                .overlay(Capsule().stroke(SSDesign.Palette.hairlineStrong, lineWidth: 0.5))
-                .foregroundStyle(SSDesign.Palette.textPrimary)
+                .foregroundStyle(SSDesign.Palette.textSecondary)
         }
+    }
+
+    private func statusPill(text: String, tint: Color) -> some View {
+        Text(text)
+            .font(SSDesign.Typography.caption(10))
+            .kerning(1)
+            .textCase(.uppercase)
+            .padding(.horizontal, SSDesign.Space.m)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(SSDesign.Palette.surfaceActive))
+            .overlay(Capsule().stroke(SSDesign.Palette.hairlineStrong, lineWidth: 0.5))
+            .foregroundStyle(tint)
     }
 }
 
@@ -459,5 +581,6 @@ private struct TrackCard: View {
     LibraryView()
         .environmentObject(LibraryStore())
         .environmentObject(AnalysisStore())
+        .environmentObject(RenderJobStore())
         .preferredColorScheme(.dark)
 }

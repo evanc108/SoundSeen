@@ -9,6 +9,18 @@
 
 import Foundation
 
+/// Wire model mirroring soundseen-backend's RenderJobStatus.
+struct RenderJobStatus: Decodable, Sendable {
+    let jobId: String
+    let songId: String
+    /// Raw string ("queued" | "rendering" | "complete" | "failed" | "unavailable")
+    /// — mapped to RenderJob.Status by the call site.
+    let status: String
+    let progress: Double
+    let videoUrl: URL?
+    let error: String?
+}
+
 enum APIError: LocalizedError {
     case invalidResponse
     case http(status: Int, body: String)
@@ -100,6 +112,71 @@ actor APIClient {
         let (data, _) = try await perform(request)
         do {
             return try JSONDecoder.soundSeen.decode(SongAnalysis.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+
+    // MARK: - Render
+
+    /// POST /render?song_id=... — spawn (or fetch the cached) Modal render
+    /// for an analyzed song. Returns immediately with a job_id.
+    func startRender(
+        songId: String,
+        preset: String = "default",
+        maxSeconds: Double? = nil
+    ) async throws -> RenderJobStatus {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("render"),
+            resolvingAgainstBaseURL: false
+        )!
+        var items = [
+            URLQueryItem(name: "song_id", value: songId),
+            URLQueryItem(name: "preset", value: preset),
+        ]
+        if let maxSeconds {
+            items.append(URLQueryItem(name: "max_seconds", value: String(maxSeconds)))
+        }
+        components.queryItems = items
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        let (data, _) = try await perform(request)
+        do {
+            return try JSONDecoder.soundSeen.decode(RenderJobStatus.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+
+    /// GET /render/{job_id} — poll one job.
+    func renderStatus(jobId: String) async throws -> RenderJobStatus {
+        let encoded = jobId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? jobId
+        let url = baseURL.appendingPathComponent("render").appendingPathComponent(encoded)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 15
+        let (data, _) = try await perform(request)
+        do {
+            return try JSONDecoder.soundSeen.decode(RenderJobStatus.self, from: data)
+        } catch {
+            throw APIError.decoding(error)
+        }
+    }
+
+    /// GET /jobs?song_ids=a,b,c — batch poll on app launch.
+    func renderJobs(songIds: [String]) async throws -> [RenderJobStatus] {
+        guard !songIds.isEmpty else { return [] }
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("jobs"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "song_ids", value: songIds.joined(separator: ","))]
+        var request = URLRequest(url: components.url!)
+        // Backend may probe Modal for each row — give it room.
+        request.timeoutInterval = 30
+        let (data, _) = try await perform(request)
+        do {
+            return try JSONDecoder.soundSeen.decode([RenderJobStatus].self, from: data)
         } catch {
             throw APIError.decoding(error)
         }
