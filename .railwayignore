@@ -1,0 +1,9 @@
+soundseen-web/
+soundseen-renderer/
+renders/
+scripts/
+*.mp4
+*.mp3
+*.wav
+.git/
+.DS_Store

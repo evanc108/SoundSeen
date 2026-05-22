@@ -1,14 +1,6 @@
 # macOS
 .DS_Store
 
-# Local Xcode build output (repo-root)
-.derivedData/
-.derivedDataAgent/
-
-# Xcode user-specific files
-*.xcuserstate
-xcuserdata/
-
 # Python
 __pycache__/
 *.py[cod]
@@ -17,16 +9,22 @@ venv/
 .venv/
 env/
 
-# Environment variables
+# Node / Next.js — soundseen-web/.gitignore covers most of this, but
+# catch any stray installs anywhere in the tree.
+node_modules/
+.next/
+
+# Environment variables (matches .env, .env.local, .env.production, etc.).
+# Always commit a .env.example template instead.
 .env
+.env.*
+!.env.example
 
-# Audio — ignore stray MP3s, but allow bundled app resources
+# Audio uploads — never check in user-provided mp3/wav fixtures.
 *.mp3
-!SoundSeen/SoundSeen/Resources/*.mp3
 
-# Rendered videos — large MP4 outputs from the local renderer.
-# Keep them out of the repo (GitHub 100 MB limit, and they're
-# regeneratable from spec + audio anyway).
+# Rendered videos — large MP4 outputs. Keep them out of the repo
+# (GitHub 100 MB limit, and they're regeneratable from spec + audio).
 renders/
 *.mp4
 *.mp4.video.mp4

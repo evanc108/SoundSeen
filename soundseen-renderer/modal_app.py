@@ -65,7 +65,7 @@ app = modal.App("soundseen-renderer", image=image)
 # you set up ANGLE/Vulkan, which is finicky.) 1800s gives headroom
 # for short clips; pass max_seconds to clamp the render length when
 # iterating.
-@app.function(gpu=GPU_KIND, timeout=1800)
+@app.function(gpu=GPU_KIND, timeout=3000)
 def render_song(
     song_id: str,
     spec_json: str,

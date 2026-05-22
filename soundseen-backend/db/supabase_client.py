@@ -16,15 +16,24 @@ def get_client() -> Client:
     return _client
 
 
-async def insert_song(song_id: str, filename: str, storage_path: str, analysis: dict):
+async def insert_song(
+    song_id: str,
+    filename: str,
+    storage_path: str,
+    analysis: dict,
+    user_id: str | None = None,
+):
     client = get_client()
+    row = {
+        "id": song_id,
+        "filename": filename,
+        "storage_path": storage_path,
+        "analysis": analysis,
+    }
+    if user_id is not None:
+        row["user_id"] = user_id
     try:
-        client.table("songs").insert({
-            "id": song_id,
-            "filename": filename,
-            "storage_path": storage_path,
-            "analysis": analysis,
-        }).execute()
+        client.table("songs").insert(row).execute()
     except Exception:
         logger.exception("Failed to insert song %s", song_id)
         raise
@@ -34,6 +43,55 @@ async def fetch_song(song_id: str) -> dict | None:
     client = get_client()
     result = client.table("songs").select("analysis").eq("id", song_id).single().execute()
     return result.data["analysis"] if result.data else None
+
+
+async def fetch_song_owner(song_id: str) -> tuple[str | None, str | None] | None:
+    """Return (user_id, storage_path) for a song, or None if it doesn't
+    exist. Used by DELETE /song/{id} to authorize the caller and clean
+    up the associated audio file."""
+    client = get_client()
+    try:
+        result = (
+            client.table("songs")
+            .select("user_id, storage_path")
+            .eq("id", song_id)
+            .single()
+            .execute()
+        )
+    except Exception:
+        return None
+    if not result.data:
+        return None
+    return result.data.get("user_id"), result.data.get("storage_path")
+
+
+async def delete_song(song_id: str, storage_path: str | None) -> None:
+    """Delete the song row + its stored audio + every rendered video.
+    render_jobs rows cascade via the FK; storage objects we delete
+    explicitly because Supabase Storage doesn't cascade on table deletes."""
+    client = get_client()
+    # Storage cleanup first — if the row delete fails we'd otherwise orphan
+    # the files. The video bucket can have multiple spec versions; list
+    # whatever's in the song's prefix and remove all of it.
+    try:
+        listing = client.storage.from_(_VIDEO_BUCKET).list(song_id) or []
+        if listing:
+            client.storage.from_(_VIDEO_BUCKET).remove(
+                [f"{song_id}/{item['name']}" for item in listing if item.get("name")]
+            )
+    except Exception:
+        logger.exception("Failed to clean visualizations for %s", song_id)
+    if storage_path:
+        try:
+            client.storage.from_("audio-uploads").remove([storage_path])
+        except Exception:
+            logger.exception("Failed to remove source audio %s", storage_path)
+    # Row delete (cascades to render_jobs).
+    try:
+        client.table("songs").delete().eq("id", song_id).execute()
+    except Exception:
+        logger.exception("Failed to delete song row %s", song_id)
+        raise
 
 
 async def upload_audio(song_id: str, filename: str, file_bytes: bytes, content_type: str) -> str:

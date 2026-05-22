@@ -14,7 +14,10 @@ import type { CompositionSpec } from "./types.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const FPS = 60;
+// 30fps halves frame count vs 60fps, which is the difference between
+// fitting a 60-second preview inside Modal's wall budget vs timing out.
+// Visually indistinguishable for music vis at this scale.
+const FPS = 30;
 const WIDTH = 1920;
 const HEIGHT = 1080;
 
@@ -82,6 +85,8 @@ async function renderVideoTrack(
       "-vcodec", "libx264",
       "-pix_fmt", "yuv420p",
       "-preset", "veryfast",
+      // CRF 20: near-lossless. The 50 MB Supabase cap that forced us
+      // down to CRF 26 is gone now (Pro tier + 5 GB bucket).
       "-crf", "20",
       "-r", String(FPS),
       videoOnlyPath,
@@ -129,7 +134,10 @@ function muxAudio(videoPath: string, audioPath: string, outputPath: string): Pro
         "-i", audioPath,
         "-c:v", "copy",
         "-c:a", "aac",
-        "-b:a", "192k",
+        "-b:a", "128k",
+        // +faststart relocates the moov atom to the front of the file so
+        // browsers can start playback before the whole mp4 has streamed.
+        "-movflags", "+faststart",
         "-shortest",
         outputPath,
       ],

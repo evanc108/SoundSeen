@@ -8,3 +8,5 @@ pydantic
 pydantic-settings
 numpy
 soundfile
+pyjwt[crypto]
+modal

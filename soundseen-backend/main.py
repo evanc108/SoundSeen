@@ -9,11 +9,13 @@ from functools import partial
 
 from collections import defaultdict
 
-from fastapi import FastAPI, File, HTTPException, Header, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Header, Request, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from auth import current_user_id
 from config import settings
-from db import render_jobs_repo, supabase_client
+from db import render_jobs_repo, songs_repo, supabase_client
 from pipeline.composition import SPEC_VERSION, build_composition_spec
 from pipeline.emotion import analyze_chunk, analyze_emotion, load_models, models_loaded
 from pipeline.loader import load_audio
@@ -149,6 +151,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SoundSeen Backend", lifespan=lifespan)
 
+_cors_origins = [
+    o.strip() for o in settings.cors_origins.split(",") if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_origin_regex=settings.cors_origin_regex or None,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # --- Pipeline runner (blocking, runs in executor) ---
 
@@ -185,7 +199,10 @@ async def health():
 
 
 @app.post("/analyze", response_model=SongAnalysis)
-async def analyze(file: UploadFile = File(...)):
+async def analyze(
+    file: UploadFile = File(...),
+    user_id: str = Depends(current_user_id),
+):
     filename = file.filename or "upload.wav"
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in ALLOWED_EXTENSIONS:
@@ -240,7 +257,7 @@ async def analyze(file: UploadFile = File(...)):
 
     try:
         await supabase_client.insert_song(
-            song_id, filename, storage_path, analysis.model_dump()
+            song_id, filename, storage_path, analysis.model_dump(), user_id=user_id
         )
     except Exception:
         raise HTTPException(status_code=500, detail="Failed to persist analysis results")
@@ -286,6 +303,62 @@ async def analyze_chunk_route(
             _chunk_inflight[client_id] = max(0, _chunk_inflight[client_id] - 1)
 
     return ChunkEmotion(valence=valence, arousal=arousal)
+
+
+@app.get("/gallery")
+async def get_gallery(limit: int = 24, offset: int = 0):
+    """Public list of songs with completed renders. Newest first.
+
+    Returns a slim row shape (no full SongAnalysis) so the gallery loads
+    fast even with hundreds of cards."""
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    return await songs_repo.gallery(limit=limit, offset=offset)
+
+
+@app.get("/me/songs")
+async def get_my_songs(
+    user_id: str = Depends(current_user_id),
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Auth-gated: every song this user has uploaded, including
+    in-flight render rows so the client can show progress."""
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+    return await songs_repo.list_for_user(user_id, limit=limit, offset=offset)
+
+
+@app.get("/song/{song_id}/owner")
+async def get_song_owner(song_id: str):
+    """Cheap probe: who owns this song? Returns {user_id, exists}. The
+    web client uses this on /song/[id] to decide whether to render the
+    delete button."""
+    owner = await supabase_client.fetch_song_owner(song_id)
+    if owner is None:
+        return {"exists": False, "user_id": None}
+    return {"exists": True, "user_id": owner[0]}
+
+
+@app.delete("/song/{song_id}")
+async def delete_song(
+    song_id: str,
+    user_id: str = Depends(current_user_id),
+):
+    """Owner-only hard delete. Removes the song row (cascades render_jobs
+    via FK), source audio, and every rendered MP4 in storage."""
+    owner = await supabase_client.fetch_song_owner(song_id)
+    if owner is None:
+        raise HTTPException(status_code=404, detail="Song not found")
+    owner_id, storage_path = owner
+    if owner_id != user_id:
+        # Don't leak existence to non-owners; 404 instead of 403.
+        raise HTTPException(status_code=404, detail="Song not found")
+    try:
+        await supabase_client.delete_song(song_id, storage_path)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Delete failed")
+    return {"deleted": song_id}
 
 
 @app.get("/song/{song_id}", response_model=SongAnalysis)
@@ -371,6 +444,15 @@ def _modal_render_function():
         return None
 
 
+# Auto-render preview cap. Headless Chrome falls back to software WebGL
+# in our Modal container, so each rendered second of output costs roughly
+# 4–6 seconds of wall time on an A10G. 60 seconds of output lands a
+# render in 3–5 minutes — long enough for the user to see the drop /
+# motif but inside Modal's timeout with room to spare. If you want
+# full-length renders, hit /render?song_id=… directly without max_seconds.
+_AUTO_RENDER_MAX_SECONDS = 60.0
+
+
 async def _auto_kickoff_render(song_id: str, analysis_payload: dict) -> None:
     """Best-effort detached task. Spawns Modal render right after a
     successful /analyze, persists the resulting job_id. Failures log and
@@ -397,11 +479,12 @@ async def _auto_kickoff_render(song_id: str, analysis_payload: dict) -> None:
             spec_json=_json.dumps(spec),
             audio_bytes=audio_bytes,
             audio_extension=audio_ext,
-            max_seconds=None,
+            max_seconds=_AUTO_RENDER_MAX_SECONDS,
         )
         await render_jobs_repo.insert_job(
             job_id=call.object_id, song_id=song_id, status="queued",
-            spec_version=SPEC_VERSION, preset="default", max_seconds=None,
+            spec_version=SPEC_VERSION, preset="default",
+            max_seconds=_AUTO_RENDER_MAX_SECONDS,
         )
         logger.info("Auto-spawned render %s for song %s", call.object_id, song_id)
     except Exception:
@@ -553,10 +636,11 @@ async def _probe_and_serialize(row: dict) -> RenderJobStatus:
             error=msg,
         )
 
-    # Probe with a tiny timeout. Modal raises stdlib TimeoutError when
-    # the function is still running; modal.exception.* covers the
-    # remote-failure cases. Any other exception is reported with its
-    # type name (str() can be empty on bare TimeoutError, etc.).
+    # Probe with timeout=0. Modal raises stdlib `TimeoutError` when the
+    # call is still running. EVERY other exception is terminal — Modal's
+    # own `FunctionTimeoutError` (function exceeded its wall budget) is
+    # NOT the same thing as the stdlib TimeoutError and must surface as
+    # a failure, not as a "still pending" state.
     try:
         result = call.get(timeout=0)
     except TimeoutError:
@@ -566,13 +650,6 @@ async def _probe_and_serialize(row: dict) -> RenderJobStatus:
             progress=0.0,
         )
     except Exception as e:
-        name = type(e).__name__.lower()
-        if "timeout" in name or "pending" in name or "notready" in name:
-            await render_jobs_repo.mark_rendering(job_id)
-            return RenderJobStatus(
-                job_id=job_id, song_id=song_id, status="rendering",
-                progress=0.0,
-            )
         logger.exception("Modal render %s failed", job_id)
         msg = f"{type(e).__name__}: {e}".strip(": ")
         await render_jobs_repo.mark_failed(job_id, msg)

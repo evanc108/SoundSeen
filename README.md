@@ -1,68 +1,73 @@
 # SoundSeen
-SoundSeen: Project Plan
-Team BENEV: Benson Vo, Vincent Liu, Edward Lee, Nicole Zhou, Evan Chang
 
-## Description
-SoundSeen is a mobile accessibility app that translates music into a multi-sensory experience. It uses real-time audio analysis to convert musical elements (emotion, intensity, and structure) into dynamic visuals and synchronized haptic feedback.
+> Upload a song. Get a cinematic visualization back. Share it.
 
-## Problem
-Traditional music accessibility for the Deaf and Hard-of-Hearing (DHH) community is largely limited to text-based lyrics. Captions and existing apps fail to communicate the energy of a song—the tension of a buildup, the impact of a bass drop, or the emotional shift of a bridge.
+SoundSeen analyzes uploaded audio (mood, structure, beat grid, spectral
+content) and renders a per-song video on a GPU, then plays it back in
+the browser. Renders are public by default — every visualization lands
+in a shared gallery — and signed-in users have a "My uploads" view.
 
-## Why
-Music is more than just lyrics; it is a physical and emotional arc. By mapping acoustic data to visual and tactile sensations, we provide users with the ability to "feel" and "see" the nuance of music in a live environment, moving beyond static text to a visceral experience.
+## Stack
 
-## Success Criteria
-Real-time Processing: Seamless streaming of music into visual and tactile representations with sub-50ms latency.
+| Piece | Tech | Hosted on |
+|-------|------|-----------|
+| Frontend | Next.js 16 (App Router) + Tailwind 4 + Supabase Auth | Vercel |
+| Backend API | FastAPI + librosa + Essentia + pyjwt | Railway |
+| Renderer | Three.js, headless via Playwright, on GPU containers | Modal |
+| Data + Auth + Storage | Postgres + magic-link auth + object storage | Supabase |
 
-Emotional Accuracy: The AI accurately maps the "vibe" (valence/arousal) of the track to the output.
+```
+soundseen-web/         Next.js app (this is the user-facing surface)
+soundseen-backend/     FastAPI — /analyze, /render, /jobs, /gallery, /me/songs
+soundseen-renderer/    Modal app: Three.js scene rendered to mp4
+scripts/               Misc operational scripts
+renders/               Sample renders (gitignored except a few seed files)
+```
 
-Engagement: DHH users find the multi-sensory feedback intuitive and immersive.
+## Local dev
 
-## Audience
-Deaf and Hard-of-Hearing (DHH) community.
+### Backend
 
-Users with sensory processing preferences.
+```sh
+cd soundseen-backend
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # fill in SUPABASE_URL, SUPABASE_KEY, SUPABASE_JWT_SECRET
+uvicorn main:app --reload --port 8000
+```
 
-## Scope of Work
-Must-Have Features (P0)
-Local File Interpretation: User can upload a song (MP3/AAC) to be interpreted in real-time.
+### Frontend
 
-Tactile Textures: Haptic feedback using varying frequencies and intensities via the Taptic Engine.
+```sh
+cd soundseen-web
+cp .env.example .env.local   # fill in NEXT_PUBLIC_SUPABASE_URL/ANON_KEY
+npm install
+npm run dev    # http://localhost:3000
+```
 
-Audio-Reactive Visuals: A dynamic visualizer that responds to frequency, amplitude, and mood.
+### Renderer
 
-Structured HUD: A dashboard for users to adjust haptic strength and visual sensitivity.
+The renderer runs on Modal. You don't run it locally — deploy it once and the backend invokes it remotely:
 
-Library Management: Basic UI to store and access previously processed tracks.
+```sh
+cd soundseen-renderer
+modal deploy modal_app.py
+```
 
-Should-Have & Nice-to-Have (P1/P2)
-P1 - Live Microphone Input: Real-time "transcription" of ambient music (concerts, clubs).
+## Required configuration
 
-P2 - Streaming Integration: Synchronizing visuals/haptics with external apps like Spotify/Apple Music.
+**Supabase**: create the `songs` and `render_jobs` tables, enable Row Level
+Security with public-read policies, and turn on Email + Google auth
+providers. The exact SQL lives in
+[`docs/supabase-schema.sql`](docs/supabase-schema.sql) (TODO: extract).
 
-## Technologies
-Frontend: Swift / SwiftUI
+**Railway env**: `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_JWT_SECRET`,
+`MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`, plus optional
+`CORS_ORIGINS` to allow your Vercel domain.
 
-Audio Engine: AVAudioEngine & Accelerate Framework (vDSP) for high-performance, real-time FFT.
+**Vercel env**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+`NEXT_PUBLIC_BACKEND_URL` (the Railway URL).
 
-Haptics: Core Haptics API (creating .ahap haptic patterns).
+## Authors
 
-AI/Inference: Core ML (on-device emotion and structural classification).
-
-Database: SwiftData (local persistence for settings and metadata).
-
-## Deliverables
-Functional iOS App: A production-ready build distributed via TestFlight.
-
-Core Haptic Library: A curated set of custom .ahap files representing different musical "textures" (e.g., sharp percussion vs. smooth bass).
-
-Real-time DSP Engine: A standalone Swift module that processes 20ms audio buffers into sensation parameters.
-
-## Out of Scope
-Social Ecosystem: No followers, following lists, or social feeds/comments.
-
-Cross-Platform: No Android support (MVP is optimized for Apple’s Taptic Engine).
-
-External Hardware: No support for wearable haptic vests or Bluetooth-connected haptic devices.
-
-Video Export: No feature to record and export the visualizations as video files.
+Team BENEV: Benson Vo, Vincent Liu, Edward Lee, Nicole Zhou, Evan Chang.
