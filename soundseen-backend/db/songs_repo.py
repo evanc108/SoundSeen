@@ -6,6 +6,7 @@ nested-resource syntax for a filter-by-spec_version + status case.
 """
 
 import logging
+from typing import Optional
 
 from db.supabase_client import get_client
 from pipeline.composition import SPEC_VERSION
@@ -23,7 +24,7 @@ _SONGS_COLUMNS = (
 )
 
 
-def _shape_song_row(song: dict, job: dict | None) -> dict:
+def _shape_song_row(song: dict, job: Optional[dict]) -> dict:
     return {
         "song_id": song["id"],
         "filename": song.get("filename"),

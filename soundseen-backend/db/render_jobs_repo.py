@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from datetime import datetime, timezone
 
 from db.supabase_client import get_client
@@ -19,9 +20,9 @@ async def insert_job(
     status: str,
     spec_version: int,
     preset: str = "default",
-    max_seconds: float | None = None,
-    video_url: str | None = None,
-    error: str | None = None,
+    max_seconds: Optional[float] = None,
+    video_url: Optional[str] = None,
+    error: Optional[str] = None,
 ) -> None:
     """Insert a fresh render job row. Upserts on job_id so the cached
     fast-path can re-synthesize a row without conflicting on a re-poll."""
@@ -79,7 +80,7 @@ async def mark_failed(job_id: str, error: str) -> None:
         logger.exception("Failed to mark render_job %s failed", job_id)
 
 
-async def get_job(job_id: str) -> dict | None:
+async def get_job(job_id: str) -> Optional[dict]:
     client = get_client()
     try:
         result = (
@@ -114,7 +115,7 @@ async def get_jobs_for_songs(song_ids: list[str]) -> list[dict]:
         return []
 
 
-async def latest_complete_for_song(song_id: str, spec_version: int) -> dict | None:
+async def latest_complete_for_song(song_id: str, spec_version: int) -> Optional[dict]:
     """Find the most recent completed render for this (song, spec_version)
     so a returning client resumes the same row instead of seeing a fresh
     cached-* sentinel each launch."""

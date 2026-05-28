@@ -1,4 +1,5 @@
 import asyncio
+from typing import Optional
 import gc
 import logging
 import time
@@ -13,7 +14,7 @@ from fastapi import Depends, FastAPI, File, HTTPException, Header, Request, Uplo
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from auth import current_user_id
+from auth import current_user_id, optional_user_id
 from config import settings
 from db import render_jobs_repo, songs_repo, supabase_client
 from pipeline.composition import SPEC_VERSION, build_composition_spec
@@ -275,7 +276,7 @@ def _run_chunk(file_bytes: bytes, suffix: str) -> tuple[float, float]:
 @app.post("/analyze_chunk", response_model=ChunkEmotion)
 async def analyze_chunk_route(
     request: Request,
-    x_client_id: str | None = Header(default=None),
+    x_client_id: Optional[str] = Header(default=None),
 ):
     body = await request.body()
     if not body:
@@ -427,8 +428,8 @@ class RenderJobStatus(BaseModel):
     song_id: str
     status: str          # queued | rendering | complete | failed | unavailable
     progress: float = 0.0
-    video_url: str | None = None
-    error: str | None = None
+    video_url: Optional[str] = None
+    error: Optional[str] = None
 
 
 def _modal_render_function():
@@ -495,7 +496,7 @@ async def _auto_kickoff_render(song_id: str, analysis_payload: dict) -> None:
 async def start_render(
     song_id: str,
     preset: str = "default",
-    max_seconds: float | None = None,
+    max_seconds: Optional[float] = None,
 ):
     """Kick off an MP4 render. Returns a job_id immediately; caller
     polls GET /render/:job_id for status.

@@ -6,6 +6,7 @@ take priority for more accurate classification.
 """
 
 import logging
+from typing import Optional
 from pathlib import Path
 
 import numpy as np
@@ -23,7 +24,7 @@ MOOD_MODELS = [
     "mood_electronic",
 ]
 
-_loaded_models: dict | None = None
+_loaded_models: Optional[dict] = None
 
 # Major and minor chroma profiles for mode detection
 # Krumhansl-Kessler key profiles
@@ -263,7 +264,7 @@ def analyze_emotion(
     y: np.ndarray,
     sr: int,
     duration: float,
-    spectral: dict | None = None,
+    spectral: Optional[dict] = None,
 ) -> list[dict]:
     """Run emotion classification. Returns per-segment valence/arousal.
 

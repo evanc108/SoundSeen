@@ -13,6 +13,7 @@ call costs one local signature check, not an HTTP hop.
 """
 
 import logging
+from typing import Optional
 
 import jwt
 from fastapi import Header, HTTPException
@@ -21,7 +22,7 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-_jwks_client: jwt.PyJWKClient | None = None
+_jwks_client: Optional[jwt.PyJWKClient] = None
 
 
 def _jwks() -> jwt.PyJWKClient:
@@ -85,7 +86,7 @@ def _decode(token: str) -> dict:
 
 
 async def current_user_id(
-    authorization: str | None = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
 ) -> str:
     """Required-auth dep. Returns the Supabase user uuid (jwt.sub) or 401."""
     if not authorization or not authorization.startswith("Bearer "):
@@ -98,8 +99,8 @@ async def current_user_id(
 
 
 async def optional_user_id(
-    authorization: str | None = Header(default=None),
-) -> str | None:
+    authorization: Optional[str] = Header(default=None),
+) -> Optional[str]:
     """Optional-auth dep. Returns user uuid or None. Never 401s."""
     if not authorization or not authorization.startswith("Bearer "):
         return None

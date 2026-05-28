@@ -1,4 +1,6 @@
+import re
 import logging
+from typing import Optional
 
 from supabase import create_client, Client
 
@@ -6,7 +8,7 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
-_client: Client | None = None
+_client: Optional[Client] = None
 
 
 def get_client() -> Client:
@@ -21,7 +23,7 @@ async def insert_song(
     filename: str,
     storage_path: str,
     analysis: dict,
-    user_id: str | None = None,
+    user_id: Optional[str] = None,
 ):
     client = get_client()
     row = {
@@ -39,13 +41,13 @@ async def insert_song(
         raise
 
 
-async def fetch_song(song_id: str) -> dict | None:
+async def fetch_song(song_id: str) -> Optional[dict]:
     client = get_client()
     result = client.table("songs").select("analysis").eq("id", song_id).single().execute()
     return result.data["analysis"] if result.data else None
 
 
-async def fetch_song_owner(song_id: str) -> tuple[str | None, str | None] | None:
+async def fetch_song_owner(song_id: str) -> Optional[tuple]:
     """Return (user_id, storage_path) for a song, or None if it doesn't
     exist. Used by DELETE /song/{id} to authorize the caller and clean
     up the associated audio file."""
@@ -65,7 +67,7 @@ async def fetch_song_owner(song_id: str) -> tuple[str | None, str | None] | None
     return result.data.get("user_id"), result.data.get("storage_path")
 
 
-async def delete_song(song_id: str, storage_path: str | None) -> None:
+async def delete_song(song_id: str, storage_path: Optional[str]) -> None:
     """Delete the song row + its stored audio + every rendered video.
     render_jobs rows cascade via the FK; storage objects we delete
     explicitly because Supabase Storage doesn't cascade on table deletes."""
@@ -96,7 +98,13 @@ async def delete_song(song_id: str, storage_path: str | None) -> None:
 
 async def upload_audio(song_id: str, filename: str, file_bytes: bytes, content_type: str) -> str:
     client = get_client()
-    path = f"{song_id}/{filename}"
+    # Supabase Storage rejects keys with brackets, double dashes, etc.
+    # Keep the extension; sanitize everything else.
+    name, _, ext = filename.rpartition(".")
+    safe_name = re.sub(r"[^A-Za-z0-9._\- ]", "_", name).strip()
+    safe_name = re.sub(r"_{2,}", "_", safe_name)
+    safe_filename = f"{safe_name}.{ext}" if ext else safe_name
+    path = f"{song_id}/{safe_filename}"
     try:
         client.storage.from_("audio-uploads").upload(path, file_bytes, {"content-type": content_type})
     except Exception:
@@ -146,7 +154,7 @@ async def upload_video(song_id: str, spec_version: int, mp4_bytes: bytes) -> str
     return client.storage.from_(_VIDEO_BUCKET).get_public_url(path)
 
 
-async def get_video_url(song_id: str, spec_version: int) -> str | None:
+async def get_video_url(song_id: str, spec_version: int) -> Optional[str]:
     """Return the public URL for a previously-rendered video, or None
     if no render exists yet for this (song, spec_version) pair."""
     client = get_client()

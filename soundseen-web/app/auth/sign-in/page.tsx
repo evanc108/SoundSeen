@@ -69,7 +69,7 @@ function SignInForm() {
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@domain.com"
+              placeholder="your@email.com"
               className="mt-2 block w-full rounded-2xl border border-[var(--color-hairline-2)] bg-[var(--color-bg-2)] px-4 py-3 text-[14px] text-[var(--color-text)] placeholder:text-[var(--color-text-3)] outline-none transition focus:border-white/30"
             />
           </label>
