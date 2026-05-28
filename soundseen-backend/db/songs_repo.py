@@ -57,7 +57,7 @@ async def gallery(limit: int = 24, offset: int = 0) -> list[dict]:
         logger.exception("Failed to fetch gallery songs")
         return []
 
-    return await _hydrate_with_jobs(songs, limit=limit, require_complete=True)
+    return await _hydrate_with_jobs(songs, limit=limit, require_complete=False)
 
 
 async def list_for_user(
