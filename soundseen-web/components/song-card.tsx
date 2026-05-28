@@ -120,20 +120,23 @@ function PendingFrame({
   ready?: boolean;
 }) {
   const inFlight = status === "queued" || status === "rendering";
+  const showLabel = inFlight;
   return (
     <div className="relative flex h-full w-full items-center justify-center bg-[radial-gradient(ellipse_at_center,_rgba(255,255,255,0.04),_transparent_70%)]">
       {(inFlight || ready) && (
         <div className="absolute inset-0 shimmer opacity-50" />
       )}
-      <span className="z-10 font-mono text-[10px] uppercase tracking-[0.35em] text-[var(--color-text-3)]">
-        {ready ? "" : STATUS_LABEL[status ?? ""] ?? "Pending"}
-      </span>
+      {showLabel && (
+        <span className="z-10 font-mono text-[10px] uppercase tracking-[0.35em] text-[var(--color-text-3)]">
+          {STATUS_LABEL[status ?? ""] ?? "Pending"}
+        </span>
+      )}
     </div>
   );
 }
 
 function StatusPip({ status }: { status: string | null }) {
-  if (!status) return null;
+  if (!status || status === "failed" || status === "unavailable") return null;
   const isInFlight = status === "queued" || status === "rendering";
   const dotClass = [
     "block h-1.5 w-1.5 rounded-full",

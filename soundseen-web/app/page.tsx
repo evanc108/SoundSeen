@@ -12,8 +12,10 @@ export default async function HomePage() {
   } catch {
     recent = [];
   }
-  const [featured, ...rest] = recent;
-  const gridSongs = rest.slice(0, 8);
+  const featuredId = "f481db4a-ff21-4c7f-adc9-e85cd3827170";
+  const featuredIdx = recent.findIndex((s) => s.songId === featuredId);
+  const featured = featuredIdx >= 0 ? recent.splice(featuredIdx, 1)[0] : recent.shift();
+  const gridSongs = recent.slice(0, 8);
   const marqueeItems = recent
     .map((s) => marqueeLabel(s.filename))
     .filter((s): s is string => !!s);

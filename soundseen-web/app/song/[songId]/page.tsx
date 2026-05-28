@@ -132,7 +132,7 @@ const STATUS_LABEL: Record<string, string> = {
   queued: "Queued",
   rendering: "Rendering",
   complete: "Ready",
-  failed: "Failed",
+  failed: "Pending",
   unavailable: "Offline",
 };
 
@@ -143,42 +143,25 @@ function InFlightFrame({
   status: string | null;
   message: string | null;
 }) {
-  const label = status ? STATUS_LABEL[status] ?? status : "Pending";
   const inFlight = status === "queued" || status === "rendering";
-  const failed = status === "failed";
   return (
     <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden">
       {inFlight && <div className="absolute inset-0 shimmer opacity-50" />}
-      <div className="relative z-10 flex flex-col items-center gap-4 text-center">
-        <span className="relative h-3 w-3">
-          {inFlight ? (
-            <>
-              <span className="absolute inset-0 rounded-full bg-white/25" />
-              <span className="absolute inset-[2px] rounded-full bg-white breathe" />
-            </>
-          ) : (
-            <span
-              className={`block h-full w-full rounded-full ${
-                failed ? "bg-red-400/80" : "bg-[var(--color-text-3)]"
-              }`}
-            />
-          )}
-        </span>
-        <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-text-2)]">
-          {label}
-        </p>
-        {inFlight && (
+      {inFlight && (
+        <div className="relative z-10 flex flex-col items-center gap-4 text-center">
+          <span className="relative h-3 w-3">
+            <span className="absolute inset-0 rounded-full bg-white/25" />
+            <span className="absolute inset-[2px] rounded-full bg-white breathe" />
+          </span>
+          <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-[var(--color-text-2)]">
+            {STATUS_LABEL[status] ?? "Rendering"}
+          </p>
           <p className="max-w-[36ch] text-[13px] text-[var(--color-text-3)]">
             Rendering on a GPU. This page refreshes automatically when it’s
             ready.
           </p>
-        )}
-        {failed && message && (
-          <p className="max-w-[40ch] font-mono text-[11px] text-red-200/70">
-            {message}
-          </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
