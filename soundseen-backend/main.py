@@ -496,7 +496,7 @@ async def _auto_kickoff_render(song_id: str, analysis_payload: dict) -> None:
 async def start_render(
     song_id: str,
     preset: str = "default",
-    max_seconds: Optional[float] = None,
+    max_seconds: Optional[float] = 90.0,
 ):
     """Kick off an MP4 render. Returns a job_id immediately; caller
     polls GET /render/:job_id for status.
