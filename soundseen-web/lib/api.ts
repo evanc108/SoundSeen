@@ -114,11 +114,14 @@ export const api = {
 
   /** Upload an mp3/wav/m4a. Returns the parsed SongAnalysis; the backend
    *  fires the Modal render asynchronously, so the caller should poll
-   *  /jobs?song_ids=... to track render progress. */
-  analyze: async (file: File, token: string) => {
+   *  /jobs?song_ids=... to track render progress.
+   *  `startSeconds` tells the renderer where in the track to begin the
+   *  90-second clip (0 = from the start). */
+  analyze: async (file: File, token: string, startSeconds = 0) => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(`${baseURL}/analyze`, {
+    const url = `${baseURL}/analyze${startSeconds > 0 ? `?start_seconds=${startSeconds}` : ""}`;
+    const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       body: form,

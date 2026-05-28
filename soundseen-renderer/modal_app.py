@@ -73,12 +73,16 @@ def render_song(
     audio_bytes: bytes,
     audio_extension: str = ".mp3",
     max_seconds: Optional[float] = None,
+    start_seconds: float = 0.0,
 ) -> bytes:
     """Render a song's CompositionSpec to MP4. Returns the MP4 bytes.
 
     The caller (Railway backend) is responsible for fetching `audio_bytes`
     and `spec_json` from Supabase before invoking. The renderer only
     handles GPU work — keeps Modal's job ephemeral.
+
+    `start_seconds` trims the audio before rendering so the clip begins at
+    the chosen preview offset (e.g. user picked the chorus at 1:10).
     """
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -88,6 +92,25 @@ def render_song(
 
         spec_path.write_text(spec_json)
         audio_path.write_bytes(audio_bytes)
+
+        # If the user selected a clip offset, trim the audio with ffmpeg so
+        # the renderer always starts from position 0 internally.
+        if start_seconds > 0:
+            trimmed_path = tmp_path / f"trimmed{audio_extension}"
+            trim_args = [
+                "ffmpeg", "-y",
+                "-ss", str(start_seconds),
+                "-i", str(audio_path),
+            ]
+            if max_seconds is not None:
+                trim_args += ["-t", str(max_seconds)]
+            trim_args += ["-c", "copy", str(trimmed_path)]
+            trim_proc = subprocess.run(trim_args, capture_output=True, text=True)
+            if trim_proc.returncode != 0:
+                raise RuntimeError(f"ffmpeg trim failed: {trim_proc.stderr}")
+            audio_path = trimmed_path
+            # Already trimmed to max_seconds length — don't double-cap
+            max_seconds = None
 
         cmd = [
             "node",

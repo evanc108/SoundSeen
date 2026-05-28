@@ -203,6 +203,7 @@ async def health():
 async def analyze(
     file: UploadFile = File(...),
     user_id: str = Depends(current_user_id),
+    start_seconds: float = 0.0,
 ):
     filename = file.filename or "upload.wav"
     ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -264,7 +265,7 @@ async def analyze(
         raise HTTPException(status_code=500, detail="Failed to persist analysis results")
 
     logger.info("Song %s analyzed in %.1fs", song_id, processing_time)
-    asyncio.create_task(_auto_kickoff_render(song_id, analysis.model_dump()))
+    asyncio.create_task(_auto_kickoff_render(song_id, analysis.model_dump(), start_seconds=start_seconds))
     return analysis
 
 
@@ -454,7 +455,7 @@ def _modal_render_function():
 _AUTO_RENDER_MAX_SECONDS = 60.0
 
 
-async def _auto_kickoff_render(song_id: str, analysis_payload: dict) -> None:
+async def _auto_kickoff_render(song_id: str, analysis_payload: dict, start_seconds: float = 0.0) -> None:
     """Best-effort detached task. Spawns Modal render right after a
     successful /analyze, persists the resulting job_id. Failures log and
     swallow so the /analyze response is never affected."""
@@ -481,13 +482,14 @@ async def _auto_kickoff_render(song_id: str, analysis_payload: dict) -> None:
             audio_bytes=audio_bytes,
             audio_extension=audio_ext,
             max_seconds=_AUTO_RENDER_MAX_SECONDS,
+            start_seconds=start_seconds,
         )
         await render_jobs_repo.insert_job(
             job_id=call.object_id, song_id=song_id, status="queued",
             spec_version=SPEC_VERSION, preset="default",
             max_seconds=_AUTO_RENDER_MAX_SECONDS,
         )
-        logger.info("Auto-spawned render %s for song %s", call.object_id, song_id)
+        logger.info("Auto-spawned render %s for song %s (start=%.1fs)", call.object_id, song_id, start_seconds)
     except Exception:
         logger.exception("Auto-render kickoff failed for %s", song_id)
 
