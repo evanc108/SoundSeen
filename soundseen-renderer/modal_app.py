@@ -15,6 +15,7 @@ as a synchronous job in Phase 3, can be promoted to a queue later.
 """
 
 import os
+from typing import Optional
 import shlex
 import subprocess
 import tempfile
@@ -71,7 +72,7 @@ def render_song(
     spec_json: str,
     audio_bytes: bytes,
     audio_extension: str = ".mp3",
-    max_seconds: float | None = None,
+    max_seconds: Optional[float] = None,
 ) -> bytes:
     """Render a song's CompositionSpec to MP4. Returns the MP4 bytes.
 
