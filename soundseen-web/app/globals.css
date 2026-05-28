@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0a0a0b;
-  --bg-2: #0f0f10;
-  --surface: #141416;
-  --surface-2: #1a1a1d;
-  --hairline: rgba(255, 255, 255, 0.06);
-  --hairline-2: rgba(255, 255, 255, 0.10);
-  --text: #f4f4f5;
-  --text-2: #a1a1aa;
-  --text-3: #71717a;
-  --signal: #cdd6c4; /* one desaturated mint, used only as a status tone */
+  --bg: #1c1c1e;
+  --bg-2: #232325;
+  --surface: #2c2c2e;
+  --surface-2: #3a3a3c;
+  --hairline: rgba(255, 255, 255, 0.10);
+  --hairline-2: rgba(255, 255, 255, 0.16);
+  --text: #f2f2f3;
+  --text-2: #9d9da6;
+  --text-3: #6b6b75;
+  --signal: #b8c4b0; /* desaturated mint, used only as a status tone */
 }
 
 @theme inline {
