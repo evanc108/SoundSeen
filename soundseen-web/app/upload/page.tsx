@@ -233,32 +233,44 @@ function PreviewSelector({
   const trackRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
+  // Audio playback refs
+  const audioBufRef = useRef<AudioBuffer | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const playStartCtxTimeRef = useRef<number>(0);
+  const rafRef = useRef<number>(0);
+
+  const [playing, setPlaying] = useState(false);
+  const [playheadFrac, setPlayheadFrac] = useState<number | null>(null); // 0–1 within window
+
   const windowFrac = PREVIEW_DURATION / duration;
   const maxStart = duration - PREVIEW_DURATION;
   const leftFrac = startSeconds / duration;
+  const endSeconds = Math.min(startSeconds + PREVIEW_DURATION, duration);
 
-  // Draw waveform
+  // Decode audio once, draw waveform, keep buffer for playback
   useEffect(() => {
     let cancelled = false;
-    async function draw() {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
+    async function init() {
       const ab = await file.arrayBuffer();
       if (cancelled) return;
-      const audioCtx = new (window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!)();
-      const buf = await audioCtx.decodeAudioData(ab);
-      await audioCtx.close();
-      if (cancelled) return;
+      const ctx = new (window.AudioContext || (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext!)();
+      const buf = await ctx.decodeAudioData(ab.slice(0));
+      if (cancelled) { await ctx.close(); return; }
 
+      audioBufRef.current = buf;
+      audioCtxRef.current = ctx;
+
+      // Draw waveform
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const c = canvas.getContext("2d");
+      if (!c) return;
       const data = buf.getChannelData(0);
       const W = canvas.width;
       const H = canvas.height;
       const samplesPerBar = Math.floor(data.length / W);
-
-      ctx.clearRect(0, 0, W, H);
+      c.clearRect(0, 0, W, H);
       for (let i = 0; i < W; i++) {
         let max = 0;
         for (let j = 0; j < samplesPerBar; j++) {
@@ -266,13 +278,57 @@ function PreviewSelector({
           if (v > max) max = v;
         }
         const barH = Math.max(2, max * H * 0.9);
-        ctx.fillStyle = "rgba(255,255,255,0.18)";
-        ctx.fillRect(i, (H - barH) / 2, 1, barH);
+        c.fillStyle = "rgba(255,255,255,0.18)";
+        c.fillRect(i, (H - barH) / 2, 1, barH);
       }
     }
-    void draw();
-    return () => { cancelled = true; };
+    void init();
+    return () => {
+      cancelled = true;
+      stopPlayback();
+      audioCtxRef.current?.close();
+      audioCtxRef.current = null;
+      audioBufRef.current = null;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
+
+  function stopPlayback() {
+    cancelAnimationFrame(rafRef.current);
+    try { sourceRef.current?.stop(); } catch { /* already stopped */ }
+    sourceRef.current = null;
+    setPlaying(false);
+    setPlayheadFrac(null);
+  }
+
+  function togglePlay() {
+    if (playing) { stopPlayback(); return; }
+    const buf = audioBufRef.current;
+    const ctx = audioCtxRef.current;
+    if (!buf || !ctx) return;
+
+    // Resume AudioContext if suspended (browser autoplay policy)
+    if (ctx.state === "suspended") ctx.resume();
+
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    const clipDuration = Math.min(PREVIEW_DURATION, duration - startSeconds);
+    src.start(0, startSeconds, clipDuration);
+    src.onended = () => { setPlaying(false); setPlayheadFrac(null); };
+    sourceRef.current = src;
+    playStartCtxTimeRef.current = ctx.currentTime;
+    setPlaying(true);
+    setPlayheadFrac(0);
+
+    function tick() {
+      const elapsed = (audioCtxRef.current?.currentTime ?? 0) - playStartCtxTimeRef.current;
+      const frac = Math.min(1, elapsed / clipDuration);
+      setPlayheadFrac(frac);
+      if (frac < 1) rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+  }
 
   const posFromEvent = useCallback((clientX: number) => {
     const track = trackRef.current;
@@ -283,6 +339,7 @@ function PreviewSelector({
   }, [duration, onChange, windowFrac]);
 
   const onMouseDown = (e: React.MouseEvent) => {
+    stopPlayback();
     dragging.current = true;
     posFromEvent(e.clientX);
     const onMove = (ev: MouseEvent) => { if (dragging.current) posFromEvent(ev.clientX); };
@@ -292,14 +349,13 @@ function PreviewSelector({
   };
 
   const onTouchStart = (e: React.TouchEvent) => {
+    stopPlayback();
     posFromEvent(e.touches[0].clientX);
     const onMove = (ev: TouchEvent) => posFromEvent(ev.touches[0].clientX);
     const onEnd = () => { window.removeEventListener("touchmove", onMove); window.removeEventListener("touchend", onEnd); };
     window.addEventListener("touchmove", onMove);
     window.addEventListener("touchend", onEnd);
   };
-
-  const endSeconds = Math.min(startSeconds + PREVIEW_DURATION, duration);
 
   return (
     <div className="overflow-hidden rounded-3xl border border-[var(--color-hairline)] bg-[var(--color-surface)]">
@@ -330,66 +386,90 @@ function PreviewSelector({
             className="absolute inset-0 w-full h-full"
           />
           {/* Dimmed sides */}
-          <div
-            className="absolute inset-y-0 left-0 bg-black/50 pointer-events-none"
-            style={{ width: `${leftFrac * 100}%` }}
-          />
-          <div
-            className="absolute inset-y-0 right-0 bg-black/50 pointer-events-none"
-            style={{ width: `${(1 - leftFrac - windowFrac) * 100}%` }}
-          />
+          <div className="absolute inset-y-0 left-0 bg-black/50 pointer-events-none" style={{ width: `${leftFrac * 100}%` }} />
+          <div className="absolute inset-y-0 right-0 bg-black/50 pointer-events-none" style={{ width: `${(1 - leftFrac - windowFrac) * 100}%` }} />
+
           {/* Selection window */}
           <div
             className="absolute inset-y-0 pointer-events-none border-2 border-white/80 rounded-lg"
             style={{ left: `${leftFrac * 100}%`, width: `${windowFrac * 100}%` }}
           >
-            {/* Drag handle indicator */}
-            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center justify-center gap-0.5 opacity-60">
-              <span className="w-px h-5 bg-white rounded-full" />
-              <span className="w-px h-5 bg-white rounded-full" />
-              <span className="w-px h-5 bg-white rounded-full" />
+            {/* Playhead */}
+            {playheadFrac !== null && (
+              <div
+                className="absolute inset-y-0 w-px bg-white/90 pointer-events-none"
+                style={{ left: `${playheadFrac * 100}%` }}
+              />
+            )}
+            {/* Drag handle dots — hidden while playing */}
+            {playheadFrac === null && (
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center justify-center gap-0.5 opacity-60">
+                <span className="w-px h-5 bg-white rounded-full" />
+                <span className="w-px h-5 bg-white rounded-full" />
+                <span className="w-px h-5 bg-white rounded-full" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Time row with play button in the middle */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-mono text-[11px] text-[var(--color-text-3)] w-10 shrink-0">{fmt(0)}</span>
+
+          <div className="flex flex-1 items-center justify-center gap-4">
+            {/* Play / Pause button */}
+            <button
+              onClick={togglePlay}
+              className="tactile flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--color-hairline-2)] bg-[var(--color-surface-2)] hover:bg-[var(--color-bg-2)] text-[var(--color-text)]"
+              title={playing ? "Pause" : "Preview clip"}
+            >
+              {playing ? (
+                /* Pause icon */
+                <svg aria-hidden viewBox="0 0 14 14" width="12" height="12" fill="currentColor">
+                  <rect x="2.5" y="2" width="3" height="10" rx="1" />
+                  <rect x="8.5" y="2" width="3" height="10" rx="1" />
+                </svg>
+              ) : (
+                /* Play icon */
+                <svg aria-hidden viewBox="0 0 14 14" width="12" height="12" fill="currentColor">
+                  <path d="M3.5 2.5l8 4.5-8 4.5V2.5z" />
+                </svg>
+              )}
+            </button>
+
+            <div className="text-center">
+              <p className="font-mono text-[13px] font-medium text-[var(--color-text)]">
+                {fmt(startSeconds)} — {fmt(endSeconds)}
+              </p>
+              <p className="font-mono text-[10px] text-[var(--color-text-3)] mt-0.5">
+                {playing ? "Playing preview…" : "Drag to reposition · 90 s clip"}
+              </p>
             </div>
           </div>
+
+          <span className="font-mono text-[11px] text-[var(--color-text-3)] w-10 shrink-0 text-right">{fmt(duration)}</span>
         </div>
 
-        {/* Time labels */}
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[11px] text-[var(--color-text-3)]">
-            {fmt(0)}
-          </span>
-          <div className="text-center">
-            <p className="font-mono text-[13px] font-medium text-[var(--color-text)]">
-              {fmt(startSeconds)} — {fmt(endSeconds)}
-            </p>
-            <p className="font-mono text-[10px] text-[var(--color-text-3)] mt-0.5">
-              Drag to reposition · 90 s clip
-            </p>
-          </div>
-          <span className="font-mono text-[11px] text-[var(--color-text-3)]">
-            {fmt(duration)}
-          </span>
-        </div>
-
-        {/* Range slider fallback for fine control */}
+        {/* Range slider for fine control */}
         <input
           type="range"
           min={0}
           max={Math.round(maxStart)}
           value={Math.round(startSeconds)}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => { stopPlayback(); onChange(Number(e.target.value)); }}
           className="w-full accent-white h-px appearance-none bg-[var(--color-hairline-2)] cursor-pointer"
         />
       </div>
 
       <div className="flex items-center justify-between px-8 pb-8 gap-4">
         <button
-          onClick={onBack}
+          onClick={() => { stopPlayback(); onBack(); }}
           className="tactile inline-flex h-10 items-center rounded-full border border-[var(--color-hairline-2)] px-4 text-[13px] text-[var(--color-text-2)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface-2)]"
         >
           Choose different file
         </button>
         <button
-          onClick={onConfirm}
+          onClick={() => { stopPlayback(); onConfirm(); }}
           className="tactile inline-flex h-10 items-center gap-2 rounded-full bg-white px-5 text-[13px] font-medium text-black"
         >
           Render this clip
